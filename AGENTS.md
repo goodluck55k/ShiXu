@@ -14,6 +14,7 @@
 
 - 单仓库：Next.js App Router、React、TypeScript、Tailwind CSS；React + SVG 原创全身白色小人；TypeScript 纯函数规则引擎。
 - 大模型仅在 Next.js 服务端 API 中调用，仅识别情绪。AI 输出是数据，不是操作命令。
+- 用户输入本身就是日记，正文原样保存且无产品人为字数上限；不得 AI 生成或改写。首选 TypeSafe Jev Provider，仅按 [AI_CONTRACT](docs/AI_CONTRACT.md) 转换结构化判断；模型输入超限不阻止手选保存完整正文。
 - AI 不得决定角色动作，或隐藏/删除/解锁物品、增减经验、修改成长阶段和存档，不得获得状态修改工具。
 - 全部状态变化经确定性规则引擎；渲染组件不修改存档，存储适配器不决定奖励。模型原始输出不得直接展开合入状态。
 - API Key 仅存服务端环境变量，禁止 NEXT_PUBLIC_ 前缀、浏览器存储、客户端源码、日志和提交。没有 Key 时主流程仍能用手动情绪完成。
