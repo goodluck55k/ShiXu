@@ -10,9 +10,8 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { createManualEmotion } from "@/domain/emotions";
 import { applyGameEvent, createInitialSnapshot } from "@/domain/rules";
-import type { EmotionReading, Snapshot } from "@/domain/types";
+import type { Analysis, AnalysisMeta, EmotionReading, Snapshot } from "@/domain/types";
 import {
   createLocalStorageAdapter,
   SNAPSHOT_STORAGE_KEY,
@@ -32,6 +31,8 @@ interface PendingConfirm {
   dayKey: string;
   text: string;
   emotion: EmotionReading;
+  analysis: Analysis | null;
+  analysisMeta: AnalysisMeta | null;
   candidate: Snapshot;
   expectedRevision: number;
 }
@@ -129,7 +130,14 @@ function reducer(state: AppState, action: Action): AppState {
 
 interface AppContextValue {
   state: AppState;
-  confirmEntry: (text: string, emotion: EmotionReading) => Promise<boolean>;
+  // emotion 携带调用方确认的真实 source/confidence；analysis/analysisMeta 为规范化 AI 建议，
+  // 手选传 null。P2 接入 AI 时由调用方传入 source=ai/corrected 与建议，不在此重写为 manual。
+  confirmEntry: (
+    text: string,
+    emotion: EmotionReading,
+    analysis?: Analysis | null,
+    analysisMeta?: AnalysisMeta | null,
+  ) => Promise<boolean>;
   retrySave: () => Promise<boolean>;
   invalidatePending: () => void;
   reload: () => Promise<void>;
@@ -203,7 +211,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const confirmEntry = useCallback(
-    async (text: string, emotion: EmotionReading): Promise<boolean> => {
+    async (
+      text: string,
+      emotion: EmotionReading,
+      analysis: Analysis | null = null,
+      analysisMeta: AnalysisMeta | null = null,
+    ): Promise<boolean> => {
       if (
         state.phase !== "ready" ||
         !state.snapshot ||
@@ -215,7 +228,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
       let pending = state.pending;
       // 同一逻辑操作重试必须复用冻结的 eventId/entryId/now/dayKey，跨午夜不重新归日
-      if (!pending || pending.text !== text || !sameEmotion(pending.emotion, emotion)) {
+      if (
+        !pending ||
+        pending.text !== text ||
+        !sameEmotion(pending.emotion, emotion) ||
+        pending.emotion.source !== emotion.source ||
+        pending.emotion.confidence !== emotion.confidence ||
+        pending.analysis !== analysis ||
+        pending.analysisMeta !== analysisMeta
+      ) {
         const now = Date.now();
         const dayKey = localDayKey(now);
         const eventId = createId("evt");
@@ -227,14 +248,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
             eventId,
             entryId,
             text,
-            emotion: createManualEmotion(emotion.label, {
-              valence: emotion.valence,
-              arousal: emotion.arousal,
-              dominance: emotion.dominance,
-              intensity: emotion.intensity,
-            }),
-            analysis: null,
-            analysisMeta: null,
+            emotion,
+            analysis,
+            analysisMeta,
           },
           { now, dayKey },
         );
@@ -246,6 +262,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
           dayKey,
           text,
           emotion,
+          analysis,
+          analysisMeta,
           candidate: result.snapshot,
           expectedRevision: state.snapshot.revision,
         };
