@@ -40,7 +40,7 @@
 
 ## 5. 指南分支的特殊范围
 
-`docs/development-guide` 只维护本规范和 docs 下指南，不创建产品代码，不直接修改 main，不自行合并 PR。未来产品实现走 [ROADMAP](docs/ROADMAP.md) 的独立功能分支。
+`docs/development-guide` 是初始指南分支；后续独立指南修订允许使用对应的 `docs/*` 分支。任何任务先检查已有同任务分支与 PR，存在则复用。文档分支只维护本规范和 docs 下指南，不混入产品功能代码，不直接修改 main，未经用户明确授权不自行合并 PR；PR 均以 main 为目标。前置合并完成后同步最新 main，再进入下一个依赖阶段。未来产品实现走 [ROADMAP](docs/ROADMAP.md) 的独立功能分支。
 
 ## 6. 文档入口与事实来源
 

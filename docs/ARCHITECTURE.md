@@ -29,9 +29,9 @@ flowchart TD
   S --> L["本地存储适配器"]
 ```
 
-直接手选绕过 API；任何识别响应均不能跳过确认进入规则。AI 调用不接收角色状态，不持有写入工具。应用服务生成 id、now、dayKey，再显式传给规则；规则内部不访问网络、localStorage、Date.now 或 Math.random。
+直接手选绕过 API；任何识别响应均不能跳过确认进入规则。AI 调用不接收角色状态，不持有写入工具。应用服务生成 id、now、dayKey，再显式传给规则；规则内部不访问网络、localStorage、Date.now 或 Math.random。首次确认提交时应用服务生成并冻结该次操作的 now、dayKey（连同 eventId、entryId）；同一次逻辑操作保存失败后重试必须复用原有 eventId、entryId 与冻结的时间上下文，跨午夜重试不重新归日，新建另一条记录才使用新的时间上下文。
 
-一次确认：校验输入 → 基于当前 snapshot 计算新 snapshot → 存储成功 → 更新 React 状态与成功提示。保存失败保留草稿和旧 snapshot，可重试；不显示已保存。动作播放是提交结果的表现，不再次触发奖励。请求和确认串行处理，防双击；同一 entryId 重试幂等。
+一次确认：校验输入 → 基于当前 snapshot 计算新 snapshot → 存储成功 → 更新 React 状态与成功提示。保存失败保留草稿、不改变旧 snapshot、不提前结算经验，可复用冻结的 eventId/entryId/时间上下文重试；不显示已保存。动作播放是提交结果的表现，不再次触发奖励。请求和确认串行处理，防双击；同一 entryId 重试幂等。
 
 日记 text 无产品人为字数上限，只校验非空白而不修改正文；存储、历史展示和编辑均保留完整原文，正文按纯文本保留空白显示（如 white-space: pre-wrap）。AI 输入超限独立降级为手选，不截断日记。正文编辑走 EDIT_ENTRY_TEXT，不自动重识别或改变心情；主动重识别/手选经确认后才走 CORRECT_EMOTION。API 的 inputRevision 是草稿/选择版本，与存档 Entry.revision 区分；正文或手选改变、切换记录、保存/取消时使旧请求失效，详见 AI 契约。
 
@@ -61,13 +61,15 @@ flowchart TD
 | Entry | id、text（完整原文）、createdAt、updatedAt、dayKey、revision（初始 0）、originalAnalysis（可空的规范化建议）、analysisMeta（可空）、effectiveEmotion、corrections、awardedXp、rulesVersion；存在于 entries 即已确认保存，草稿只在应用层 |
 | CharacterState | totalXp、stage、latestEntryId、currentEmotion；经验/阶段永久保留 |
 | DecorationState | ownedIds、equippedBySlot、hiddenById；隐藏记录含 hiddenEventId、sourceEntryId、slot、hiddenAt、reason |
-| MemoryEvent | id、type、entryId（可空）、occurredAt、rulesVersion、有限结构 payload |
+| MemoryEvent | id、type、entryId（可空）、occurredAt、rulesVersion、有限结构 payload（不复制完整正文，正文经 entryId 引用 Entry） |
 | Snapshot | schemaVersion=1、revision、character、entries、decorations、memories、appliedEventIds |
 | CharacterView | expression、pose、animation、visibleLayerIds、effects；只读派生结果 |
 
 MemoryEvent 类型至少有 ENTRY_SAVED、ENTRY_TEXT_EDITED、EMOTION_CORRECTED、ITEM_UNLOCKED、ITEM_HIDDEN、ITEM_RESTORED、ITEM_EQUIPPED、ITEM_UNEQUIPPED、STAGE_REACHED。GameEvent 是用户确认后的领域输入（CONFIRM_ENTRY、EDIT_ENTRY_TEXT、CORRECT_EMOTION、RESTORE_DECORATION、EQUIP_DECORATION、UNEQUIP_DECORATION，后期 TICK），不能由 AI 直接创建。originalAnalysis / corrections 仅保存规范化情绪与修订信息；analysisMeta 记录 provider、model、mappingVersion 和 dimensionSources，见 AI 契约，禁止将 Jev 原生 answers 或整份响应写入 Snapshot。
 
 entries 中固定保存 awardedXp，日上限按该 dayKey 的首次奖励合计，纠正不重算奖励。ownedIds 单调增加；隐藏记录不删除所有权。角色 stage 阈值、物品目录、情绪表和数值只在领域配置维护，对应 PRODUCT_SPEC 的 rules-v1。
+
+Entry.text 是日记正文的唯一正式存储位置；普通 MemoryEvent 经 entryId 关联日记，payload 只保存必要的时间、事件类型、情绪与规则结果摘要，不在每个回忆事件中重复复制完整正文。用户编辑正文后，普通回忆详情展示该 Entry 的最新正文；情绪纠正历史（corrections）与成长/解锁/隐藏/恢复事件仍完整保留，不因存储优化删除用户历史、改变奖励结算或引入额外存储系统。
 
 ## 5. 模块接口（规划签名）
 
@@ -85,11 +87,11 @@ entries 中固定保存 awardedXp，日上限按该 dayKey 的首次奖励合计
 
 ### 5.1 领域事件与修订幂等
 
-所有输入含稳定 eventId，重试复用，成功保存 snapshot 时原子写入 appliedEventIds 与回忆。先查重复 eventId，再做修订/状态校验；无效操作不产生部分写入。应用以加载状态及 StoragePort 的 expectedRevision 控制提交，不采用事件回放系统。
+所有输入含稳定 eventId，重试复用同一 eventId、entryId 与首次确认时冻结的 now、dayKey，成功保存 snapshot 时原子写入 appliedEventIds 与回忆。先查重复 eventId，再做修订/状态校验；无效操作不产生部分写入。应用以加载状态及 StoragePort 的 expectedRevision 控制提交，不采用事件回放系统。
 
 | GameEvent / 主要载荷 | 转换与约束 |
 | --- | --- |
-| CONFIRM_ENTRY：entryId、text、确认情绪、规范化建议/元信息（可空） | 校验非空白但不 trim 正文；entryId 已存在则 changed=false。新记录一次性结算原有经验/解锁/隐藏或恢复规则，固定 dayKey，设置 latestEntryId，不因后续编辑改变最新顺序 |
+| CONFIRM_ENTRY：entryId、text、确认情绪、规范化建议/元信息（可空） | 校验非空白但不 trim 正文；entryId 已存在则 changed=false。新记录一次性结算原有经验/解锁/隐藏或恢复规则，固定使用首次确认冻结的 dayKey（重试不重算），设置 latestEntryId，不因后续编辑改变最新顺序 |
 | EDIT_ENTRY_TEXT：entryId、expectedEntryRevision、text | 仅原样更新正文、updatedAt，Entry.revision 加 1，记编辑回忆；保留心情、建议、奖励、创建时间和 dayKey；不运行成长或装饰规则 |
 | CORRECT_EMOTION：entryId、expectedEntryRevision、新确认情绪、规范化建议/元信息（可空） | Entry.revision 加 1；corrections 保存旧/新有效情绪、旧/新修订号、时间、此次规范化建议及元信息，originalAnalysis 保留首次建议。仅最新记录更新 currentEmotion；装饰处理严格按下段；不重算经验或解锁 |
 | RESTORE_DECORATION：itemId、expectedHiddenEventId | 仅恢复已拥有且隐藏事件匹配的物品，清除标记并记录所恢复的 hiddenEventId；无标记视为无变化，标记已换为其他隐藏事件则拒绝过期操作。不更改装备槽位 |
@@ -105,8 +107,8 @@ EDIT_ENTRY_TEXT 和 CORRECT_EMOTION 仅接受 expectedEntryRevision 等于现有
 ## 6. 本地持久化与恢复
 
 - localStorage key 为 `shixu.snapshot.v1`；一次写入完整 snapshot，避免日记已保存但库存未保存的分裂。初始化只在客户端 hydration 后执行，服务端渲染不能读取 window。
-- load 结果区分 missing、ready、unsupported-version、corrupt、unavailable。只有 missing 可生成全新存档；损坏或未知版本保留原值，不静默覆盖。页面允许导出原始文本或在用户明确选择后重置。
-- save 校验 schema 和 expectedRevision，拒绝过期更新；成功增加 snapshot.revision。MVP 只支持一个写入标签页，检测另一个标签页变化后暂停提交并提示重新加载，不宣称 localStorage 支持跨标签页事务锁。
+- load 结果区分 missing、ready、unsupported-version、corrupt、unavailable。load、save、import 共用同一套完整 Snapshot schema 校验：JSON 可解析但字段缺失、类型错误、非法枚举或关键关联关系不合法（如 entries 非数组、character 缺 totalXp、隐藏/装备引用不存在的物品或 entryId）均不得判为 ready；不支持的 schemaVersion 进入 unsupported-version，结构损坏进入 corrupt，存储不可访问进入 unavailable。只有 missing 可生成全新存档；损坏或不支持的存档保留原始内容，不静默覆盖，页面提供原始数据导出和用户明确确认后的重置入口。
+- save 复用同一套 schema 校验并检查 expectedRevision，拒绝过期更新；成功增加 snapshot.revision。MVP 只支持一个写入标签页，检测另一个标签页变化后暂停提交并提示重新加载，不宣称 localStorage 支持跨标签页事务锁。
 - 空间不足/访问被禁时保留旧状态与草稿，提示本次未保存；可提供明确的临时会话模式，但不得显示持久化成功。
 - 上述基础状态与恢复入口从 P1 提供，localStorage 访问异常由适配器捕获并返回 unavailable，页面仍可使用；用户主动选临时体验时显著告知“仅本次会话，刷新后无法保留”，只更新内存且不覆盖异常存档。损坏/未知版本的原始文本导出与明确重置入口也在 P1；P5 完善 UI 及校验后的正式存档导出/导入，不推迟核心错误处理。
 - 将来换 IndexedDB/数据库只替换 StoragePort 与必要迁移；不为未来数据库提前引入 ORM/鉴权。新 schema 需迁移或明确保留旧数据，不因升级丢档。
