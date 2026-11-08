@@ -38,10 +38,11 @@ flowchart TD
 
 【规划·V2】新增数据流：
 
-- CONFIRM_ENTRY 扩展（C1）：保存成功时原子写入日记、性格贡献台账与回忆；成功后应用层播放一次即时共鸣（运行时表现，不再次写存档）。
+- CONFIRM_ENTRY 扩展（C1）：保存成功时原子写入日记、性格贡献台账与回忆；向应用层暴露保存成功结果与本次确认情绪（含 eventId/entryId），供 C4 构造一次性共鸣上下文；C1 不实现导航与共鸣动画，保留已有保存流程。
 - 自主生活循环（C3）：调度器（应用层）→ selectBehavior（领域纯函数，显式种子）→ 运行时动画 → 完整完成后提交 BEHAVIOR_SETTLED → 规则按单日上限结算习惯进度 → changed 才保存。页面隐藏暂停调度与动画；关闭网页不模拟离线生活，不产生虚构离线经历。
 - 互动（C4）：用户互动 → INTERACT → 规则记录互动回忆（不改变性格与习惯进度）→ 保存；即时回应是运行时表现。
 - 优先级：用户互动与新确认情绪共鸣可打断普通自主行为；被打断的行为不计入习惯积累；同时只有一个主要行为。
+- 即时共鸣衔接（C4）：保存成功后应用层构造一次性共鸣上下文（eventId/entryId + 确认 EmotionReading，运行时内存，不写存档）并自动导航至 `/companion`；小人页面消费一次该上下文播放对应共鸣，结束后恢复正常自主活动。保存失败不构造上下文、不跳转、不播放；页面刷新、重复渲染、普通路由切换不重复触发同一次共鸣（上下文消费一次即清除、刷新即失，不从存档历史重建）；手动选择与 AI 确认共用同一路径；共鸣是运行时反馈，不触发额外性格/习惯结算；prefers-reduced-motion 下静态反馈。C1/C2 保留已有保存流程，不提前开发该衔接。
 
 【已合入·PR #5】多页面共享状态：AppProvider 与 AppShell 提升到根 layout，三路由（`/`、`/companion`、`/memories`）共享同一份 snapshot 与内存草稿（draft 提升进 Provider，不持久化）。V2 调度器同样位于应用层，跨路由只加载一次存档，路由切换不重复结算、不丢失草稿。
 
@@ -59,7 +60,7 @@ flowchart TD
 | src/components/memories/ | 已实现·P1：历史列表；新回忆类型展示规划·C1/C4 |
 | src/domain/types.ts、schema.ts、rules.ts、emotions.ts、characterView.ts | 已实现·P1 公共类型、校验与规则（rules 仅 CONFIRM_ENTRY，characterView 静态占位） |
 | src/domain/companion/ | 规划·C1/C3/C4：性格贡献、习惯结算、行为选择、共鸣派生；可少量合并进现有 domain 文件，边界不变 |
-| src/application/ | 已实现·P1：AppProvider、ids；自主行为调度器与新用例编排规划·C3 |
+| src/application/ | 已实现·P1：AppProvider、ids；自主行为调度器规划·C3；保存成功共鸣衔接编排（一次性上下文与自动跳转）规划·C4 |
 | src/lib/ai/server/ | 规划·C2：server-only provider、提示词、原始输出校验 |
 | src/lib/storage/ | 已实现·P1：StoragePort 与 localStorage 适配器；版本迁移规划·C1 |
 | docs/ | 本套指南（含新增 COMPANION_SPEC） |
@@ -101,7 +102,7 @@ Snapshot 新增 companion 字段（命名规划，落地时同步类型与校验
 
 | 持久化（Snapshot 内，原子提交） | 运行时/展示（不写存档） |
 | --- | --- |
-| entries、贡献台账、习惯进度、世界痕迹、memories、appliedEventIds、revision、旧版兼容字段 | 当前行为与场景位置、动画播放、共鸣播放、最近行为序列（防机械重复）、种子序号、草稿（PR #5 内存共享）、UI 状态 |
+| entries、贡献台账、习惯进度、世界痕迹、memories、appliedEventIds、revision、旧版兼容字段 | 当前行为与场景位置、动画播放、共鸣播放与一次性共鸣上下文（eventId/entryId，消费一次即清除、刷新即失）、最近行为序列（防机械重复）、种子序号、草稿（PR #5 内存共享）、UI 状态 |
 
 新增 GameEvent（规划）：BEHAVIOR_SETTLED（eventId、behavior、target 可空、completedAt，context 提供 now/dayKey）、INTERACT（eventId、targetId）。CORRECT_EMOTION 扩展为同时修订性格贡献（第 5.1 节）。新增 MemoryEvent 类型（规划）：HABIT_FORMED、COMPANION_INTERACTION、WORLD_TRACE_ADDED（候选，C4）。普通行为完成不默认生成回忆事件，避免写放大；仅习惯结算产生变化时写入。
 
@@ -121,7 +122,7 @@ Snapshot 新增 companion 字段（命名规划，落地时同步类型与校验
 | reviseContribution(contributions, entryId, newLabel, params)（规划·C1） | 台账 → 替换修订后的台账 | 额外叠加、级联改写其他条目、改变原 dayKey |
 | derivePersonality(companion)（规划·C1） | Snapshot.companion → 内部分数 + 自然语言描述 + 习惯标签 | 向 UI 暴露精确数值、修改存档 |
 | selectBehavior(personality, habits, recent, seed)（规划·C3） | 显式状态与种子 → {behavior, target, duration} | Math.random、永久锁定单一行为、排除最低概率 |
-| deriveResonance(emotion)（规划·C1/C4） | 确认 EmotionReading → 共鸣变体与幅度（label × VAD/intensity） | 由模型指定动画 |
+| deriveResonance(emotion)（规划·C4） | 确认 EmotionReading → 共鸣变体与幅度（label × VAD/intensity） | 由模型指定动画 |
 | migrateSnapshotV1toV2(v1)（规划·C1） | 有效 v1 Snapshot → v2 Snapshot（纯函数、默认值、不追溯） | 丢弃旧字段、IO、自动覆盖不可识别数据 |
 | StoragePort.load()（P1 已实现） | → Promise<LoadResult> | 自行修改规则 |
 | StoragePort.save(snapshot, expectedRevision)（P1 已实现） | → Promise<SaveResult> | 失败时伪报成功 |
@@ -135,7 +136,7 @@ Snapshot 新增 companion 字段（命名规划，落地时同步类型与校验
 
 | GameEvent / 主要载荷 | 转换与约束 |
 | --- | --- |
-| CONFIRM_ENTRY：entryId、text、确认情绪、规范化建议/元信息（可空） | P1 已实现：校验非空白但不 trim 正文；entryId 已存在则 changed=false；固定使用首次确认冻结的 dayKey；设置 latestEntryId。规划·C1 扩展：同一次提交写入性格贡献台账（按单日上限截断）与回忆；即时共鸣是保存成功后的运行时表现，不再次写存档 |
+| CONFIRM_ENTRY：entryId、text、确认情绪、规范化建议/元信息（可空） | P1 已实现：校验非空白但不 trim 正文；entryId 已存在则 changed=false；固定使用首次确认冻结的 dayKey；设置 latestEntryId。规划·C1 扩展：同一次提交写入性格贡献台账（按单日上限截断）与回忆，暴露保存成功结果与确认情绪供 C4 共鸣衔接；即时共鸣由 C4 在保存成功后消费一次性上下文播放（运行时表现，不再次写存档，C1 不实现动画） |
 | EDIT_ENTRY_TEXT：entryId、expectedEntryRevision、text | 契约已定义，C1/C5 实现：仅原样更新正文、updatedAt，Entry.revision 加 1，记编辑回忆；保留心情、建议、性格贡献、创建时间和 dayKey；不运行任何成长规则 |
 | CORRECT_EMOTION：entryId、expectedEntryRevision、新确认情绪、规范化建议/元信息（可空） | 契约已定义，C1 实现：Entry.revision 加 1；corrections 保存旧/新有效情绪、修订号、时间与建议；originalAnalysis 保留首次建议。性格贡献按 COMPANION_SPEC 第 2.4 节替换修订：同 entryId 只有一份有效贡献，沿用原冻结 dayKey，不叠加、不级联重算同日其他条目；仅最新记录更新 currentEmotion；不删除历史、不追回已形成的习惯 |
 | BEHAVIOR_SETTLED：behavior、target（可空）、completedAt（规划·C3） | 应用层在行为完整完成后提交，显式 now/dayKey；规则按单日上限结算习惯进度；无变化则 changed=false 不写存档；被打断或刷新不计数 |
@@ -153,7 +154,7 @@ EDIT_ENTRY_TEXT 和 CORRECT_EMOTION 仅接受 expectedEntryRevision 等于现有
 - localStorage key 为 `shixu.snapshot.v1`；一次写入完整 snapshot，避免日记已保存但其他状态未保存的分裂。初始化只在客户端 hydration 后执行，服务端渲染不能读取 window。
 - load 结果区分 missing、ready、unsupported-version、corrupt、unavailable。load、save 共用同一套完整 Snapshot schema 校验：字段缺失、类型错误、非法枚举或关键关联不合法均不得判为 ready；只有 missing 可生成全新存档；损坏或不支持的存档保留原始内容，不静默覆盖，页面提供原始数据导出和用户明确确认后的重置入口。
 - save 复用同一套 schema 校验并检查 expectedRevision，拒绝过期更新；成功增加 snapshot.revision。MVP 只支持一个写入标签页，检测另一个标签页变化后暂停提交并提示重新加载。
-- 空间不足/访问被禁时保留旧状态与草稿，提示本次未保存；用户主动选临时体验时显著告知「仅本次会话，刷新后无法保留」，只更新内存且不覆盖异常存档。
+- 空间不足/访问被禁时保留旧状态与草稿，提示本次未保存。临时体验模式（P1 已有入口，V2 性格/共鸣规则同样适用）：用户主动选择时显著告知「仅本次会话，刷新后无法保留」；会话内可运行完整性格计算与即时共鸣，成长结果只在内存中有效；不写入或覆盖已有本地正式存档（含异常存档）；页面刷新或会话结束后临时成长可以丢失；不得把临时内存提交描述为已持久化。普通模式仍须整体存档成功后才正式结算性格；保存失败不改变任何正式状态。
 
 【规划·V2】schemaVersion 1 → 2 演进契约（C1 落地，本次只定义不实现）：
 
