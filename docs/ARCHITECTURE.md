@@ -1,12 +1,12 @@
 # 拾绪 ShiXu · 系统架构
 
-本文按状态区分三类内容：**【已实现·P1】** main 已合入基线（PR #4）；**【待合并·PR #5】** 多页面 UI 与独立活动空间（截至 2026-11-08 仍 OPEN，不得当作 main 已具备）；**【规划·V2】** 本次契约修订新增的接口与状态，尚无代码。项目约束见 [AGENTS](../AGENTS.md)；养成规则与数值唯一来源是 [COMPANION_SPEC](COMPANION_SPEC.md)；产品基线见 [PRODUCT_SPEC](PRODUCT_SPEC.md)；阶段见 [ROADMAP](ROADMAP.md)。
+本文按状态区分三类内容：**【已实现·P1】** main 已合入基线（PR #4）；**【已合入·PR #5】** 多页面 UI 与独立活动空间（2026-11-08 合入 main，本次修订执行期间由用户合并）；**【规划·V2】** 本次契约修订新增的接口与状态，尚无代码。项目约束见 [AGENTS](../AGENTS.md)；养成规则与数值唯一来源是 [COMPANION_SPEC](COMPANION_SPEC.md)；产品基线见 [PRODUCT_SPEC](PRODUCT_SPEC.md)；阶段见 [ROADMAP](ROADMAP.md)。
 
 ## 1. 技术决策
 
 | 层 | 固定方案 | 责任与边界 |
 | --- | --- | --- |
-| 页面 | Next.js App Router + React + TypeScript | 路由、输入、确认、回忆和状态展示；三路由结构由 PR #5 提供（待合并） |
+| 页面 | Next.js App Router + React + TypeScript | 路由、输入、确认、回忆和状态展示；三路由结构由 PR #5 提供（已合入） |
 | 样式 | Tailwind CSS | 响应式布局、组件外观、减少动态效果 |
 | 角色 | React + 原创 SVG 独立图层 | 只消费规则产生的 CharacterView 与运行时行为状态，不改存档 |
 | 领域 | TypeScript 纯函数 | 情绪到视觉、性格贡献、习惯结算、行为选择、世界成长、纠正；无 IO、随机或隐式时间 |
@@ -43,7 +43,7 @@ flowchart TD
 - 互动（C4）：用户互动 → INTERACT → 规则记录互动回忆（不改变性格与习惯进度）→ 保存；即时回应是运行时表现。
 - 优先级：用户互动与新确认情绪共鸣可打断普通自主行为；被打断的行为不计入习惯积累；同时只有一个主要行为。
 
-【待合并·PR #5】多页面共享状态：AppProvider 与 AppShell 提升到根 layout，三路由（`/`、`/companion`、`/memories`）共享同一份 snapshot 与内存草稿（draft 提升进 Provider，不持久化）；main 当前 Provider 在单页 page.tsx 内。V2 调度器同样位于应用层，跨路由只加载一次存档，路由切换不重复结算、不丢失草稿。
+【已合入·PR #5】多页面共享状态：AppProvider 与 AppShell 提升到根 layout，三路由（`/`、`/companion`、`/memories`）共享同一份 snapshot 与内存草稿（draft 提升进 Provider，不持久化）。V2 调度器同样位于应用层，跨路由只加载一次存档，路由切换不重复结算、不丢失草稿。
 
 日记 text 无产品人为字数上限，只校验非空白而不修改正文；存储、历史展示和编辑均保留完整原文，正文按纯文本保留空白显示（如 white-space: pre-wrap）。AI 输入超限独立降级为手选，不截断日记。正文编辑走 EDIT_ENTRY_TEXT，不自动重识别或改变心情；主动重识别/手选经确认后才走 CORRECT_EMOTION。API 的 inputRevision 是草稿/选择版本，与存档 Entry.revision 区分；正文或手选改变、切换记录、保存/取消时使旧请求失效，详见 AI 契约。
 
@@ -51,8 +51,8 @@ flowchart TD
 
 | 路径 | 状态与内容 |
 | --- | --- |
-| src/app/layout.tsx、page.tsx、globals.css | 已实现·P1（单页入口）；PR #5 改为根 layout 共享状态与三路由（待合并） |
-| src/app/companion/page.tsx、src/app/memories/page.tsx、src/components/AppShell.tsx、src/components/character/CompanionScreen.tsx | 待合并·PR #5：小人活动空间、回忆页与导航 |
+| src/app/layout.tsx、page.tsx、globals.css | 已实现·P1；PR #5 已改为根 layout 共享状态与三路由（已合入） |
+| src/app/companion/page.tsx、src/app/memories/page.tsx、src/components/AppShell.tsx、src/components/character/CompanionScreen.tsx | 已合入·PR #5：小人活动空间、回忆页与导航 |
 | src/app/api/emotion/route.ts | 规划·C2：POST 情绪接口，无游戏写权限 |
 | src/components/emotion/ | 已实现·P1：手选草稿与维度调整；AI 建议与纠正 UI 规划·C2 |
 | src/components/character/ | 已实现·P1：CharacterRenderer（静态占位视图）；场景对象图层与行为动画规划·C3/C4 |
@@ -167,7 +167,7 @@ EDIT_ENTRY_TEXT 和 CORRECT_EMOTION 仅接受 expectedEntryRevision 等于现有
 
 ## 7. SVG 图层与动作
 
-【已实现·P1】CharacterRenderer 渲染基础白色小人（静态占位视图）。【待合并·PR #5】CompanionScreen 提供 1200×700 viewBox 的远景/角色/前景三层静态宽场景与心情状态栏；角色尚无自主行为。
+【已实现·P1】CharacterRenderer 渲染基础白色小人（静态占位视图）。【已合入·PR #5】CompanionScreen 提供 1200×700 viewBox 的远景/角色/前景三层静态宽场景与心情状态栏；角色尚无自主行为。
 
 【规划·V2】角色固定 viewBox 建议 `0 0 240 320`，图层由后到前：后景特效 → 身体与四肢 → 服饰 → 五官 → 头部/徽章配件 → 前景特效。每层独立 React 组件，使用稳定 id、锚点、slot 和有限配置；本体白色，装饰不改基础身体资源；初始不绘制五官图层。场景增加可互动对象图层（花朵、树荫、蝴蝶等候选目录）与角色真实位置；位置与当前动画是运行时状态，不写存档。
 
