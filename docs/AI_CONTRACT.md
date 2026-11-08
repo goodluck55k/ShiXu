@@ -1,6 +1,6 @@
 # 情绪识别契约 v1
 
-本文件约束情绪数据，不授予 AI 任何游戏权限。系统边界见 [ARCHITECTURE](ARCHITECTURE.md)，数值玩法仅以 [PRODUCT_SPEC](PRODUCT_SPEC.md) 为准。
+本文件约束情绪数据，不授予 AI 任何游戏权限。系统边界见 [ARCHITECTURE](ARCHITECTURE.md)；玩法概述以 [PRODUCT_SPEC](PRODUCT_SPEC.md) 为准，详细养成规则与数值唯一来源是 [COMPANION_SPEC](COMPANION_SPEC.md)。
 
 ## 1. 服务接口
 
@@ -32,7 +32,7 @@ schemaVersion 固定 1；requestId、entryId 为客户端创建的非空不透�
 | intensity | number，0–1 | 情绪强度 |
 | confidence | number，0–1 | Jev 各必要答案 confidence 的最小值，是本项目保守聚合值，不是中文情绪准确率、联合概率或医学结论 |
 
-不接受字符串数字、NaN、Infinity、null、缺字段、数组、Markdown 代码围栏或 JSON 外说明。类别只用于描述，规则数值判断使用 VAD；不强行把 mixed 判为积极或消极。未来扩字段必须升版本并兼容消费端。
+不接受字符串数字、NaN、Infinity、null、缺字段、数组、Markdown 代码围栏或 JSON 外说明。字段分工（V2，替代旧版「所有规则只按 VAD 判断」）：用户确认后的 label 主要用于隐藏性格基础评分与即时共鸣变体选择；VAD / intensity 用于即时情绪共鸣、表情、动作强弱和部分环境表现；confidence 仅用于识别结果提醒和确认，不直接作为性格奖励倍数。不强行把 mixed 判为积极或消极。性格评分表与参数唯一来源见 COMPANION_SPEC，模型不得直接输出性格分数。未来扩字段必须升版本并兼容消费端。
 
 服务端对外返回匹配原请求的 envelope，requestId、entryId、inputRevision 从请求复制，不能由模型生成；有效请求的成功与失败响应都回传这三元组（失败体见第 3 节）：
 
@@ -44,15 +44,15 @@ schemaVersion 固定 1；requestId、entryId 为客户端创建的非空不透�
 
 ### 2.1 Jev Provider 与官方接入
 
-官方资料核对日期：2026-11-04（北京时间）。Jev 是 TypeSafe 的结构化判断模型，仅判断情绪；不生成、润色、总结、扩写或改写日记。优先实现 TypeSafe HTTP Provider，使用服务端 fetch 即可，无需新增 SDK 或后端。以下为接入规范，当前指南没有产品实现，也未发送带 Key 的真实请求。
+官方资料核对日期：2026-11-04（北京时间）。Jev 是 TypeSafe 的结构化判断模型，仅判断情绪；不生成、润色、总结、扩写或改写日记。优先实现 TypeSafe HTTP Provider，使用服务端 fetch 即可，无需新增 SDK 或后端。以下为接入规范；AI 接入尚未实现（P1 已交付手选闭环，见 ROADMAP），也未发送带 Key 的真实请求。
 
 | 服务商 | 官方调用方式与 model | 鉴权 / 请求及响应 |
 | --- | --- | --- |
 | TypeSafe（首选） | `POST https://api.typesafe.ai/v1/systemone`；`model: "jev-1.14.0"` | `Authorization: Bearer <MODEL_API_KEY>`，`Content-Type: application/json`；body 为 `{model, state, questions}`，响应含 `{model, answers, usage}`。见 [System One API](https://docs.typesafe.ai/api/system-one) |
-| Cloudflare Workers AI（可选适配，不作为 P2 前置） | 当前[官方模型页](https://developers.cloudflare.com/ai/models/typesafe/jev-1.14.0/)使用 `typesafe/jev-1.14.0`；binding 为 `env.AI.run("typesafe/jev-1.14.0", {state, questions})`；该页 REST 示例为 `POST https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/ai/run` | REST 用 Cloudflare API Token 的 Bearer 鉴权，body 为 `{model:"typesafe/jev-1.14.0", input:{state, questions}}`；binding 使用服务绑定。解包后仍校验原生 answers；若所选 REST 返回 result 包装，须先校验服务成功状态再取 result。不得复用 TypeSafe 地址、Key 或无前缀 model |
+| Cloudflare Workers AI（可选适配，不作为 C2 前置） | 当前[官方模型页](https://developers.cloudflare.com/ai/models/typesafe/jev-1.14.0/)使用 `typesafe/jev-1.14.0`；binding 为 `env.AI.run("typesafe/jev-1.14.0", {state, questions})`；该页 REST 示例为 `POST https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/ai/run` | REST 用 Cloudflare API Token 的 Bearer 鉴权，body 为 `{model:"typesafe/jev-1.14.0", input:{state, questions}}`；binding 使用服务绑定。解包后仍校验原生 answers；若所选 REST 返回 result 包装，须先校验服务成功状态再取 result。不得复用 TypeSafe 地址、Key 或无前缀 model |
 | 阿里云百炼 | 直接提供 TypeSafe Jev 尚未确认，不定义其 Jev 地址、model 或鉴权配置 | 已查阅[百炼模型列表](https://docs.modelstudio.console.alibabacloud.com/en/model-studio/model-studio-model-list)及[阿里云关于决策模型与 Jev 的说明](https://www.alibabacloud.com/blog/from-integrating-the-jev-paradigm-decision-model-to-participating-in-team-collaboration-an-end-to-end-practice_603675)；System One 协议兼容或其他决策模型不等于提供 Jev，不据此编造接口 |
 
-服务端沿用 `MODEL_API_KEY`、`MODEL_BASE_URL`（TypeSafe 默认 `https://api.typesafe.ai/v1`，仅追加 `/systemone` 一次）、`MODEL_NAME`（默认固定 `jev-1.14.0`）。配置仅服务端读取，P2 不通过改 base URL 偷换服务商；其他服务商需要单独适配器和配套凭证。别名会随发布漂移，本项目优先固定版本；版本变更时核对官方模型页与映射。原始响应不透传客户端或写入 Snapshot。
+服务端沿用 `MODEL_API_KEY`、`MODEL_BASE_URL`（TypeSafe 默认 `https://api.typesafe.ai/v1`，仅追加 `/systemone` 一次）、`MODEL_NAME`（默认固定 `jev-1.14.0`）。配置仅服务端读取，C2 不通过改 base URL 偷换服务商；其他服务商需要单独适配器和配套凭证。别名会随发布漂移，本项目优先固定版本；版本变更时核对官方模型页与映射。原始响应不透传客户端或写入 Snapshot。
 
 ### 2.2 一次请求中的 Choice / Score
 
@@ -121,7 +121,7 @@ Provider 计入问题与序列化开销；可预先发现的字节/部署 body �
 
 ### 2.5 公开部署的成本保护
 
-`/api/emotion` 是消耗服务端 Key 配额的公开接口。公开部署前必须具备以下保护，由 P2 在契约与最小验收中落实；本指南只定义要求，不实现限流代码，不引入登录、复杂用户系统或数据库：
+`/api/emotion` 是消耗服务端 Key 配额的公开接口。公开部署前必须具备以下保护，由 C2 在契约与最小验收中落实；本指南只定义要求，不实现限流代码，不引入登录、复杂用户系统或数据库：
 
 - 服务端请求体字节上限：调用 Provider 前按 UTF-8 字节数校验请求体，超限直接返回 413 / INPUT_TOO_LONG，不出网。该上限独立于日记产品字数限制，手选保存完整原文不经过此接口。
 - 部署层请求频率限制与并发上限：对请求频率和同时在途的识别请求数设上限，超限返回 429 / AI_RATE_LIMITED。阈值与实现方式由所选部署环境决定；未确定平台时只约定行为与错误码，不写死某一平台能力或限流方案，不虚构平台特性。
@@ -165,17 +165,18 @@ Provider 计入问题与序列化开销；可预先发现的字节/部署 body �
 | neutral | 0.50 | 0.50 | 0.50 | 0.30 |
 | unknown | 0.50 | 0.50 | 0.50 | 0.30 |
 
-保存前允许覆盖 AI 建议，保存 originalAnalysis（仅规范化 Analysis）、analysisMeta、effectiveEmotion 及其中的 source；无 AI 时建议/元信息可空。保存后用同一 entryId、expectedEntryRevision 和稳定 eventId 提交纠正，由规则递增 Entry.revision 并保留修订轨迹；不发第二次经验、不追回已有成长。仅最新记录纠正影响当前视觉；不新增隐藏事件，用户主动恢复不被纠正撤销，详见产品规格与领域事件约定。正文编辑不自动改变心情，不发奖励；主动重识别或手选须再次确认。对手选、导入数据也执行相同字段校验。
+保存前允许覆盖 AI 建议，保存 originalAnalysis（仅规范化 Analysis）、analysisMeta、effectiveEmotion 及其中的 source；无 AI 时建议/元信息可空。保存后用同一 entryId、expectedEntryRevision 和稳定 eventId 提交纠正，由规则递增 Entry.revision 并保留修订轨迹；不重复结算、不追回已有成长。性格贡献按 COMPANION_SPEC 第 2.4 节替换修订：同 entryId 只有一份有效贡献，不叠加计分，跨日期纠正沿用原冻结 dayKey，原子保存。仅最新记录纠正影响当前视觉；旧版装饰处理见 PRODUCT_SPEC 第 5 节候选。正文编辑不自动改变心情、不改变性格贡献、不触发结算；主动重识别或手选须再次确认。对手选、导入数据也执行相同字段校验。
 
 ## 5. 强制权限边界
 
 - 提示词只要求分析情绪，不提供工具调用、角色存档写入接口、物品目录操作或规则执行能力。
-- 原生答案与规范化结果均不得携带 action、animation、preset、xpDelta、unlock、hide、delete、stage、savePatch 等操作字段；出现操作字段或超出相应契约的未知字段整次结果无效，合法厂商元信息不映射为领域字段。
+- 原生答案与规范化结果均不得携带 action、animation、preset、xpDelta、personalityScore、personalityDelta、habit、behavior、unlock、hide、delete、stage、scenePatch、savePatch 等操作字段；出现操作字段或超出相应契约的未知字段整次结果无效，合法厂商元信息不映射为领域字段。
 - 规则引擎接收经校验、经用户确认的 EmotionReading，不能接收模型自由文本作为命令。
+- AI 负责产生情绪分析建议；用户确认后 EmotionReading 进入本地规则系统。隐藏性格评分由确定性规则产生，不由模型直接输出性格分数；手动选择和 AI 建议确认使用同一套人格成长规则。AI 不得获得动作执行、物品发放、场景修改或存档写入能力；不额外引入 AI Agent、长期聊天模型或复杂决策框架。
 - 服务端 AI 模块不导入游戏写入模块；客户端不能导入服务端 provider。使用 server-only 边界隔离厂商适配器。
 - API Key 用 `MODEL_API_KEY`；可选 `MODEL_BASE_URL`、`MODEL_NAME` 仅服务端读取，不加 NEXT_PUBLIC_。Key 与服务地址配置不进入响应、浏览器存储和日志；仅非敏感的规范化 provider/model 及映射来源信息可按 analysisMeta 返回与保存。TypeSafe Jev 为首选，默认值和其他服务商隔离规则见第 2.1 节。
 - 默认仅记录错误码和耗时；不打印日记正文和模型原始内容。日记正文作为纯文本显示，不执行 HTML、脚本或模型指令。
 
 ## 6. 最小契约验收
 
-P2 一次检查：Choice / Score 原生响应经转换能展示并确认；故障/输入超限不改状态且能手选保存原文；旧响应不覆盖新草稿或新心情；已保存纠正遵守修订契约；公开部署的成本保护（第 2.5 节）按所选环境生效或如实记录暂缓。交付真实 TypeSafe HTTP Provider 的接入能力，mock 明确标注为演示数据，走相同原生校验与映射路径，不能以 mock 替代真实 Provider 实现。未配置 Key 时手选主流程仍可运行，PR 如实记录“真实 API 未验证”，真实 API 未就绪不阻塞 P1。P2 真正具备 API 调用条件后，用约 8–12 条带人工预期标签的简短中文样例（覆盖积极、消极、混合、中性与含糊表达）做一次小样本检查，核对类别映射、confidence < 0.6 阈值提醒与手选降级是否合理；不开展大规模模型评测，也不在缺少证据时擅自改动 0.6 暂定阈值。confidence 是各答案分布集中度的保守聚合，不代表中文识别准确率；官方说明英文为主要训练语言、中文等 CJK 效果不等同英文，因此始终保留确认与手动纠正，不宣称中文准确率已验证。关键规则结果在 P4 集中冒烟，不因外部 API 未就绪阻塞交付。
+C2 一次检查：Choice / Score 原生响应经转换能展示并确认；故障/输入超限不改状态且能手选保存原文；旧响应不覆盖新草稿或新心情；已保存纠正遵守修订契约；公开部署的成本保护（第 2.5 节）按所选环境生效或如实记录暂缓。交付真实 TypeSafe HTTP Provider 的接入能力，mock 明确标注为演示数据，走相同原生校验与映射路径，不能以 mock 替代真实 Provider 实现。未配置 Key 时手选主流程仍可运行，PR 如实记录“真实 API 未验证”，真实 API 未就绪不阻塞手选主流程（P1 已交付）。C2 真正具备 API 调用条件后，用约 8–12 条带人工预期标签的简短中文样例（覆盖积极、消极、混合、中性与含糊表达）做一次小样本检查，核对类别映射、confidence < 0.6 阈值提醒与手选降级是否合理；不开展大规模模型评测，也不在缺少证据时擅自改动 0.6 暂定阈值。confidence 是各答案分布集中度的保守聚合，不代表中文识别准确率；官方说明英文为主要训练语言、中文等 CJK 效果不等同英文，因此始终保留确认与手动纠正，不宣称中文准确率已验证。性格计分等关键规则结果在 C1/C4 按阶段集中冒烟，不因外部 API 未就绪阻塞交付。
