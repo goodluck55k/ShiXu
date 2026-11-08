@@ -1,23 +1,2 @@
 import type { CharacterView } from "@/domain/types";
-
-export function CharacterRenderer({ view }: { view: CharacterView }) {
-  void view;
-  return (
-    <svg
-      viewBox="0 0 240 320"
-      role="img"
-      aria-label="初始的白色小人，还没有表情"
-      className="mx-auto h-52 w-auto sm:h-60"
-    >
-      <ellipse cx="120" cy="302" rx="52" ry="9" fill="#e7e5e4" />
-      <g fill="#ffffff" stroke="#d6d3d1" strokeWidth="3">
-        <rect x="95" y="212" width="21" height="82" rx="10.5" />
-        <rect x="124" y="212" width="21" height="82" rx="10.5" />
-        <rect x="66" y="138" width="19" height="66" rx="9.5" transform="rotate(9 75 140)" />
-        <rect x="155" y="138" width="19" height="66" rx="9.5" transform="rotate(-9 165 140)" />
-        <rect x="86" y="124" width="68" height="98" rx="30" />
-        <circle cx="120" cy="80" r="42" />
-      </g>
-    </svg>
-  );
-}
+export function CharacterRenderer({ view }: { view: CharacterView }) { void view; return <svg viewBox="0 0 240 320" role="img" aria-label="纯白、没有表情的小人" className="character-svg"><defs><radialGradient id="bodyShade" cx="40%" cy="30%" r="75%"><stop stopColor="#fff"/><stop offset=".78" stopColor="#fffdf9"/><stop offset="1" stopColor="#e9e2d7"/></radialGradient></defs><ellipse cx="120" cy="300" rx="66" ry="11" fill="#697d5b" opacity=".22"/><g fill="url(#bodyShade)" stroke="#d7cabc" strokeWidth="2.5" strokeLinejoin="round"><path d="M88 207 Q83 238 88 279 Q89 293 103 293 Q116 293 117 280 L120 242 L123 280 Q124 293 137 293 Q151 293 152 279 Q157 238 152 207Z"/><path d="M86 144 Q70 156 63 197 Q59 216 71 219 Q83 222 88 203 L97 176 M154 144 Q170 156 177 197 Q181 216 169 219 Q157 222 152 203 L143 176"/><path d="M94 137 Q120 125 146 137 Q158 149 156 188 L152 216 Q145 232 120 233 Q95 232 88 216 L84 188 Q82 149 94 137Z"/><circle cx="120" cy="88" r="57"/></g></svg>; }

@@ -10,6 +10,8 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { MANUAL_EMOTION_DEFAULTS } from "@/domain/emotions";
+import type { EmotionDimensions, EmotionLabel } from "@/domain/types";
 import { applyGameEvent, createInitialSnapshot } from "@/domain/rules";
 import type { Analysis, AnalysisMeta, EmotionReading, Snapshot } from "@/domain/types";
 import {
@@ -130,6 +132,8 @@ function reducer(state: AppState, action: Action): AppState {
 
 interface AppContextValue {
   state: AppState;
+  draft: { text: string; label: EmotionLabel | null; dimensions: EmotionDimensions };
+  setDraft: React.Dispatch<React.SetStateAction<{ text: string; label: EmotionLabel | null; dimensions: EmotionDimensions }>>;
   // emotion 携带调用方确认的真实 source/confidence；analysis/analysisMeta 为规范化 AI 建议，
   // 手选传 null。P2 接入 AI 时由调用方传入 source=ai/corrected 与建议，不在此重写为 manual。
   confirmEntry: (
@@ -160,6 +164,7 @@ function sameEmotion(a: EmotionReading, b: EmotionReading): boolean {
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const [draft, setDraft] = useState<{ text: string; label: EmotionLabel | null; dimensions: EmotionDimensions }>({ text: "", label: null, dimensions: MANUAL_EMOTION_DEFAULTS.neutral });
   const savingRef = useRef(false);
   const [storage] = useState<StoragePort>(() => createLocalStorageAdapter());
 
@@ -309,6 +314,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const value: AppContextValue = {
     state,
+    draft,
+    setDraft,
     confirmEntry,
     retrySave,
     invalidatePending,
