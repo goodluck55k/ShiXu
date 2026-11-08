@@ -1,43 +1,5 @@
 "use client";
-
 import { EMOTION_NAMES, type Entry, type EmotionSource } from "@/domain/types";
 import { formatDateTime } from "@/lib/format";
-
-const SOURCE_NAMES: Record<EmotionSource, string> = {
-  ai: "AI 建议",
-  manual: "手动选择",
-  corrected: "手动纠正",
-};
-
-export function DiaryHistory({ entries }: { entries: Entry[] }) {
-  const ordered = [...entries].sort((a, b) => b.createdAt - a.createdAt);
-  return (
-    <section aria-label="日记历史" className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
-      <h2 className="text-lg font-semibold">日记历史</h2>
-      {ordered.length === 0 ? (
-        <p className="mt-3 rounded-xl bg-stone-50 p-4 text-sm text-stone-500">
-          还没有日记。写下第一条，小人会记住这一天。
-        </p>
-      ) : (
-        <ul className="mt-3 space-y-3">
-          {ordered.map((entry) => (
-            <li key={entry.id} className="rounded-xl border border-stone-200 bg-stone-50 p-4">
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-stone-500">
-                <time dateTime={new Date(entry.createdAt).toISOString()}>
-                  {formatDateTime(entry.createdAt)}
-                </time>
-                <span className="rounded-full bg-teal-50 px-2 py-0.5 font-medium text-teal-700">
-                  {EMOTION_NAMES[entry.effectiveEmotion.label]}
-                </span>
-                <span>{SOURCE_NAMES[entry.effectiveEmotion.source]}</span>
-              </div>
-              <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-relaxed text-stone-800">
-                {entry.text}
-              </p>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
-  );
-}
+const SOURCE_NAMES: Record<EmotionSource, string> = { ai: "AI 建议", manual: "手动选择", corrected: "手动纠正" };
+export function DiaryHistory({ entries }: { entries: Entry[] }) { const ordered = [...entries].sort((a,b) => b.createdAt-a.createdAt); return <section aria-label="日记历史" className="memories-list">{ordered.length === 0 ? <div className="empty-memory"><span aria-hidden="true">✿</span><h2>这里还留着一片空白</h2><p>等你愿意写下的时候，回忆会在这里慢慢生长。</p></div> : <><div className="list-heading"><span>你的心情记录</span><span>{ordered.length} 篇回忆</span></div><ul>{ordered.map(entry => <li key={entry.id}><details className="memory-card"><summary><span className="memory-art" aria-hidden="true">✿</span><span className="memory-summary"><time dateTime={new Date(entry.createdAt).toISOString()}>{formatDateTime(entry.createdAt)}</time><span className="memory-preview">{entry.text}</span></span><span className="memory-tags"><span className={`mood-pill emotion-${entry.effectiveEmotion.label}`}>{EMOTION_NAMES[entry.effectiveEmotion.label]}</span><span className="source-pill">{SOURCE_NAMES[entry.effectiveEmotion.source]}</span></span><span className="memory-arrow" aria-hidden="true">↗</span></summary><div className="memory-body"><p>{entry.text}</p></div></details></li>)}</ul></>}</section>; }

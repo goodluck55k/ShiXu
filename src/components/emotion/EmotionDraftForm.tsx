@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { useApp } from "@/application/AppProvider";
 import { createManualEmotion, MANUAL_EMOTION_DEFAULTS } from "@/domain/emotions";
 import {
@@ -12,20 +11,14 @@ import { EmotionCategoryPicker } from "./EmotionCategoryPicker";
 import { EmotionDimensionSliders } from "./EmotionDimensionSliders";
 
 export function EmotionDraftForm() {
-  const { state, confirmEntry, retrySave, invalidatePending } = useApp();
-  const [text, setText] = useState("");
-  const [label, setLabel] = useState<EmotionLabel | null>(null);
-  const [dimensions, setDimensions] = useState<EmotionDimensions>(
-    MANUAL_EMOTION_DEFAULTS.neutral,
-  );
+  const { state, draft, setDraft, confirmEntry, retrySave, invalidatePending } = useApp();
+  const { text, label, dimensions } = draft;
 
   const busy = state.saving || state.tabConflict;
   const canConfirm = text.trim().length > 0 && label !== null && !busy;
 
   function clearDraft() {
-    setText("");
-    setLabel(null);
-    setDimensions(MANUAL_EMOTION_DEFAULTS.neutral);
+    setDraft({ text: "", label: null, dimensions: MANUAL_EMOTION_DEFAULTS.neutral });
   }
 
   async function handleConfirm() {
@@ -40,79 +33,32 @@ export function EmotionDraftForm() {
   }
 
   function selectLabel(next: EmotionLabel) {
-    setLabel(next);
-    setDimensions(MANUAL_EMOTION_DEFAULTS[next]);
+    setDraft(current => ({ ...current, label: next, dimensions: MANUAL_EMOTION_DEFAULTS[next] }));
     invalidatePending();
   }
 
   function changeText(next: string) {
-    setText(next);
+    setDraft(current => ({ ...current, text: next }));
     invalidatePending();
   }
 
   function changeDimensions(next: EmotionDimensions) {
-    setDimensions(next);
+    setDraft(current => ({ ...current, dimensions: next }));
     invalidatePending();
   }
 
   return (
-    <section aria-label="写日记" className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
-      <h2 className="text-lg font-semibold">今天的日记</h2>
-      <p className="mt-1 text-sm text-stone-500">
-        写下触动你的日常，原样保存，不限制字数。这里没有 AI 改写，只有你自己的文字。
-      </p>
-      <textarea
-        value={text}
-        onChange={(event) => changeText(event.target.value)}
-        placeholder="今天发生了什么？此刻心里是什么感觉……"
-        rows={6}
-        aria-label="日记正文"
-        className="mt-3 w-full resize-y rounded-xl border border-stone-300 bg-stone-50 p-3 text-sm leading-relaxed focus:border-teal-500 focus:outline-none"
-      />
-
-      <h3 className="mt-4 text-sm font-semibold text-stone-700">现在的心情（手动选择）</h3>
-      <p className="mt-1 mb-2 text-xs text-stone-500">
-        AI 识别将在后续版本接入；当前为手动选择，不是 AI 判断。
-      </p>
+    <section aria-label="写日记" className="diary-form">
+      <div className="section-heading"><div><span className="section-kicker">TODAY’S NOTE</span><h2>今天想说些什么？</h2></div><span aria-hidden="true">✳</span></div>
+      <p className="section-description">不必组织语言，想到什么就写下来。</p>
+      <textarea disabled={state.saving} value={text} onChange={event => changeText(event.target.value)} placeholder="今天发生了什么？有什么想轻轻记下的……" rows={7} aria-label="日记正文" className="diary-input" />
+      <div className="emotion-heading"><div><span className="section-kicker">HOW DO YOU FEEL</span><h2>此刻的心情</h2></div><span>手动选择一种</span></div>
       <EmotionCategoryPicker value={label} disabled={busy} onSelect={selectLabel} />
-
-      {label !== null && (
-        <div className="mt-4 rounded-xl bg-stone-50 p-4">
-          <p className="mb-3 text-sm text-stone-600">
-            已选「{EMOTION_NAMES[label]}」，默认数值来自手动默认值，可微调：
-          </p>
-          <EmotionDimensionSliders value={dimensions} disabled={busy} onChange={changeDimensions} />
-        </div>
-      )}
-
-      {state.saveError && (
-        <div role="alert" className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
-          <p>{state.saveError}</p>
-          <p className="mt-1 text-xs">草稿已保留，本次未保存。</p>
-          {state.pending && !state.tabConflict && (
-            <button
-              type="button"
-              onClick={() => void handleRetry()}
-              disabled={state.saving}
-              className="mt-2 rounded-lg border border-rose-300 bg-white px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-100 disabled:opacity-50"
-            >
-              重试保存这一条
-            </button>
-          )}
-        </div>
-      )}
-
-      <button
-        type="button"
-        disabled={!canConfirm}
-        onClick={() => void handleConfirm()}
-        className="mt-4 w-full rounded-xl bg-teal-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-teal-700 disabled:cursor-not-allowed disabled:bg-stone-300"
-      >
-        {state.saving ? "保存中…" : "确认心情并保存日记"}
-      </button>
-      {label === null && text.trim().length > 0 && (
-        <p className="mt-2 text-xs text-stone-500">请先选择一个心情类别再保存。</p>
-      )}
+      <details className="dimensions"><summary>细调一下这种感觉 <span>（可选）</span></summary>{label === null ? <p>先选择一种心情，再调整细节。</p> : <div><p>已选「{EMOTION_NAMES[label]}」，可以按自己的感觉调整。</p><EmotionDimensionSliders value={dimensions} disabled={busy} onChange={changeDimensions} /></div>}</details>
+      {state.saveError && <div role="alert" className="save-error"><p>{state.saveError}</p><p>草稿已保留，本次未保存。</p>{state.pending && !state.tabConflict && <button type="button" onClick={() => void handleRetry()} disabled={state.saving} className="text-button">重试保存这一条</button>}</div>}
+      <button type="button" disabled={!canConfirm} onClick={() => void handleConfirm()} className="save-button">{state.saving ? "保存中…" : "保存今天的心情"} <span aria-hidden="true">↗</span></button>
+      {label === null && text.trim().length > 0 && <p className="form-hint">请先选择一个心情再保存。</p>}
+      {state.savedTick > 0 && !state.saveError && <p role="status" className="form-hint">{state.temporary ? "已记录（仅本次会话）" : "已保存到本地"}</p>}
     </section>
   );
 }
