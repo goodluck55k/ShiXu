@@ -1,12 +1,20 @@
+import { PERSONALITY_PARAMS } from "./companion";
 import {
   EMOTION_LABELS,
   MEMORY_EVENT_TYPES,
+  PERSONALITY_DIMENSIONS,
   SNAPSHOT_SCHEMA_VERSION,
   type Snapshot,
+  type SnapshotV1,
 } from "./types";
 
 export type SnapshotValidation =
   | { ok: true; snapshot: Snapshot }
+  | { ok: false; kind: "unsupported-version" | "corrupt"; reason: string };
+
+export type VersionedSnapshotValidation =
+  | { ok: true; schemaVersion: 1; snapshot: SnapshotV1 }
+  | { ok: true; schemaVersion: 2; snapshot: Snapshot }
   | { ok: false; kind: "unsupported-version" | "corrupt"; reason: string };
 
 const EMOTION_SOURCES = ["ai", "manual", "corrected"] as const;
@@ -36,7 +44,7 @@ function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every(isNonEmptyString);
 }
 
-function fail(kind: "unsupported-version" | "corrupt", reason: string): SnapshotValidation {
+function fail(kind: "unsupported-version" | "corrupt", reason: string): { ok: false; kind: "unsupported-version" | "corrupt"; reason: string } {
   return { ok: false, kind, reason };
 }
 
@@ -213,7 +221,80 @@ function validateSnapshotStructure(value: Record<string, unknown>): string | nul
   return null;
 }
 
-export function validateSnapshotJson(raw: string): SnapshotValidation {
+function validateCompanion(
+  value: unknown,
+  entries: Map<string, { dayKey: string; revision: number }>,
+): string | null {
+  if (!isRecord(value)) return "companion 必须是对象";
+  if (!isNonEmptyString(value.companionRulesVersion)) return "companion.companionRulesVersion 缺失";
+  if (!isRecord(value.contributions)) return "companion.contributions 必须是对象";
+  const cap = PERSONALITY_PARAMS.dailyNetCap;
+  for (const [entryId, contribution] of Object.entries(value.contributions)) {
+    const path = `companion.contributions.${entryId}`;
+    const entry = entries.get(entryId);
+    if (!entry) return `${path} 引用了不存在的日记`;
+    if (!isRecord(contribution)) return `${path} 必须是对象`;
+    if (contribution.dayKey !== entry.dayKey) return `${path}.dayKey 必须沿用日记冻结值`;
+    if (!EMOTION_LABELS.includes(contribution.label as never)) return `${path}.label 非法`;
+    if (!isNonNegativeInteger(contribution.entryRevision) || contribution.entryRevision > entry.revision) {
+      return `${path}.entryRevision 非法`;
+    }
+    if (!isRecord(contribution.deltas)) return `${path}.deltas 必须是对象`;
+    for (const dimension of PERSONALITY_DIMENSIONS) {
+      const delta = contribution.deltas[dimension];
+      if (!isFiniteNumber(delta) || !Number.isInteger(delta) || Math.abs(delta) > cap) {
+        return `${path}.deltas.${dimension} 必须是不超过单日上限的整数`;
+      }
+    }
+  }
+  if (!isRecord(value.habits)) return "companion.habits 必须是对象";
+  for (const [habitId, habit] of Object.entries(value.habits)) {
+    const path = `companion.habits.${habitId}`;
+    if (!isRecord(habit)) return `${path} 必须是对象`;
+    if (!isStringArray(habit.countedDayKeys) || !habit.countedDayKeys.every((key) => DAY_KEY.test(key))) {
+      return `${path}.countedDayKeys 非法`;
+    }
+    if (new Set(habit.countedDayKeys).size !== habit.countedDayKeys.length) {
+      return `${path}.countedDayKeys 存在重复日`;
+    }
+    if (!isNonNegativeInteger(habit.totalCount)) return `${path}.totalCount 非法`;
+    if (habit.formedAt !== null && !isFiniteNumber(habit.formedAt)) return `${path}.formedAt 非法`;
+  }
+  if (!Array.isArray(value.world)) return "companion.world 必须是数组";
+  const traceIds = new Set<string>();
+  for (const [index, trace] of value.world.entries()) {
+    const path = `companion.world[${index}]`;
+    if (!isRecord(trace)) return `${path} 必须是对象`;
+    if (!isNonEmptyString(trace.id)) return `${path}.id 缺失`;
+    if (traceIds.has(trace.id)) return `${path}.id 重复`;
+    traceIds.add(trace.id);
+    if (trace.entryId !== null && !entries.has(trace.entryId as string)) {
+      return `${path}.entryId 引用了不存在的日记`;
+    }
+    if (!isNonEmptyString(trace.dayKey) || !DAY_KEY.test(trace.dayKey)) return `${path}.dayKey 非法`;
+    if (!isNonEmptyString(trace.kind)) return `${path}.kind 缺失`;
+    if (!EMOTION_LABELS.includes(trace.label as never)) return `${path}.label 非法`;
+    if (!isFiniteNumber(trace.createdAt)) return `${path}.createdAt 非法`;
+  }
+  return null;
+}
+
+function collectEntryIndex(value: Record<string, unknown>): Map<string, { dayKey: string; revision: number }> {
+  const entries = new Map<string, { dayKey: string; revision: number }>();
+  if (Array.isArray(value.entries)) {
+    for (const entry of value.entries) {
+      if (isRecord(entry) && isNonEmptyString(entry.id)) {
+        entries.set(entry.id, {
+          dayKey: typeof entry.dayKey === "string" ? entry.dayKey : "",
+          revision: isNonNegativeInteger(entry.revision) ? entry.revision : -1,
+        });
+      }
+    }
+  }
+  return entries;
+}
+
+export function validateSnapshotJson(raw: string): VersionedSnapshotValidation {
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
@@ -222,12 +303,17 @@ export function validateSnapshotJson(raw: string): SnapshotValidation {
   }
   if (!isRecord(parsed)) return fail("corrupt", "存档根节点必须是对象");
   if (!isFiniteNumber(parsed.schemaVersion)) return fail("corrupt", "存档缺少有效 schemaVersion");
-  if (parsed.schemaVersion !== SNAPSHOT_SCHEMA_VERSION) {
+  if (parsed.schemaVersion !== 1 && parsed.schemaVersion !== SNAPSHOT_SCHEMA_VERSION) {
     return fail("unsupported-version", `不支持的存档版本 ${parsed.schemaVersion}`);
   }
   const error = validateSnapshotStructure(parsed);
   if (error) return fail("corrupt", error);
-  return { ok: true, snapshot: parsed as unknown as Snapshot };
+  if (parsed.schemaVersion === 1) {
+    return { ok: true, schemaVersion: 1, snapshot: parsed as unknown as SnapshotV1 };
+  }
+  const companionError = validateCompanion(parsed.companion, collectEntryIndex(parsed));
+  if (companionError) return fail("corrupt", companionError);
+  return { ok: true, schemaVersion: 2, snapshot: parsed as unknown as Snapshot };
 }
 
 export function validateSnapshot(value: unknown): SnapshotValidation {
@@ -237,6 +323,8 @@ export function validateSnapshot(value: unknown): SnapshotValidation {
   }
   const error = validateSnapshotStructure(value);
   if (error) return fail("corrupt", error);
+  const companionError = validateCompanion(value.companion, collectEntryIndex(value));
+  if (companionError) return fail("corrupt", companionError);
   return { ok: true, snapshot: value as unknown as Snapshot };
 }
 

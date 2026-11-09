@@ -13,7 +13,14 @@ import {
 import { MANUAL_EMOTION_DEFAULTS } from "@/domain/emotions";
 import type { EmotionDimensions, EmotionLabel } from "@/domain/types";
 import { applyGameEvent, createInitialSnapshot } from "@/domain/rules";
-import type { Analysis, AnalysisMeta, EmotionReading, Snapshot } from "@/domain/types";
+import type {
+  Analysis,
+  AnalysisMeta,
+  EmotionReading,
+  GameContext,
+  GameEvent,
+  Snapshot,
+} from "@/domain/types";
 import {
   createLocalStorageAdapter,
   SNAPSHOT_STORAGE_KEY,
@@ -26,17 +33,20 @@ interface ProblemInfo {
   reason: string;
 }
 
-interface PendingConfirm {
-  eventId: string;
-  entryId: string;
+interface PendingOperation {
+  event: GameEvent;
   now: number;
   dayKey: string;
-  text: string;
-  emotion: EmotionReading;
-  analysis: Analysis | null;
-  analysisMeta: AnalysisMeta | null;
   candidate: Snapshot;
   expectedRevision: number;
+}
+
+// C1 → C4 接口：保存成功结果与本次确认情绪，运行时内存，供 C4 构造一次性共鸣上下文
+export interface ConfirmedSaveContext {
+  eventId: string;
+  entryId: string;
+  emotion: EmotionReading;
+  savedAt: number;
 }
 
 export interface AppState {
@@ -47,8 +57,9 @@ export interface AppState {
   saving: boolean;
   saveError: string | null;
   savedTick: number;
-  pending: PendingConfirm | null;
+  pending: PendingOperation | null;
   tabConflict: boolean;
+  lastConfirmedSave: ConfirmedSaveContext | null;
 }
 
 const initialState: AppState = {
@@ -61,11 +72,12 @@ const initialState: AppState = {
   savedTick: 0,
   pending: null,
   tabConflict: false,
+  lastConfirmedSave: null,
 };
 
 type Action =
   | { type: "LOAD_DONE"; result: LoadResult }
-  | { type: "SAVE_START"; pending: PendingConfirm }
+  | { type: "SAVE_START"; pending: PendingOperation }
   | { type: "SAVE_OK"; snapshot: Snapshot }
   | { type: "SAVE_FAIL"; message: string; conflict: boolean }
   | { type: "INVALIDATE_PENDING" }
@@ -75,7 +87,14 @@ type Action =
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
     case "LOAD_DONE": {
-      const base = { ...state, saving: false, pending: null, tabConflict: false, saveError: null };
+      const base = {
+        ...state,
+        saving: false,
+        pending: null,
+        tabConflict: false,
+        saveError: null,
+        lastConfirmedSave: null,
+      };
       const result = action.result;
       switch (result.status) {
         case "missing":
@@ -98,7 +117,17 @@ function reducer(state: AppState, action: Action): AppState {
     }
     case "SAVE_START":
       return { ...state, saving: true, saveError: null, pending: action.pending };
-    case "SAVE_OK":
+    case "SAVE_OK": {
+      const pending = state.pending;
+      const lastConfirmedSave =
+        pending && pending.event.type === "CONFIRM_ENTRY"
+          ? {
+              eventId: pending.event.eventId,
+              entryId: pending.event.entryId,
+              emotion: pending.event.emotion,
+              savedAt: pending.now,
+            }
+          : state.lastConfirmedSave;
       return {
         ...state,
         phase: "ready",
@@ -108,7 +137,9 @@ function reducer(state: AppState, action: Action): AppState {
         snapshot: action.snapshot,
         pending: null,
         savedTick: state.savedTick + 1,
+        lastConfirmedSave,
       };
+    }
     case "SAVE_FAIL":
       return { ...state, saving: false, saveError: action.message, tabConflict: action.conflict };
     case "INVALIDATE_PENDING":
@@ -124,6 +155,7 @@ function reducer(state: AppState, action: Action): AppState {
         problem: null,
         pending: null,
         saveError: null,
+        lastConfirmedSave: null,
       };
     case "TAB_CONFLICT":
       return { ...state, tabConflict: true };
@@ -135,12 +167,24 @@ interface AppContextValue {
   draft: { text: string; label: EmotionLabel | null; dimensions: EmotionDimensions };
   setDraft: React.Dispatch<React.SetStateAction<{ text: string; label: EmotionLabel | null; dimensions: EmotionDimensions }>>;
   // emotion 携带调用方确认的真实 source/confidence；analysis/analysisMeta 为规范化 AI 建议，
-  // 手选传 null。P2 接入 AI 时由调用方传入 source=ai/corrected 与建议，不在此重写为 manual。
+  // 手选传 null。C2 接入 AI 时由调用方传入 source=ai/corrected 与建议，不在此重写为 manual。
   confirmEntry: (
     text: string,
     emotion: EmotionReading,
     analysis?: Analysis | null,
     analysisMeta?: AnalysisMeta | null,
+  ) => Promise<boolean>;
+  correctEmotion: (
+    entryId: string,
+    expectedEntryRevision: number,
+    emotion: EmotionReading,
+    analysis?: Analysis | null,
+    analysisMeta?: AnalysisMeta | null,
+  ) => Promise<boolean>;
+  editEntryText: (
+    entryId: string,
+    expectedEntryRevision: number,
+    text: string,
   ) => Promise<boolean>;
   retrySave: () => Promise<boolean>;
   invalidatePending: () => void;
@@ -158,7 +202,9 @@ function sameEmotion(a: EmotionReading, b: EmotionReading): boolean {
     a.valence === b.valence &&
     a.arousal === b.arousal &&
     a.dominance === b.dominance &&
-    a.intensity === b.intensity
+    a.intensity === b.intensity &&
+    a.source === b.source &&
+    a.confidence === b.confidence
   );
 }
 
@@ -187,7 +233,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [state.temporary]);
 
   const saveCandidate = useCallback(
-    async (pending: PendingConfirm, temporary: boolean): Promise<boolean> => {
+    async (pending: PendingOperation, temporary: boolean): Promise<boolean> => {
       if (savingRef.current) return false;
       savingRef.current = true;
       dispatch({ type: "SAVE_START", pending });
@@ -215,60 +261,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [storage],
   );
 
-  const confirmEntry = useCallback(
+  const runOperation = useCallback(
     async (
-      text: string,
-      emotion: EmotionReading,
-      analysis: Analysis | null = null,
-      analysisMeta: AnalysisMeta | null = null,
+      build: () => { event: GameEvent; context: GameContext } | null,
+      matchesPending: (pendingEvent: GameEvent) => boolean,
     ): Promise<boolean> => {
-      if (
-        state.phase !== "ready" ||
-        !state.snapshot ||
-        state.saving ||
-        state.tabConflict ||
-        text.trim().length === 0
-      ) {
+      if (state.phase !== "ready" || !state.snapshot || state.saving || state.tabConflict) {
         return false;
       }
       let pending = state.pending;
       // 同一逻辑操作重试必须复用冻结的 eventId/entryId/now/dayKey，跨午夜不重新归日
-      if (
-        !pending ||
-        pending.text !== text ||
-        !sameEmotion(pending.emotion, emotion) ||
-        pending.emotion.source !== emotion.source ||
-        pending.emotion.confidence !== emotion.confidence ||
-        pending.analysis !== analysis ||
-        pending.analysisMeta !== analysisMeta
-      ) {
-        const now = Date.now();
-        const dayKey = localDayKey(now);
-        const eventId = createId("evt");
-        const entryId = createId("entry");
-        const result = applyGameEvent(
-          state.snapshot,
-          {
-            type: "CONFIRM_ENTRY",
-            eventId,
-            entryId,
-            text,
-            emotion,
-            analysis,
-            analysisMeta,
-          },
-          { now, dayKey },
-        );
+      if (!pending || !matchesPending(pending.event)) {
+        const built = build();
+        if (!built) return false;
+        const result = applyGameEvent(state.snapshot, built.event, built.context);
         if (!result.changed) return false;
         pending = {
-          eventId,
-          entryId,
-          now,
-          dayKey,
-          text,
-          emotion,
-          analysis,
-          analysisMeta,
+          event: built.event,
+          now: built.context.now,
+          dayKey: built.context.dayKey,
           candidate: result.snapshot,
           expectedRevision: state.snapshot.revision,
         };
@@ -276,6 +287,104 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return saveCandidate(pending, state.temporary);
     },
     [state, saveCandidate],
+  );
+
+  const confirmEntry = useCallback(
+    async (
+      text: string,
+      emotion: EmotionReading,
+      analysis: Analysis | null = null,
+      analysisMeta: AnalysisMeta | null = null,
+    ): Promise<boolean> => {
+      return runOperation(
+        () => {
+          if (text.trim().length === 0) return null;
+          const now = Date.now();
+          return {
+            event: {
+              type: "CONFIRM_ENTRY",
+              eventId: createId("evt"),
+              entryId: createId("entry"),
+              text,
+              emotion,
+              analysis,
+              analysisMeta,
+            },
+            context: { now, dayKey: localDayKey(now) },
+          };
+        },
+        (pendingEvent) =>
+          pendingEvent.type === "CONFIRM_ENTRY" &&
+          pendingEvent.text === text &&
+          sameEmotion(pendingEvent.emotion, emotion) &&
+          pendingEvent.analysis === analysis &&
+          pendingEvent.analysisMeta === analysisMeta,
+      );
+    },
+    [runOperation],
+  );
+
+  const correctEmotion = useCallback(
+    async (
+      entryId: string,
+      expectedEntryRevision: number,
+      emotion: EmotionReading,
+      analysis: Analysis | null = null,
+      analysisMeta: AnalysisMeta | null = null,
+    ): Promise<boolean> => {
+      return runOperation(
+        () => {
+          const now = Date.now();
+          return {
+            event: {
+              type: "CORRECT_EMOTION",
+              eventId: createId("evt"),
+              entryId,
+              expectedEntryRevision,
+              emotion,
+              analysis,
+              analysisMeta,
+            },
+            context: { now, dayKey: localDayKey(now) },
+          };
+        },
+        (pendingEvent) =>
+          pendingEvent.type === "CORRECT_EMOTION" &&
+          pendingEvent.entryId === entryId &&
+          pendingEvent.expectedEntryRevision === expectedEntryRevision &&
+          sameEmotion(pendingEvent.emotion, emotion) &&
+          pendingEvent.analysis === analysis &&
+          pendingEvent.analysisMeta === analysisMeta,
+      );
+    },
+    [runOperation],
+  );
+
+  const editEntryText = useCallback(
+    async (entryId: string, expectedEntryRevision: number, text: string): Promise<boolean> => {
+      return runOperation(
+        () => {
+          if (text.trim().length === 0) return null;
+          const now = Date.now();
+          return {
+            event: {
+              type: "EDIT_ENTRY_TEXT",
+              eventId: createId("evt"),
+              entryId,
+              expectedEntryRevision,
+              text,
+            },
+            context: { now, dayKey: localDayKey(now) },
+          };
+        },
+        (pendingEvent) =>
+          pendingEvent.type === "EDIT_ENTRY_TEXT" &&
+          pendingEvent.entryId === entryId &&
+          pendingEvent.expectedEntryRevision === expectedEntryRevision &&
+          pendingEvent.text === text,
+      );
+    },
+    [runOperation],
   );
 
   const retrySave = useCallback(async (): Promise<boolean> => {
@@ -317,6 +426,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     draft,
     setDraft,
     confirmEntry,
+    correctEmotion,
+    editEntryText,
     retrySave,
     invalidatePending,
     reload,
