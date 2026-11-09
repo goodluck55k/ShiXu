@@ -48,4 +48,4 @@ README 另提到 Figma 的 Avatar Illustration System 与设计作者 Micah；�
 
 ## 4. 采用原则
 
-三个参考不是技术依赖清单，不必安装它们才能开发。先遵循本项目 [AGENTS](../AGENTS.md)、[ARCHITECTURE](ARCHITECTURE.md)、[PRODUCT_SPEC](PRODUCT_SPEC.md) 和 [AI_CONTRACT](AI_CONTRACT.md)。后续真实复用代码时记录来源路径、固定提交、修改说明及适用许可；许可不明则自行实现，不让研究或授权等待阻塞已有可行方案。
+三个参考不是技术依赖清单，不必安装它们才能开发。先遵循本项目 [AGENTS](../AGENTS.md)、[ARCHITECTURE](ARCHITECTURE.md)、[PRODUCT_SPEC](PRODUCT_SPEC.md)、[COMPANION_SPEC](COMPANION_SPEC.md) 和 [AI_CONTRACT](AI_CONTRACT.md)。后续真实复用代码时记录来源路径、固定提交、修改说明及适用许可；许可不明则自行实现，不让研究或授权等待阻塞已有可行方案。
