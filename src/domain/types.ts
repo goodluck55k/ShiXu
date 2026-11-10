@@ -121,7 +121,53 @@ export interface DecorationState {
   hiddenById: Record<string, HiddenDecoration>;
 }
 
-export const SNAPSHOT_SCHEMA_VERSION = 1;
+export const PERSONALITY_DIMENSIONS = ["exploration", "serenity", "affinity"] as const;
+
+export type PersonalityDimension = (typeof PERSONALITY_DIMENSIONS)[number];
+
+export type PersonalityDeltas = Record<PersonalityDimension, number>;
+
+export interface PersonalityContribution {
+  dayKey: string;
+  label: EmotionLabel;
+  deltas: PersonalityDeltas;
+  entryRevision: number;
+}
+
+export interface HabitProgress {
+  countedDayKeys: string[];
+  totalCount: number;
+  formedAt: number | null;
+}
+
+// C4 候选结构，机制待确认，C1 只初始化为空列表
+export interface WorldTrace {
+  id: string;
+  entryId: string | null;
+  dayKey: string;
+  kind: string;
+  label: EmotionLabel;
+  createdAt: number;
+}
+
+export interface CompanionState {
+  contributions: Record<string, PersonalityContribution>;
+  habits: Record<string, HabitProgress>;
+  world: WorldTrace[];
+  companionRulesVersion: string;
+}
+
+export const SNAPSHOT_SCHEMA_VERSION = 2;
+
+export interface SnapshotV1 {
+  schemaVersion: 1;
+  revision: number;
+  character: CharacterState;
+  entries: Entry[];
+  decorations: DecorationState;
+  memories: MemoryEvent[];
+  appliedEventIds: string[];
+}
 
 export interface Snapshot {
   schemaVersion: typeof SNAPSHOT_SCHEMA_VERSION;
@@ -131,6 +177,7 @@ export interface Snapshot {
   decorations: DecorationState;
   memories: MemoryEvent[];
   appliedEventIds: string[];
+  companion: CompanionState;
 }
 
 interface GameEventBase {

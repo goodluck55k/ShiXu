@@ -1,3 +1,4 @@
+import { migrateSnapshotV1toV2 } from "@/domain/companion";
 import { createInitialSnapshot } from "@/domain/rules";
 import { serializeSnapshot, validateSnapshot, validateSnapshotJson } from "@/domain/schema";
 import type { Snapshot } from "@/domain/types";
@@ -75,7 +76,14 @@ export function createLocalStorageAdapter(): StoragePort {
       }
       if (raw === null) return { status: "missing" };
       const validation = validateSnapshotJson(raw);
-      if (validation.ok) return { status: "ready", snapshot: validation.snapshot };
+      if (validation.ok) {
+        // v1 只在内存中迁移为 v2，磁盘原始数据留到下一次成功 save 才落盘
+        const snapshot =
+          validation.schemaVersion === 1
+            ? migrateSnapshotV1toV2(validation.snapshot)
+            : validation.snapshot;
+        return { status: "ready", snapshot };
+      }
       return { status: validation.kind, raw, reason: validation.reason };
     },
     async save(snapshot: Snapshot, expectedRevision: number): Promise<SaveResult> {
