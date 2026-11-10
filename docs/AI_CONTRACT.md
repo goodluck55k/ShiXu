@@ -44,7 +44,16 @@ schemaVersion 固定 1；requestId、entryId 为客户端创建的非空不透�
 
 ### 2.1 Provider 与接入顺序
 
-核对日期：2026-11-10（北京时间）。情绪识别正式接入目标为**阿里云百炼（Model Studio）决策模型**，候选模型标识 `decision-model-preview`，优先使用与 System One 兼容的决策接口。百炼只判断情绪，不生成、润色、总结、扩写或改写日记。C2 尚未实现，也未发送带 Key 的真实请求。
+核对日期：2026-11-10（北京时间）。情绪识别正式接入目标为**阿里云百炼（Model Studio）决策模型**，候选模型标识 `decision-model-preview`，优先使用与 System One 兼容的决策接口。百炼只判断情绪，不生成、润色、总结、扩写或改写日记。C2 已实现真实 Provider 适配器；截至核实日尚未发送带 Key 的真实请求。
+
+**C2 核实记录（2026-11-10，依据官方文档；账号真实调用未验证）**：
+
+- 模型标识：`decision-model-preview` 已在百炼上线（2026-09-24，预览版，限时免费），协议为 TypeSafe System One：`POST {base}/compatible-mode/v1/systemone`，请求 `{model, state, questions}`，一次前向返回类型化 answers（choice / score / noul）、概率分布与 confidence，不生成文本。本契约五问（1 choice + 4 score）在协议限制内。
+- Endpoint：必须使用业务空间专属域名，北京 `https://{WorkspaceId}.cn-beijing.maas.aliyuncs.com/compatible-mode/v1/systemone`，新加坡 `https://{WorkspaceId}.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1/systemone`；公共 dashscope 域名无该路由。
+- 鉴权：`Authorization: Bearer <API Key>`，Key 按地域隔离；Workspace ID 必需（嵌入域名），本服务经 `BAILIAN_WORKSPACE_ID` 配置，默认北京地域，`MODEL_BASE_URL` 可覆盖。
+- 限制：输入上限 65,536 tokens（超长 state 被拒绝）；单请求问题数 ≤16；choice 选项 ≤255；score 2–255 级；平台侧限流 RPM 1,200 / TPM 2,000,000。错误码沿用百炼通用错误码（InvalidApiKey、Arrearage、Throttling 等）。
+- 账号是否开通与真实调用：未验证（开发环境无 Key）。具备 Key 与 Workspace 后按第 6 节做小样本检查；在此之前手选闭环可用，mock 明确标识为演示数据。
+- 来源：help.aliyun.com/zh/model-studio/decision-model-preview、decision-model-api、error-code、rate-limit。
 
 C2 启动时必须按阿里云百炼官方文档与**实际账号能力**核实并记录以下事实，核实结果写入 PR 与本文件；核实前不得把候选值当成已验证结论：
 
@@ -127,7 +136,7 @@ TypeSafe 与 Cloudflare 仅作为历史参考或后续可选适配，**不是默
 
 ### 2.4 AI 实际输入限制
 
-输入上限以阿里云百炼官方文档与所选模型/接口为准，C2 核实后把实际限制记录到本文；核实前部署层按保守上限保护：每请求上下文不超过 64k tokens、UTF-8 JSON body 不超过 32 MiB，超限直接返回 413 / INPUT_TOO_LONG，不出网。这些是 AI 请求限制，不是日记字数限制；不把 Unicode 字符数当作精确 token 数。长上下文能力、计费与配额以核实结果为准，不默认开启未确认的扩展能力，也不借此增加功能范围。
+输入上限以阿里云百炼官方文档与所选模型/接口为准。C2 核实：`decision-model-preview` 输入上限 65,536 tokens，超长 state 被拒绝。部署层仍按保守上限保护：每请求上下文不超过 64k tokens、UTF-8 JSON body 不超过 32 MiB，超限直接返回 413 / INPUT_TOO_LONG，不出网；发送前另按可配置字符数预检（默认 30,000 字符，`AI_MAX_INPUT_CHARS`），并识别上游明确的输入超限错误。这些是 AI 请求限制，不是日记字数限制；不把 Unicode 字符数当作精确 token 数。长上下文能力、计费与配额以核实结果为准，不默认开启未确认的扩展能力，也不借此增加功能范围。
 
 Provider 计入问题与序列化开销；可预先发现的字节/部署 body 限制在发送前提示，token 超限也须识别上游明确错误，不为估算单独增加模型调用或依赖。部署代理先行返回 413、浏览器网络失败等也由页面接住，不影响本地保存路径。全文不能处理时返回 INPUT_TOO_LONG 并明确“无法分析全文，可手动选择心情并保存完整日记”；不静默截断、总结、分段拼接后声称全文分析。长文本的手选保存完全不经过 /api/emotion，仍独立处理 localStorage 实际容量错误。
 
