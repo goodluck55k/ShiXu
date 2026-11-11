@@ -41,14 +41,15 @@
   - 新增 `src/domain/personality.ts`：`derivePersonality`、`describePersonality`、只读查询；拆除/替换 `companion.ts` 的三维实现。
   - 扩展 `applyGameEvent` 的 `CONFIRM_ENTRY` / `CORRECT_EMOTION`：写五维贡献、纠正替换、单日上限、幂等。
   - `schemaVersion` 升到 3，新增 `migrateSnapshotV2toV3`；旧三维护账、装饰、XP、习惯、世界痕迹进入 `legacy`。
-  - `AppProvider` 接入新派生与迁移；保存失败不改变正式状态。
+  - `AppProvider` 接入新派生与迁移；`CompanionScreen` 只替换为 `PersonalitySnapshot` 只读数据源，不改布局/样式；保存失败不改变正式状态。
 - 公共接口：`PersonalityState`、`PersonalitySnapshot`、`PersonalityRuleConfig`、`derivePersonality`、`describePersonality`、`migrateSnapshotV2toV3`。
 - 明确不做：行为选择、动画、互动、饰品、AI 改动、正式 UI、旧数据换算（待确认）。
 - 最小验收：
   1. 重复 `eventId` 不重复计分；同一天单维净变化不超上限。
-  2. 纠正替换旧贡献；编辑正文不改贡献；其他日期不受影响。
-  3. v2 存档迁移后正文、情绪、纠正、历史逐字保留；旧台账不参与新分数。
+  2. 纠正替换旧贡献；同日多篇后纠正较早一篇只按余量重算该条，余量不足可为 0；编辑正文不改贡献；其他日期与其他条目不受影响。
+  3. v2 存档迁移后正文、情绪、纠正、历史逐字保留；旧台账不参与新分数；迁移后无新贡献的旧条目被纠正时不补建贡献、不改分数。
   4. 描述无数字、无等级、无诊断词；保存失败不结算。
+  5. 规则版本升级或旧配置缺失不改变已保存贡献的派生分数；同日单维合计的绝对值不得超过 4。
 - 建议分支：`feature/personality-engine`。
 
 ### 阶段三：自主行为与互动

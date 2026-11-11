@@ -107,7 +107,7 @@ interface Entry {
   effectiveEmotion: EmotionReading;
   corrections: EmotionCorrection[];
   awardedXp?: number;      // 旧字段，只兼容保留，不读取、不写入
-  rulesVersion: string;
+  rulesVersion: string;    // 日记/事件规则版本（V1 为 "rules-v1"），不是性格规则版本
 }
 ```
 
@@ -122,13 +122,13 @@ interface PersonalityContribution {
   dayKey: string;
   label: EmotionLabel;
   entryRevision: number;
-  deltas: Record<DimensionId, number>;
-  rulesVersion: string;     // 结算时使用的版本
+  deltas: Record<DimensionId, number>; // 结算后的最终增量，派生只求和
+  rulesVersion: string;     // 该条贡献结算时使用的 personality-* 版本
 }
 
 interface PersonalityState {
   contributions: Record<string, PersonalityContribution>; // key = entryId
-  rulesVersion: string;     // 当前结算版本 "personality-v1"
+  rulesVersion: string;     // 新结算使用的版本 "personality-v1"；不用于重读旧分数
 }
 
 interface PersonalitySnapshot {
@@ -152,7 +152,9 @@ interface PersonalityRuleConfig {
 }
 ```
 
-- 分数永远由 `contributions` 纯派生：`clamp(initial + Σdeltas, min, max)`；不存储第二份分数。
+- 分数永远由 `contributions` 纯派生：`clamp(initial + Σdeltas, min, max)`；`deltas` 是写入时已受单次/单日上限约束的最终增量，派生不再按日重算，不存储第二份分数。
+- `initialScore`/`minScore`/`maxScore` 是存档级不变量；变更必须走显式迁移，不能只升 `rulesVersion` 就让旧分数随当前配置变化。
+- 纠正只重算被纠正条目：先扣除旧贡献，以其余贡献的当日合计为余量；其他条目、其他日期不重算。余量不足时该条最终增量可为 0。
 - 旧 `CompanionState.contributions`（三维护账）不进入 `PersonalityState`；迁移后放入 `legacy`。
 - 配置集中在 `src/config/personality.ts`，组件与页面不得引用 `emotionDeltas` 自行算分。
 
@@ -262,7 +264,7 @@ interface SnapshotV3 {
 | `deriveCharacterView(snapshot, decision?)` | character | 阶段二/三 | 视图映射，只读 |
 | `applyGameEvent(snapshot, event, context)` | rules | 已实现，阶段二扩展 | 唯一正式状态变更入口 |
 | `migrateSnapshotV1toV2(v1)` | storage/rules | 已实现 | 保留 |
-| `migrateSnapshotV2toV3(v2)` | storage/rules | 阶段二 | 新增 |
+| `migrateSnapshotV2toV3(v2)` | storage | 阶段二 | 新增；只做结构转换，不调用计分规则 |
 | `StoragePort.load/save/readRaw/reset` | storage | 已实现 | 签名不变，`Snapshot` 升为 v3 |
 
 ### 5.1 V1 领域事件
@@ -304,6 +306,9 @@ interface SnapshotV3 {
   5. 新建 `personality = { contributions: {}, rulesVersion: "personality-v1" }`，五维从初始分开始。
   6. 迁移只在内存完成；下次成功保存才落盘；失败不改变原存档。
   7. 不追溯旧日记、不静默改写不可识别字段、不删除用户历史。
+  8. 迁移后旧条目没有 `PersonalityContribution`；之后对这些条目的纠正只更新 `effectiveEmotion`、`revision`、`corrections` 与回忆事件，不补建贡献、不改变性格分数。这是“不追溯”的一部分，不属于结算失败。
+- 读取与写入校验除检查单条 `deltas` 范围外，还必须按 `dayKey` 聚合检查同日单维合计的绝对值不超过 `dailyNetCap`，防止构造存档或重复结算绕过上限。
+- 迁移函数只读类型与配置，不导入计分/派生逻辑；`storage` 不得因新增 v2→v3 迁移而依赖 `rules`（既有 v1→v2 兼容迁移后续可一并移出，不阻塞阶段二）。
 - 旧三维护账是否换算成五维：**待确认**；确认前一律不换算。
 
 ## 7. 角色渲染

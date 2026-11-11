@@ -186,7 +186,7 @@ Provider 计入问题与序列化开销；可预先发现的字节/部署 body �
 | neutral | 0.50 | 0.50 | 0.50 | 0.30 |
 | unknown | 0.50 | 0.50 | 0.50 | 0.30 |
 
-保存前允许覆盖 AI 建议，保存 originalAnalysis（仅规范化 Analysis）、analysisMeta、effectiveEmotion 及其中的 source；无 AI 时建议/元信息可空。保存后用同一 entryId、expectedEntryRevision 和稳定 eventId 提交纠正，由规则递增 Entry.revision 并保留修订轨迹；不重复结算、不追回已有成长。性格贡献按 COMPANION_SPEC 第 2.4 节替换修订：同 entryId 只有一份有效贡献，不叠加计分，跨日期纠正沿用原冻结 dayKey，原子保存。仅最新记录纠正影响当前视觉；饰品装扮属 V2 范围，由未来饰品模块按只读性格状态与已确认领域事件独立结算，V1 不实现，边界见 COMPANION_SPEC 第 5 节。正文编辑不自动改变心情、不改变性格贡献、不触发结算；主动重识别或手选须再次确认。对手选、导入数据也执行相同字段校验。
+保存前允许覆盖 AI 建议，保存 originalAnalysis（仅规范化 Analysis）、analysisMeta、effectiveEmotion 及其中的 source；无 AI 时建议/元信息可空。保存后用同一 entryId、expectedEntryRevision 和稳定 eventId 提交纠正，由规则递增 Entry.revision 并保留修订轨迹；不重复结算、不追回已有成长。性格贡献按 COMPANION_SPEC 第 2.4 节替换修订：同 entryId 只有一份有效贡献，不叠加计分，跨日期纠正沿用原冻结 dayKey，原子保存；迁移后无新贡献的旧条目纠正只更新情绪与历史，不补建贡献、不改分数。仅最新记录纠正影响当前视觉；饰品装扮属 V2 范围，由未来饰品模块按只读性格状态与已确认领域事件独立结算，V1 不实现，边界见 COMPANION_SPEC 第 5 节。正文编辑不自动改变心情、不改变性格贡献、不触发结算；主动重识别或手选须再次确认。对手选、导入数据也执行相同字段校验。
 
 ## 5. 强制权限边界
 
