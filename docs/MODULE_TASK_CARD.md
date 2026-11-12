@@ -107,7 +107,7 @@
 - schema：v2→v3
 - 迁移：entries/memories/appliedEventIds/revision 原样保留；personality 从初始值起、dominantId 为 null；旧字段入 legacy 只读；不追溯旧日记
 - 迁移后旧条目没有新贡献；纠正只更新情绪/修订/历史，不补建贡献、不改分数
-- 校验：除单条范围外，按 dayKey 聚合检查同日单维合计的绝对值不超过每日上限；dominantId 必须为五维之一或 null
+- 校验：读取按贡献自身 `rulesVersion` 校验；新写入按当前版本：历史未超限时同日单维合计不得超限，历史已超限时只允许 0 或绝对值严格减小（结果可仍超限，如 `+6` 加 `-1` 得 `+5`）；`dominantId` 必须为五维之一或 null
 - 失败：迁移在内存完成，成功 save 才落盘；损坏数据保留 raw
 
 ### 风险与待确认
