@@ -174,9 +174,10 @@ interface PersonalityRuleConfig {
 ```
 
 - 分数永远由 `contributions` 纯派生：`clamp(initial + Σdeltas, min, max)`；`deltas` 是写入时已受单次/单日上限约束的最终增量，派生不再按日重算，不存储第二份分数。
+- 配置以 `rulesVersion` 为键注册；每条贡献按其自身 `rulesVersion` 解释。`PersonalityState.rulesVersion` 只决定“新结算使用哪个配置”，不能用来重新解释旧贡献或重新拒绝历史日。
 - `initialScore`/`minScore`/`maxScore` 是存档级不变量；变更必须走显式迁移，不能只升 `rulesVersion` 就让旧分数随当前配置变化。
 - `dominantId` 必须持久化：只有其他维度严格高于当前主导时才切换；并列保留当前主导。首次/迁移后为 `null`，按 `dominantPriority` 从最高分中取第一个。
-- 纠正只重算被纠正条目：先扣除旧贡献，以其余贡献的当日合计为余量；使用原贡献的 `dayKey` 与 `rulesVersion`；其他条目、其他日期不重算。余量不足时该条最终增量可为 0；旧配置缺失时拒绝纠正。
+- 纠正只重算被纠正条目：先扣除旧贡献，以该 `dayKey` 下所有已保存贡献的实际合计为余量（不区分版本），上限参数取原贡献的 `rulesVersion`；其他条目、其他日期不重算。余量不足时该条最终增量可为 0；旧配置缺失时拒绝纠正。
 - 旧 `CompanionState.contributions`（三维护账）不进入 `PersonalityState`；迁移后放入 `legacy`，不自动换算。
 - 配置集中在 `src/config/personality.ts`，组件与页面不得引用 `emotionDeltas` 自行算分，也不得展示 `scores`。
 - 当前 `companion-v1` 的 `dailyNetCap` 为 6，与 [COMPANION_SPEC](COMPANION_SPEC.md) 候选值 4 不一致；阶段二必须显式对齐或由用户确认，不得静默保留。
@@ -256,7 +257,7 @@ interface BehaviorRuleConfig {
 }
 ```
 
-行为决策不写 `Snapshot`，不需要 `eventId` 幂等；互动反馈与保存后情绪表现只存在于运行时内存。特殊行为不是必然触发；只有 `specialEligible`、主导为 `low_mood`、配置开启且概率命中时才可能发生。`specialEligible` 的连续天数判定属于待确认项，见 [COMPANION_SPEC](COMPANION_SPEC.md) 3.5。
+行为决策不写 `Snapshot`，不需要 `eventId` 幂等；互动反馈与保存后情绪表现只存在于运行时内存。特殊行为不是必然触发；只有 `specialEligible`、主导为 `low_mood`、配置开启且概率命中时才可能发生。`specialEligible` 的连续天数判定（含第 4 天 A/B 语义）属于待确认项，见 [COMPANION_SPEC](COMPANION_SPEC.md) 3.5。
 
 ### 4.4 离线生活与久别重逢（阶段四/五）
 
@@ -271,7 +272,8 @@ interface OfflineLifeEvent {
 }
 
 interface OfflineLifeState {
-  lastVisitAt: number | null;       // 上次成功记录访问
+  lastVisitAt: number | null;       // 上次成功会话启动
+  lastActiveAt: number | null;      // 最后一次确认活动；离线/重逢基准
   lastWindowStart: number | null;   // 上次处理的窗口起点
   events: OfflineLifeEvent[];       // 有上限
 }
@@ -299,8 +301,12 @@ interface ReunionRuleConfig {
 ```
 
 - 离线事件在**再次打开**时由纯函数生成，不在关闭期间运行后台 Agent。
-- 同一次离线窗口最多生成一次：`eventId = session:<windowStart>` + `lastWindowStart` + 事件 `id` 去重。
-- 重逢在更新 `lastVisitAt` 之前判断；同一次离线窗口只触发一次；保存成功后才展示。
+- 离线与重逢的缺席基准是 `baseline = lastActiveAt ?? lastVisitAt`，不是只看 `lastVisitAt`；`lastVisitAt` 只记录上次会话启动，不能单独代表用户最后一次在线。
+- 应用层在页面隐藏、`pagehide`、刷新前提交 `ACTIVITY_CHECKPOINT`，更新 `lastActiveAt`；可见期间的周期性 checkpoint 最多每 5 分钟一次。同一标签页可用 `sessionStorage` 救援标记避免刷新被误判为离线。该标记不是正式存档，不得替代 `StoragePort`。
+- 任何正式保存成功后也在同一 `applyGameEvent` 中顺带更新 `lastActiveAt`；不得按动画帧或行为 tick 写盘。
+- 同一次离线窗口最多生成一次：`eventId = session:<windowStart>` + `lastWindowStart` + 事件 `id` 去重；`windowStart = baseline`。
+- 重逢在更新 `lastVisitAt` / `lastActiveAt` 之前判断；同一次离线窗口只触发一次；保存成功后才展示。
+- 直接关闭、浏览器崩溃或 checkpoint 写入失败时，只能使用最后一次成功的 `lastActiveAt`（或同标签页救援值）作为降级基准。该降级可能把未 checkpoint 的在线时长计入离线，但不得反向少算；保存失败时不得展示离线事件或重逢。
 - 离线/重逢都不得修改 `personality.contributions`、`scores` 或 `entries`。
 
 ### 4.5 存档（schemaVersion 3）
@@ -344,7 +350,7 @@ interface SnapshotV3 {
 | `describeDominantPersonality(snapshot, config)` | personality | 阶段二 | 只返回当前主导描述 |
 | `resolveDominant(scores, previous, priority)` | personality | 阶段二 | 严格超过才切换；并列确定性 |
 | `selectBehavior(context, config)` | behavior | 阶段三 | 四类行为分离的确定性选择 |
-| `planOfflineLife(input, config)` | offlineLife | 阶段四 | 生成有限事件与下一 `lastVisitAt` |
+| `planOfflineLife(input, config)` | offlineLife | 阶段四 | 生成有限事件与下一 `lastVisitAt` / `lastActiveAt` |
 | `evaluateReunion(input, config)` | reunion | 阶段五 | 判断是否触发并选择模板 |
 | `deriveCharacterView(snapshot, decision?)` | character | 阶段三/七 | 视图映射，只读 |
 | `applyGameEvent(snapshot, event, context)` | rules | 已实现，阶段二至五扩展 | 唯一正式状态变更入口 |
@@ -359,7 +365,8 @@ interface SnapshotV3 {
 | `CONFIRM_ENTRY` | 创建日记、确认情绪、写贡献 | `eventId` + `entryId` | 正文非空白、entryId 不存在 |
 | `EDIT_ENTRY_TEXT` | 原样改正文 | `eventId` + `expectedEntryRevision` | entry 存在、修订匹配 |
 | `CORRECT_EMOTION` | 替换情绪与贡献 | `eventId` + `expectedEntryRevision` | entry 存在、修订匹配 |
-| `SESSION_STARTED` | 记录本次访问、离线事件、重逢触发标记 | `eventId`（候选 `session:<windowStart ?? "first">`） | `windowStart` 等于当前 `offlineLife.lastVisitAt`；事件 id 不与已存事件重复 |
+| `ACTIVITY_CHECKPOINT` | 更新最后活动时间 `lastActiveAt` | 单调 `max`；重复应用无副作用 | `at` 为非负时间且不晚于 `context.now`；不写回忆、不改分数 |
+| `SESSION_STARTED` | 记录本次访问、离线事件、重逢触发标记 | `eventId`（候选 `session:<windowStart ?? "first">`） | `windowStart` 等于当前基准 `lastActiveAt ?? lastVisitAt`；事件 id 不与已存事件重复 |
 
 `SESSION_STARTED` 载荷（应用层用纯函数算好后传入）：
 
@@ -371,10 +378,18 @@ interface SessionStartedEvent {
   offlineEvents: OfflineLifeEvent[];
   reunionTriggered: boolean;
 }
+
+interface ActivityCheckpointEvent {
+  type: "ACTIVITY_CHECKPOINT";
+  eventId: string;                 // activity:<at>
+  at: number;                      // 最后一次确认活动时间
+}
 ```
 
-- `applyGameEvent` 先查 `appliedEventIds`：重复 `eventId` 返回 `changed=false`，不产生副作用。
-- `SESSION_STARTED` 原子更新：`offlineLife.lastVisitAt = context.now`、`lastWindowStart = windowStart`、按 `id` 去重追加事件并裁剪到 `maxStoredEvents`；`reunionTriggered` 为真时写 `reunion.lastTriggeredWindowStart = windowStart`、`lastTriggeredAt = context.now`。
+- `applyGameEvent` 对除 `ACTIVITY_CHECKPOINT` 外的事件先查 `appliedEventIds`：重复 `eventId` 返回 `changed=false`，不产生副作用。
+- `ACTIVITY_CHECKPOINT` 不进入 `memories`，也不写入 `appliedEventIds`；应用 `lastActiveAt = max(lastActiveAt, at)`，因此重复、乱序或重放都不会改变结果。checkpoint 仍走同一条整快照保存路径，失败不改变正式状态。
+- 任何成功的日记正式事件（`CONFIRM_ENTRY` / `EDIT_ENTRY_TEXT` / `CORRECT_EMOTION`）在同一 `applyGameEvent` 中把 `offlineLife.lastActiveAt` 推进到 `context.now`；保存失败时与事件一起回滚。
+- `SESSION_STARTED` 原子更新：`offlineLife.lastVisitAt = context.now`、`offlineLife.lastActiveAt = context.now`、`lastWindowStart = windowStart`、按 `id` 去重追加事件并裁剪到 `maxStoredEvents`；`reunionTriggered` 为真时写 `reunion.lastTriggeredWindowStart = windowStart`、`lastTriggeredAt = context.now`。
 - `RESTORE_DECORATION`、`EQUIP_DECORATION`、`UNEQUIP_DECORATION` **不属于 V1**；`GameEvent` 联合类型可保留兼容分支但必须显式拒绝，不得悄悄执行业务。
 - 回忆事件 id 由 `eventId + 类型 + entryId` 确定性生成，保证重放不重复。
 - `GameContext` 只含 `now` 与 `dayKey`，由应用层生成；任何新增上下文（种子、时间段）必须显式加入契约。
@@ -392,13 +407,14 @@ interface SessionStartedEvent {
 
 会话启动（阶段四/五）：
 
-1. 加载快照，取 `context.now`、`context.dayKey`、当前 `dominantId`。
-2. 调用 `planOfflineLife({ lastVisitAt, now, dominantId }, config)`；首次/迁移存档返回空事件。
-3. 调用 `evaluateReunion({ lastVisitAt, now, lastTriggeredWindowStart, dominantId }, config)`。
-4. 生成 `SESSION_STARTED`；`windowStart = lastVisitAt`，事件与 `reunionTriggered` 由纯函数结果填充。
+1. 加载快照，取 `context.now`、`context.dayKey`、当前 `dominantId`；计算 `baseline = offlineLife.lastActiveAt ?? offlineLife.lastVisitAt`。
+2. 调用 `planOfflineLife({ lastActiveAt, lastVisitAt, now, dominantId }, config)`；首次/迁移存档返回空事件。
+3. 调用 `evaluateReunion({ lastActiveAt, lastVisitAt, now, lastTriggeredWindowStart, dominantId }, config)`。
+4. 生成 `SESSION_STARTED`；`windowStart = baseline`，事件与 `reunionTriggered` 由纯函数结果填充。
 5. `applyGameEvent` 得到候选快照，`storage.save(candidate, expectedRevision)`。
 6. 只有保存成功后才展示离线事件与重逢问候；失败保留旧状态，不展示、不提前确认“已经回来过”。
-7. 刷新后 `lastVisitAt` 已更新，同一窗口不会重复生成或重复问候。
+7. 页面隐藏、`pagehide`、刷新前生成 `ACTIVITY_CHECKPOINT`；可见期间最多每 5 分钟一次，`at = context.now`，走同一保存路径；失败只保留旧 `lastActiveAt`，不展示未保存事件。
+8. 刷新后 `lastVisitAt` / `lastActiveAt` 已更新，同一窗口不会重复生成或重复问候。
 
 行为循环：可见时由应用层按 `tickInterval` 用显式种子与序号调用 `selectBehavior`，把 `BehaviorDecision` 映射为 `CharacterView` 交给角色层；不写存档。页面隐藏时暂停；关闭网页不运行后台 Agent。
 
@@ -415,12 +431,14 @@ interface SessionStartedEvent {
   3. `companion`（三维护账、habits、world）整体移入 `legacy.companion`，不换算、不计分。
   4. `decorations` 整体移入 `legacy.decorations`，不读取、不修改。
   5. 新建 `personality = { contributions: {}, dominantId: null, rulesVersion: "personality-v2" }`，五维从初始分开始。
-  6. 新建 `offlineLife = { lastVisitAt: null, lastWindowStart: null, events: [] }` 与 `reunion = { lastTriggeredWindowStart: null, lastTriggeredAt: null }`。首次会话不生成“过去的生活”；从本次打开开始记录。
+  6. 新建 `offlineLife = { lastVisitAt: null, lastActiveAt: null, lastWindowStart: null, events: [] }` 与 `reunion = { lastTriggeredWindowStart: null, lastTriggeredAt: null }`。首次会话不生成“过去的生活”；从本次打开开始记录。
   7. 迁移只在内存完成；下次成功保存才落盘；失败不改变原存档。
   8. 不追溯旧日记、不静默改写不可识别字段、不删除用户历史。
   9. 迁移后旧条目没有 `PersonalityContribution`；之后对这些条目的纠正只更新 `effectiveEmotion`、`revision`、`corrections` 与回忆事件，不补建贡献、不改变性格分数。这是“不追溯”的一部分，不属于结算失败。
-- 读取与写入校验除检查单条 `deltas` 范围外，还必须按 `dayKey` 聚合检查同日单维合计的绝对值不超过 `dailyNetCap`，防止构造存档或重复结算绕过上限。
-- 还需校验：`dominantId` 属于五维或为 `null`；`offlineLife.events` 的 `id` 唯一、`windowStart` 合法、数量不超过上限；`reunion.lastTriggeredWindowStart` 为 `null`，或为不晚于 `offlineLife.lastWindowStart` 的已处理窗口起点（不能要求与当前窗口相等，否则后续正常会话会被误判为损坏）。
+- 读取校验必须按每条贡献自己的 `rulesVersion` 解析配置，不得用当前 `dailyNetCap` 统一复检历史：单条 `deltas` 的绝对值不超过该版本 `perSaveCap`；同一 `dayKey` 内若所有贡献属于同一版本，每个维度的合计不超过该版本 `dailyNetCap`；同日混合多个版本时只逐条校验单条上限，不按任一版本的日上限重新拒绝，因为各次写入时已分别应用当时规则。
+- 写入校验使用当前 `PersonalityState.rulesVersion`：新贡献写入后，该 `dayKey` 每个维度的合计绝对值不得超过当前版本 `dailyNetCap`；若历史合计已超出当前上限，新写入只允许 0 或朝零方向，不得扩大绝对值。不得用新规则重算或回写旧贡献。
+- 旧 `rulesVersion` 配置缺失时，该贡献不可解释：读取保留原值并标记不可纠正，纠正请求拒绝；不得猜测旧参数、不得静默删除或按当前配置重算。
+- 还需校验：`dominantId` 属于五维或为 `null`；`offlineLife.lastActiveAt` 为 `null` 或不早于 `lastVisitAt`；`offlineLife.events` 的 `id` 唯一、`windowStart` 合法、数量不超过上限；`reunion.lastTriggeredWindowStart` 为 `null`，或为不晚于 `offlineLife.lastWindowStart` 的已处理窗口起点（不能要求与当前窗口相等，否则后续正常会话会被误判为损坏）。
 - 迁移函数只读类型与配置，不导入计分/派生逻辑；`storage` 不得因新增 v2→v3 迁移而依赖 `rules`（既有 v1→v2 兼容迁移后续可一并移出，不阻塞阶段二）。
 - 旧三维护账是否换算成五维：**待确认**；确认前一律不换算，只保留 `legacy`。旧文档中的五维草案 `personality-v1` 从未在 `main` 实现，不作为迁移来源。
 

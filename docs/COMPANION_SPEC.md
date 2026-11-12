@@ -16,7 +16,7 @@
 | 性格评分 | 按配置把已保存情绪转换为五维贡献；维护贡献账本、规则版本与主导性格 | 不读取 UI、不决定具体动作、不调用模型 |
 | 主导性格 | 从五维分数中确定当前主导维度；提供稳定、确定性的切换规则 | 不向用户展示内部分数或排名 |
 | 行为选择 | 按主导性格、行为类别、触发条件与权重选择动作 | 不修改性格、不写存档、不产生奖励 |
-| 离线生活 | 按上次访问时间与主导性格生成有限的离线事件 | 不改变五维分数、不伪造情绪日记、不惩罚用户 |
+| 离线生活 | 按最后一次有效活动与主导性格生成有限的离线事件 | 不改变五维分数、不伪造情绪日记、不惩罚用户 |
 | 久别重逢 | 判断长期未访问、生成一次问候并记录已触发状态 | 不把回答当作情绪日记、不改性格分数、不调用实时大模型 |
 | 角色展示 | 读取快照/行为决定并渲染表情、姿态、动画 | 不修改性格、不触发评分、不重新抽取行为 |
 
@@ -127,7 +127,7 @@
 3. 乘惯性系数 `roomFactor`（未确认前为 `1.0`）。
 4. 按“半值远离零”取整：`roundHalfAwayFromZero(x) = sign(x) * round(abs(x))`；不得使用银行家舍入。
 5. 单维裁剪到 `[-perSaveCap, +perSaveCap]`。
-6. 计算该 `dayKey` 已保存贡献的当前净值 `dayDeltas`；新增量 `x` 必须满足 `-dailyNetCap ≤ dayDeltas + x ≤ dailyNetCap`，即裁剪到 `[-dailyNetCap - dayDeltas, dailyNetCap - dayDeltas]`，不得只按正方向留额度。
+6. 计算该 `dayKey` 已保存贡献的当前净值 `dayDeltas`；本步骤只约束**当前版本的新写入**，不回算历史。设 `lower = min(0, max(-perSaveCap, -dailyNetCap - dayDeltas))`、`upper = max(0, min(perSaveCap, dailyNetCap - dayDeltas))`，将 `x` 裁剪到 `[lower, upper]`。正常余额内即 `-dailyNetCap ≤ dayDeltas + x ≤ dailyNetCap`；若历史合计已越界，只允许 `0` 或朝零方向，不得扩大绝对值。
 7. 保存整数增量；`0` 也保留为显式 `0`，便于审计与纠正。
 
 派生分数不单独保存：
@@ -166,7 +166,7 @@ score(d) = clamp(initialScore + Σ contribution.deltas[d], minScore, maxScore)
 1. 只有正式保存成功的日记才写入贡献；保存失败不得留下半条贡献。
 2. 同一 `entryId` 最多一条贡献；重复事件、刷新、重试不得重复计分。
 3. `CONFIRM_ENTRY` 使用当前规则版本和新日记的 `dayKey` 创建贡献。
-4. `CORRECT_EMOTION` 必须找到原贡献，使用**原贡献的 `dayKey` 和 `rulesVersion`**，先减去旧贡献，再按剩余每日额度重算并替换；不得按新日期重算，不得追补其他日期。
+4. `CORRECT_EMOTION` 必须找到原贡献，使用**原贡献的 `dayKey` 和 `rulesVersion`**，先减去旧贡献，再按该版本剩余每日额度重算并替换；余量按该 `dayKey` 下所有已保存贡献的实际合计计算（不区分版本），但上限参数取原贡献版本；不得按新日期、新版本或当前 `dailyNetCap` 重算，不得追补其他日期，也不得改动其他贡献。
 5. 找不到原贡献或找不到该 `rulesVersion` 的配置时，拒绝纠正并保留原状态；不得猜测旧参数。
 6. 正文编辑不改变情绪贡献；只有情绪纠正才替换贡献。
 7. 纠正不得回退其他日期已形成的成长，也不得批量重算历史。
@@ -210,6 +210,9 @@ score(d) = clamp(initialScore + Σ contribution.deltas[d], minScore, maxScore)
 - 文档中旧的五维草案 `personality-v1`（`liveliness` / `courage` / `gentleness` / `sensitivity` / `curiosity`）从未在 `main` 实现，也没有持久化贡献；不得把它当作已有数据迁移来源。
 - 配置至少包含：维度顺序、初始/上下限、单次/每日上限、九类情绪基础表、强度分带、惯性配置、描述分带、主导并列顺序、规则版本。
 - 旧规则配置必须保留，供历史贡献解释和纠正使用；不得因为升级而删除旧配置。
+- 读取旧贡献时按贡献自身 `rulesVersion` 验证：单条 `deltas` 不超该版本 `perSaveCap`；同一 `dayKey` 内若全部贡献同版本，每个维度的合计不超该版本 `dailyNetCap`；同日混合版本时只逐条校验，不按当前版本重新聚合拒绝。
+- 新写入只受 `PersonalityState.rulesVersion` 的 `perSaveCap` / `dailyNetCap` 约束；不得用新规则重算旧贡献。若历史日合计已超出当前上限，新写入只能为 0 或朝零方向。
+- 旧版本配置缺失时，保留原贡献并标记不可纠正；纠正请求拒绝，不得猜测旧参数或静默改写存档。
 - 修改已确认规则或候选参数必须由用户决定；实现者只能报告差异、影响和建议。
 
 ### 2.10 验收要点
@@ -318,7 +321,7 @@ score(d) = clamp(initialScore + Σ contribution.deltas[d], minScore, maxScore)
 只有**同时满足**以下两个条件，才允许触发低落专属特殊行为：
 
 1. `low_mood` 是当前五维最高分的主导性格。
-2. 用户连续超过 3 个自然日记录低落情绪，即第 4 天开始符合条件。
+2. 用户连续超过 3 个自然日记录低落情绪，即第 4 天开始符合条件；第 4 天是否必须当天也保存低落记录，存在两种待确认语义，见 3.5.1。
 
 行为候选：`drink`（喝酒）、`smoke`（抽烟）等虚构角色的颓废行为。要求（已确认）：
 
@@ -344,8 +347,12 @@ score(d) = clamp(initialScore + Σ contribution.deltas[d], minScore, maxScore)
 - 纠正后按当前有效情绪重算；若该日已无符合标签的条目，则该日不再计为低落日，连续可能中断。
 - 无记录的自然日直接中断连续，不自动补成低落日。
 - `dayKey` 在保存时按本地自然日固定；之后修改系统时区不回写历史 `dayKey`。
-- 候选判定使用“截至昨日、连续符合条件的自然日数 ≥ 3”；第 4 天开始可触发。若当天已保存的记录全部不符合条件，则当天不触发。
-- 候选值 `streakDaysRequired = 3`（即第 4 天开始）；概率、行为权重均可配置。
+- **第 4 天语义存在两种解释，均未确认，不得把任一种写成已确认产品规则：**
+  - 语义 A（当前候选实现）：截至昨日已连续 3 个低落日，第 4 天零点起即具备资格；第 4 天尚未保存任何日记时也可触发。
+  - 语义 B（更贴近“连续超过 3 个自然日记录”的字面）：第 4 天也必须至少保存一条低落日记，才具备资格；当天首次低落保存前不触发。
+- 两者差异：A 可能在用户第 4 天尚未记录时出现特殊行为，B 会把触发推迟到第 4 天首次低落保存后。它们对“第 4 天开始符合条件”的解释不同，必须由用户确认。
+- 确认前：`specialBehaviorEnabled` 保持 `false`；阶段三只实现机制与测试入口，不接入正式触发。不得用任一语义作为默认产品行为。
+- 候选值 `streakDaysRequired = 3`（即最早第 4 天）；概率、行为权重均可配置。
 
 ### 3.6 行为调度与渲染边界
 
@@ -368,7 +375,7 @@ score(d) = clamp(initialScore + Σ contribution.deltas[d], minScore, maxScore)
 
 ### 4.1 目标（已确认）
 
-用户离开 ShiXu 后，小白人仍然拥有自己的生活。再次打开时，系统按上次访问时间与当前主导性格，生成有限数量的离线生活事件，让用户感到角色在“过自己的日子”，而不是被惩罚或停滞。
+用户离开 ShiXu 后，小白人仍然拥有自己的生活。再次打开时，系统按**最后一次有效活动**与当前主导性格，生成有限数量的离线生活事件，让用户感到角色在“过自己的日子”，而不是被惩罚或停滞。
 
 ### 4.2 离线活动库（已确认候选内容）
 
@@ -386,7 +393,8 @@ score(d) = clamp(initialScore + Σ contribution.deltas[d], minScore, maxScore)
 
 ```ts
 OfflineLifeState {
-  lastVisitAt: number | null;       // 上次成功记录访问的时间
+  lastVisitAt: number | null;       // 上次成功会话启动的时间
+  lastActiveAt: number | null;      // 最后一次确认活动；离线/重逢基准
   lastWindowStart: number | null;   // 上次处理的离线窗口起点，用于幂等
   events: OfflineLifeEvent[];       // 有上限的历史事件
 }
@@ -405,20 +413,27 @@ OfflineLifeEvent {
 
 ### 4.4 生成算法（确定性）
 
-1. 读取 `lastVisitAt`、`now`、当前 `dominantId`。
-2. 若 `lastVisitAt === null`（首次使用或刚迁移），不生成事件；把本次访问记为起点，避免伪造“过去的生活”。
-3. 计算 `absence = now - lastVisitAt`；若 `absence < minAbsenceMs`，不生成事件，窗口起点记为 `lastVisitAt`。
+1. 读取 `lastActiveAt`、`lastVisitAt`、`now`、当前 `dominantId`；计算 `baseline = lastActiveAt ?? lastVisitAt`。
+2. 若 `baseline === null`（首次使用或刚迁移），不生成事件；把本次访问记为起点，避免伪造“过去的生活”。
+3. 计算 `absence = now - baseline`；若 `absence < minAbsenceMs`，不生成事件，窗口起点记为 `baseline`。
 4. 否则事件数 `n = min(maxEventsPerWindow, max(1, floor(absence / eventIntervalMs)))`。
-5. 第 `i` 个事件时间取 `lastVisitAt + eventIntervalMs * (i + 1)`，若超过 `now` 则裁到 `now`；同一窗口内保持升序。
+5. 第 `i` 个事件时间取 `baseline + eventIntervalMs * (i + 1)`，若超过 `now` 则裁到 `now`；同一窗口内保持升序。
 6. 每个事件从当前 `dominantId` 的活动池按权重选择；随机源必须由 `hash(windowStart, dominantId, rulesVersion, index)` 派生，禁止 `Math.random()`。
-7. 返回事件、`windowStart = lastVisitAt`、`nextLastVisitAt = now`。
-8. 用户再次打开时，`applyGameEvent(SESSION_STARTED)` 原子写入事件与新的 `lastVisitAt`。
+7. 返回事件、`windowStart = baseline`、`nextLastVisitAt = now`、`nextLastActiveAt = now`。
+8. 用户再次打开时，`applyGameEvent(SESSION_STARTED)` 原子写入事件与新的 `lastVisitAt` / `lastActiveAt`。
+
+活动 checkpoint：
+- 页面隐藏、`pagehide`、刷新前提交 `ACTIVITY_CHECKPOINT`；可见期间的周期性 checkpoint 最多每 5 分钟一次，避免高频写盘。任何正式保存成功后也在同一 `applyGameEvent` 中顺带更新 `lastActiveAt`。不得按行为 tick 或动画帧写盘。
+- 同一标签页可用 `sessionStorage` 保存救援时间戳，仅用于避免刷新/同标签页恢复被误判为离线；它不是正式存档，不得替代 `StoragePort`。
+- 直接关闭且 checkpoint 成功时，下一窗口从关闭前最后活动开始；checkpoint 失败时，降级为最后一次成功的 `lastActiveAt`（或救援值）。该降级可能把未 checkpoint 的在线时长计入离线，但不会少算，也不会在保存失败时展示离线事件。
+- 浏览器崩溃、隐私模式禁用存储等情况无法精确捕捉关闭时间，按上述降级处理；不得引入后台 Agent、服务器心跳或高频写盘来追求精确。
 
 ### 4.5 幂等、持久化与失败处理
 
 - 同一次离线窗口最多生成一次；`eventId = session:<windowStart ?? "first">` 与 `lastWindowStart` 双重保护。
 - 事件 `id` 确定性生成；写入时按 `id` 去重，重复应用不追加。
-- 只有存档成功后才更新正式 `lastVisitAt`；保存失败时保持旧值，下次打开会重新生成同一窗口的相同事件，不得出现重复或半写状态。
+- `ACTIVITY_CHECKPOINT` 只把 `lastActiveAt` 单调更新为 `max(旧值, at)`；重复、乱序或重放无副作用，不写 `appliedEventIds`、不写回忆。
+- 只有存档成功后才更新正式 `lastVisitAt` / `lastActiveAt`；保存失败时保持旧值，下次打开会重新生成同一窗口的相同事件，不得出现重复或半写状态。
 - 离线事件只追加到有上限的历史列表，超出 `maxStoredEvents` 时从最旧事件裁剪；裁剪不影响幂等键。
 - 不通过伪造情绪日记来“解释”离线生活；离线模块不写 `entries`、不写性格贡献。
 
@@ -445,8 +460,8 @@ OfflineLifeEvent {
 ### 5.1 触发条件（阈值候选）
 
 - 候选阈值：`absence > 3 天`（严格大于 72 小时）；`reunion-v1` 配置化，可调整。
-- 用户重新打开 ShiXu 时，在更新 `lastVisitAt` 之前判断。
-- 同一次离线窗口只触发一次：`reunion.lastTriggeredWindowStart` 记录已触发的窗口起点。
+- `absence = now - (lastActiveAt ?? lastVisitAt)`；用户重新打开 ShiXu 时，在更新 `lastVisitAt` / `lastActiveAt` 之前判断。
+- 同一次离线窗口只触发一次：`reunion.lastTriggeredWindowStart` 记录已触发的窗口起点（即 `baseline`）。
 - 触发后必须**先成功保存** `SESSION_STARTED`（含 `reunionTriggered: true`），再展示问候；保存失败不展示，避免刷新重复。
 
 ### 5.2 问候内容
@@ -521,7 +536,7 @@ OfflineLifeEvent {
 | 行为四类分离 | 已确认 | ambient/dominant/special/interaction |
 | 连续低落两个条件 | 已确认 | 同时满足才允许触发 |
 | “低落日”情绪映射 | 待确认 | 候选仅 `sadness`；`specialBehaviorEnabled=false` |
-| 连续天数/同日/纠正/时区细则 | 待确认 | 按 3.5.1 候选，不得定稿 |
+| 连续天数/同日/纠正/时区细则 | 待确认 | 按 3.5.1 候选；第 4 天语义 A/B 未定，不得定稿 |
 | 离线不扣分、不惩罚、不掉资源 | 已确认 | 必须实现 |
 | 离线活动表 | 已确认（内容候选） | 配置驱动 |
 | 离线间隔/数量/上限 | 候选 | 可配置 |

@@ -66,7 +66,7 @@
   - 确定性加权选择：主导池 + 显式种子；最低占比、防连续重复；当前情绪只映射表情/动作幅度，不改变主导池。
   - 运行时调度：页面可见时按间隔决策；隐藏暂停；尊重 `prefers-reduced-motion`；不写存档。
   - 基础互动（呼唤/摸摸头/凑近看看）与保存后一次性情绪反馈；互动不增加分数。
-  - 连续低落特殊行为：只在「`low_mood` 主导 + 连续低落日达标」时按概率出现；`specialBehaviorEnabled=false` 直到「低落情绪标签映射」经用户确认；不产生奖励/成长/额外积分。
+  - 连续低落特殊行为：只在「`low_mood` 主导 + 连续低落日达标」时按概率出现；`specialBehaviorEnabled=false` 直到「低落情绪标签映射」与「第 4 天语义 A/B」经用户确认；不产生奖励/成长/额外积分。
   - 把行为决策映射为最小 `CharacterView` 占位表现。
 - 公共接口：`BehaviorId`、`BehaviorCategory`、`BehaviorContext`、`BehaviorDecision`、`BehaviorRuleConfig`、`selectBehavior`、`InteractionEvent`。
 - 明确不做：世界成长、习惯、长期行为历史、饰品、AI 控制动作、复杂行为树、正式动画。
@@ -78,17 +78,19 @@
 - 前置：阶段三合入；行为引擎可读主导快照；`SESSION_STARTED` 契约与事件幂等评审通过。
 - 范围：
   - 新增 `src/config/offlineLife.ts`、`src/domain/offlineLife.ts`：`OfflineLifeRuleConfig`、`OfflineLifeState`、`OfflineLifeEvent`、`planOfflineLife`。
-  - 按上次访问时间、当前主导性格、显式种子生成有限离线事件；温柔/好奇/开朗/害怕/低落各有活动池。
+  - 按最后一次有效活动（`lastActiveAt ?? lastVisitAt`）、当前主导性格、显式种子生成有限离线事件；温柔/好奇/开朗/害怕/低落各有活动池。
+  - 新增 `ACTIVITY_CHECKPOINT`：页面隐藏/`pagehide`/刷新前提交，可见期间最多每 5 分钟更新一次 `lastActiveAt`；同一标签页可用 `sessionStorage` 救援值避免刷新误判；不按行为 tick 写盘。
   - 通过 `SESSION_STARTED` 事件写入 `offlineLife` 与 `reunion` 窗口；事件 ID 与 `windowStart` 幂等；保存成功后才展示离线生活。
-  - 首次使用或迁移后 `lastVisitAt=null`，不生成“过去的生活”；离线事件不是日记，不进入回忆，不改变五维。
-- 公共接口：`OfflineLifeState`、`OfflineLifeEvent`、`OfflineLifeRuleConfig`、`planOfflineLife`、`SESSION_STARTED`。
+  - 首次使用或迁移后 `lastVisitAt=null` / `lastActiveAt=null`，不生成“过去的生活”；离线事件不是日记，不进入回忆，不改变五维。
+  - 关闭/崩溃/写入失败时按最后一次成功 checkpoint 降级，可能高估但不反向少算；保存失败不展示。
+- 公共接口：`OfflineLifeState`、`OfflineLifeEvent`、`OfflineLifeRuleConfig`、`planOfflineLife`、`ACTIVITY_CHECKPOINT`、`SESSION_STARTED`。
 - 明确不做：后台持续 Agent、离线成长/衰减、离线惩罚、资源掉落、伪造日记、实时大模型。
-- 最小验收：同一离线窗口只生成一次；长时间离线不增加 `low_mood`；不改变任何五维分数；不掉饰品/装扮/资源；事件数量有上限；保存失败不展示、不留半写状态；刷新不重复。
+- 最小验收：同一离线窗口只生成一次；长时间离线不增加 `low_mood`；不改变任何五维分数；不掉饰品/装扮/资源；事件数量有上限；保存失败不展示、不留半写状态；刷新不重复，且同一标签页刷新不误判为离线。
 - 建议分支：`feature/offline-life`。
 
 ### 阶段五：久别重逢
 
-- 前置：阶段四合入；`lastVisitAt`、`windowStart` 与 `reunion` 状态稳定；问候模板配置可读。
+- 前置：阶段四合入；`lastVisitAt` / `lastActiveAt`、`windowStart` 与 `reunion` 状态稳定；问候模板配置可读。
 - 范围：
   - 新增 `src/config/reunion.ts`、`src/domain/reunion.ts`：`ReunionRuleConfig`、`ReunionState`、`evaluateReunion`。
   - 候选阈值：严格超过 3 天未访问；按主导性格选择问候语气与生活经历描述；基础问句「最近过得还好吗？」。
