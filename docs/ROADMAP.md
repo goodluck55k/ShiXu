@@ -1,6 +1,8 @@
 # 分阶段开发路线（V1）
 
-> 本路线以 [PRODUCT_SPEC](PRODUCT_SPEC.md) 的 V1 范围为准。阶段顺序按依赖排列；每个阶段一个独立分支、一张模块任务卡、一个面向 `main` 的 PR。不得跳过未完成的前置阶段，不得把未合入的接口当作 `main` 已有。
+> 本路线以 [PRODUCT_SPEC](PRODUCT_SPEC.md) 的 V1 范围为准，性格与行为细节以 [COMPANION_SPEC](COMPANION_SPEC.md) 为准，契约与存档以 [ARCHITECTURE](ARCHITECTURE.md) 为准。阶段顺序按依赖排列；每个阶段一个独立分支、一张模块任务卡、一个面向 `main` 的 PR。不得跳过未完成的前置阶段，不得把未合入的接口当作 `main` 已有。
+>
+> 阶段编号只表示实施顺序，不表示优先级或审核等级；P0/P1/P2 仍按 [AGENTS](../AGENTS.md) §4.1 解释。
 
 ## 1. 已完成事实与当前状态
 
@@ -13,14 +15,17 @@
 | 隐藏性格 v1（三维护账、纠正替换、v1→v2 迁移） | 已合入 | `feature/companion-personality` / PR #8 | **将被五维体系替代**；迁移时保留 |
 | 统一开发规范 | 已合入 | PR #7 | 本文档继续沿用并调整 |
 | 旧装饰规则文档 | 已合入 | `docs/v2-decoration-rules` / PR #9 | 装饰后置到 V2，规则需按 V2 重写 |
-| C2 AI 情绪建议（百炼适配器 + mock + 手选降级 + 确认） | 已合入 | `feature/emotion-analysis` / PR #10 | 阶段四基础已具备 |
-| 五维性格引擎与 v3 存档 | 未开发 | — | 阶段二 |
-| 自主行为、互动、保存后情绪反馈 | 未开发 | — | 阶段三 |
-| 原创小白人形象、表情动作、正式页面体验 | 未开发 | — | 阶段五 |
-| 完整演示、兼容检查与交付 | 未开发 | — | 阶段六 |
+| C2 AI 情绪建议（百炼适配器 + mock + 手选降级 + 确认） | 已合入 | `feature/emotion-analysis` / PR #10 | 阶段六基础已具备 |
+| 五维性格领域模型、`personality-v2` 评分、v3 存档与迁移 | 未开发 | — | 阶段二 |
+| 主导性格行为、互动、连续低落特殊行为 | 未开发 | — | 阶段三 |
+| 离线自主生活 | 未开发 | — | 阶段四 |
+| 久别重逢 | 未开发 | — | 阶段五 |
+| AI 情绪识别复核与主流程整合 | 未开发（基线已有） | — | 阶段六 |
+| 原创小白人形象、表情动作、正式页面体验 | 未开发 | — | 阶段七 |
+| 完整演示、兼容检查与交付 | 未开发 | — | 阶段八 |
 | V2 饰品装扮模块 | 未开发、未排期 | — | V1 稳定后独立启动 |
 
-`main` 当前已有：日记/手选/AI 建议/存档恢复、三维护账与纠正替换、静态小人占位、多页面壳。**没有**：五维性格、行为调度、正式角色形象、饰品。
+`main` 当前已有：日记/手选/AI 建议/存档恢复、三维 `companion-v1` 台账与纠正替换、静态小人占位、多页面壳。**没有**：五维性格、主导行为、离线生活、久别重逢、正式角色形象、饰品。
 
 ## 2. 阶段顺序与依赖
 
@@ -33,68 +38,96 @@
 - 最小验收：写日记→手选→保存→刷新可见；失败不丢草稿；损坏存档有提示。
 - 分支：`feature/web-skeleton`（已完成）。
 
-### 阶段二：性格评分与长期养成引擎（下一步）
+### 阶段二：五维性格领域模型、评分与持久化（下一步）
 
-- 前置：阶段一合入；[ARCHITECTURE](ARCHITECTURE.md) §4.2 契约评审通过；五维名称与参数可按候选实现，但 PR 必须标注「参数待验收」。
+- 前置：阶段一合入；[ARCHITECTURE](ARCHITECTURE.md) §4.2 契约评审通过；五维名称与候选参数可按本指南实现，但 PR 必须标注「参数待验收」。
 - 范围：
-  - 新增 `PersonalityRuleConfig`（五维、九情绪映射、强度分档、惯性、上下限、描述文案）与 `PERSONALITY_RULES_VERSION`。
-  - 新增 `src/domain/personality.ts`：`derivePersonality`、`describePersonality`、只读查询；拆除/替换 `companion.ts` 的三维实现。
-  - 扩展 `applyGameEvent` 的 `CONFIRM_ENTRY` / `CORRECT_EMOTION`：写五维贡献、纠正替换、单日上限、幂等。
-  - `schemaVersion` 升到 3，新增 `migrateSnapshotV2toV3`；旧三维护账、装饰、XP、习惯、世界痕迹进入 `legacy`。
-  - `AppProvider` 接入新派生与迁移；`CompanionScreen` 只替换为 `PersonalitySnapshot` 只读数据源，不改布局/样式；保存失败不改变正式状态。
-- 公共接口：`PersonalityState`、`PersonalitySnapshot`、`PersonalityRuleConfig`、`derivePersonality`、`describePersonality`、`migrateSnapshotV2toV3`。
-- 明确不做：行为选择、动画、互动、饰品、AI 改动、正式 UI、旧数据换算（待确认）。
+  - 新增 `src/config/personality.ts`：五维定义、`personality-v2` 九情绪候选表、初始/上下限、单次/单日上限、强度分档、惯性（`roomFactor` 待确认时取 1.0）、描述文案、`dominantPriority`。
+  - 新增 `src/domain/personality.ts`：`derivePersonality`、`getDimensionScore`、`describeDominantPersonality`、`resolveDominant`、贡献构建/替换、按 `rulesVersion` 读取历史配置。
+  - 扩展 `applyGameEvent` 的 `CONFIRM_ENTRY` / `CORRECT_EMOTION`：写五维贡献、纠正替换、单日上限、幂等；`EDIT_ENTRY_TEXT` 不改贡献。
+  - `schemaVersion` 升到 3；新增 `migrateSnapshotV2toV3`。旧三维台账、`character.totalXp/stage`、`decorations`、习惯/世界痕迹进入 `legacy`；新五维从初始值开始。
+  - `AppProvider` 接入新派生、迁移与保存边界；陪伴页只替换为 `PersonalitySnapshot` 只读数据源（仅显示主导描述），不改布局/样式。
+- 公共接口：`DimensionId`、`PersonalityState`、`PersonalityContribution`、`PersonalitySnapshot`、`PersonalityRuleConfig`、`derivePersonality`、`getDimensionScore`、`describeDominantPersonality`、`resolveDominant`、`migrateSnapshotV2toV3`。
+- 明确不做：行为选择、动画、互动、离线生活、重逢、饰品、AI 改动、正式 UI、旧三维换算、经验值/等级/阶段结算。
 - 最小验收：
-  1. 重复 `eventId` 不重复计分；同一天单维净变化不超上限。
+  1. 重复 `eventId` 不重复计分；同一天单维净变化不超过候选上限 4（未验收，需用户确认）。
   2. 纠正替换旧贡献；同日多篇后纠正较早一篇只按余量重算该条，余量不足可为 0；编辑正文不改贡献；其他日期与其他条目不受影响。
   3. v2 存档迁移后正文、情绪、纠正、历史逐字保留；旧台账不参与新分数；迁移后无新贡献的旧条目被纠正时不补建贡献、不改分数。
-  4. 描述无数字、无等级、无诊断词；保存失败不结算。
-  5. 规则版本升级或旧配置缺失不改变已保存贡献的派生分数；同日单维合计的绝对值不得超过 4。
-- 建议分支：`feature/personality-engine`。
+  4. 主导选择稳定：严格超过才切换；并列保留当前主导；初始并列按 `dominantPriority`；描述无数字、无排名、无诊断词；不展示五维分数。
+  5. 规则版本升级或旧配置缺失不改变已保存贡献的派生分数；保存失败不结算。
+- 建议分支：`feature/personality-five-dim`。
 
-### 阶段三：自主行为与互动
+### 阶段三：主导性格行为引擎与互动
 
-- 前置：阶段二合入；`PersonalitySnapshot` 只读契约与 `CharacterView` 稳定；UI 仍处于冻结期，只允许功能所需的最小呈现。
+- 前置：阶段二合入；`PersonalitySnapshot` 只读契约与 `dominantId` 稳定；UI 仍处于冻结期，只允许功能所需的最小呈现。
 - 范围：
-  - 新增 `BehaviorRuleConfig`、`BehaviorContext`、`BehaviorDecision`、`selectBehavior`、`InteractionEvent`。
-  - 确定性加权选择：性格偏好 + 当前情绪 + 时间段 + 显式种子；最低占比、防连续重复。
-  - 运行时调度：页面可见时按间隔决策；隐藏暂停；尊重 `prefers-reduced-motion`。
-  - 基础互动（呼唤/摸摸头/凑近看看）与保存后一次性情绪反馈；消费 `ConfirmedSaveContext` 一次。
+  - 新增 `src/config/behavior.ts`、`src/domain/behavior.ts`：`BehaviorRuleConfig`、`BehaviorContext`、`BehaviorDecision`、`selectBehavior`、`BehaviorCategory`。
+  - 行为候选池按主导性格分离（温柔/好奇/开朗/害怕/低落各四项），普通待机、主导行为、特殊行为、主动互动逻辑分离；其他维度不参与主行为加权。
+  - 确定性加权选择：主导池 + 显式种子；最低占比、防连续重复；当前情绪只映射表情/动作幅度，不改变主导池。
+  - 运行时调度：页面可见时按间隔决策；隐藏暂停；尊重 `prefers-reduced-motion`；不写存档。
+  - 基础互动（呼唤/摸摸头/凑近看看）与保存后一次性情绪反馈；互动不增加分数。
+  - 连续低落特殊行为：只在「`low_mood` 主导 + 连续低落日达标」时按概率出现；`specialBehaviorEnabled=false` 直到「低落情绪标签映射」经用户确认；不产生奖励/成长/额外积分。
   - 把行为决策映射为最小 `CharacterView` 占位表现。
-- 公共接口：`BehaviorContext`、`BehaviorDecision`、`BehaviorRuleConfig`、`selectBehavior`、`InteractionEvent`。
-- 明确不做：世界成长、习惯、长期行为历史、饰品、AI 控制动作、复杂行为树。
-- 最小验收：同上下文同结果；每种行为 ≥5%；同行为不连续超过 2 次；互动不增加分数；隐藏后停止决策；刷新无离线补算。
+- 公共接口：`BehaviorId`、`BehaviorCategory`、`BehaviorContext`、`BehaviorDecision`、`BehaviorRuleConfig`、`selectBehavior`、`InteractionEvent`。
+- 明确不做：世界成长、习惯、长期行为历史、饰品、AI 控制动作、复杂行为树、正式动画。
+- 最小验收：同上下文同结果；主导行为可辨认；其他维度不改变主行为池；每种行为 ≥ 最低占比（候选 5%）；同行为不连续超过 2 次；互动不增加分数；隐藏后停止决策；特殊行为两条件缺一不触发且默认关闭；行为决策不写存档、不产生成长。
 - 建议分支：`feature/companion-behavior`。
 
-### 阶段四：AI 情绪识别接入复核（基础已实现）
+### 阶段四：离线自主生活
 
-- 前置：`AI_CONTRACT` 稳定；阶段二可不等待，但与阶段三并行时不得改性格/行为逻辑。
+- 前置：阶段三合入；行为引擎可读主导快照；`SESSION_STARTED` 契约与事件幂等评审通过。
+- 范围：
+  - 新增 `src/config/offlineLife.ts`、`src/domain/offlineLife.ts`：`OfflineLifeRuleConfig`、`OfflineLifeState`、`OfflineLifeEvent`、`planOfflineLife`。
+  - 按上次访问时间、当前主导性格、显式种子生成有限离线事件；温柔/好奇/开朗/害怕/低落各有活动池。
+  - 通过 `SESSION_STARTED` 事件写入 `offlineLife` 与 `reunion` 窗口；事件 ID 与 `windowStart` 幂等；保存成功后才展示离线生活。
+  - 首次使用或迁移后 `lastVisitAt=null`，不生成“过去的生活”；离线事件不是日记，不进入回忆，不改变五维。
+- 公共接口：`OfflineLifeState`、`OfflineLifeEvent`、`OfflineLifeRuleConfig`、`planOfflineLife`、`SESSION_STARTED`。
+- 明确不做：后台持续 Agent、离线成长/衰减、离线惩罚、资源掉落、伪造日记、实时大模型。
+- 最小验收：同一离线窗口只生成一次；长时间离线不增加 `low_mood`；不改变任何五维分数；不掉饰品/装扮/资源；事件数量有上限；保存失败不展示、不留半写状态；刷新不重复。
+- 建议分支：`feature/offline-life`。
+
+### 阶段五：久别重逢
+
+- 前置：阶段四合入；`lastVisitAt`、`windowStart` 与 `reunion` 状态稳定；问候模板配置可读。
+- 范围：
+  - 新增 `src/config/reunion.ts`、`src/domain/reunion.ts`：`ReunionRuleConfig`、`ReunionState`、`evaluateReunion`。
+  - 候选阈值：严格超过 3 天未访问；按主导性格选择问候语气与生活经历描述；基础问句「最近过得还好吗？」。
+  - 同一次缺席只触发一次；记录 `lastTriggeredWindowStart`；页面刷新不重复；回答或跳过不改变性格分数；只有正式保存的情绪日记产生贡献。
+  - 所有文案本地模板化，不实时调用大模型；不使用责备、道德绑架或负罪感文案。
+- 公共接口：`ReunionState`、`ReunionRuleConfig`、`evaluateReunion`；不新增存档字段（复用阶段四写入的 `reunion`）。
+- 明确不做：AI 实时生成问候、把回答当日记、回答加分、连续登录奖励、负罪感文案。
+- 最小验收：>3 天触发一次；刷新不重复；回答/跳过不加分；保存失败不展示；无责备文案；不同主导性格模板可区分；阈值/文案可配置。
+- 建议分支：`feature/reunion`。
+
+### 阶段六：AI 情绪识别复核与主流程整合
+
+- 前置：阶段二～五合入；[AI_CONTRACT](AI_CONTRACT.md) 稳定；本阶段不改变性格、主导、行为、离线与重逢规则。
 - 范围：
   - 复核 `/api/emotion` 的请求/响应三元组匹配、过期响应丢弃、低置信度提醒、未知情绪回落。
   - 真实百炼账号联调（需要 Key 时人工验证）；mock 只用于测试，不默认启用。
   - 确认交互收尾：AI 建议必须用户确认或修改后才可保存；手选始终可用。
   - 输入长度、请求体限制、限流、超时、成本保护的现有实现复核。
 - 公共接口：`EmotionApiRequest`、`EmotionApiResponse`、`EmotionSuggestion`、`validateAnalysis`（均不变）。
-- 明确不做：AI 决定性格/动作/存档；多模型编排；把模型输出直接写入状态；改评分参数。
-- 最小验收：无 Key 手选全流程；AI 失败/超时/格式错误/低置信度均可继续；AI 建议未经确认不改变正式情绪；服务端密钥不出现在客户端。
+- 明确不做：AI 决定性格/主导/动作/存档/离线/重逢；多模型编排；把模型输出直接写入状态；改评分参数。
+- 最小验收：无 Key 手选全流程；AI 失败/超时/格式错误/低置信度均可继续；AI 建议未经确认不改变正式情绪；服务端密钥不出现在客户端；AI 不参与主导判定、行为、离线、重逢。
 - 建议分支：`feature/emotion-ai-review`（复用已有 `feature/emotion-analysis` 亦可）。
 
-### 阶段五：角色视觉、表情动作与 V1 体验
+### 阶段七：角色视觉、表情动作与 V1 体验
 
-- 前置：阶段二、三合入；用户重新确认 V1 视觉方向（本阶段解除 UI 冻结）。
+- 前置：阶段二～六合入；用户重新确认 V1 视觉方向（本阶段解除 UI 冻结）。
 - 范围：
   - 原创全白小人基础形象（SVG，`viewBox 0 0 240 320`），身体/四肢/五官基础图层。
-  - 五种行为对应姿态与动作，九类情绪表情；`prefers-reduced-motion` 降级。
+  - 五类主导性格行为与普通待机/互动/特殊行为的可辨认表现；九类情绪表情；`prefers-reduced-motion` 降级。
   - 陪伴页、记录页、回忆页的必要布局与空态/错误态/保存状态；移动端可用性。
-  - 角色展示层严格只读 `CharacterView`，不判定性格或解锁。
+  - 角色展示层严格只读 `CharacterView`，不判定性格、主导或解锁。
 - 公共接口：`CharacterView`、`AppearanceConfig`（V1 不填实现）、图层白名单。
 - 明确不做：饰品/装扮/库存/槽位；V2 解锁逻辑；与玩法无关的重设计。
-- 最小验收：五行为可辨认；九情绪表情可辨认；无饰品入口；刷新后状态一致；低动态设置生效；窄屏可用。
+- 最小验收：五类主导行为可辨认；九情绪表情可辨认；无饰品入口；刷新后状态一致；低动态设置生效；窄屏可用。
 - 建议分支：`feature/character-visual`。
 
-### 阶段六：完整演示、兼容检查与交付
+### 阶段八：完整演示、兼容检查与交付
 
-- 前置：阶段二～五合入。
+- 前置：阶段二～七合入。
 - 范围：
   - 端到端演示线（PRODUCT_SPEC §10）与人工验收。
   - 存档兼容：v1→v2→v3、损坏、版本过新、空间不足、跨标签页冲突；导出原始数据/重置路径。
@@ -107,7 +140,7 @@
 
 ### V2：饰品装扮模块（V1 稳定后独立启动）
 
-- 前置：V1 阶段六完成且用户明确批准启动；`CharacterView.appearance` 与只读性格查询已在 `main`。
+- 前置：V1 阶段八完成且用户明确批准启动；`CharacterView.appearance` 与只读性格查询已在 `main`。
 - 范围：独立饰品模块、饰品状态与永久历史、按性格与成长事件决定表现、穿戴/回收规则、必要 UI。
 - 约束：只读性格与事件；只通过外观白名单渲染；不改性格分数、不改行为规则、不写性格内部状态；新增独立字段与迁移，不复用 `legacy`。
 - 明确不做：在 V1 分支提前实现；把饰品作为性格成长奖励的必需条件；点数/货币/商城。
@@ -117,11 +150,13 @@
 
 | 阶段 | 允许占位 | 必须真实 |
 | --- | --- | --- |
-| 阶段二 | 描述文案可先候选 | 台账、幂等、纠正替换、单日上限、v3 迁移 |
-| 阶段三 | 动作可先用简化图形/几何占位 | 确定性选择、最低占比、防连续、隐藏暂停、互动不加分 |
-| 阶段四 | mock Provider 仅测试 | 请求校验、降级、密钥隔离、限流/超时、用户确认 |
-| 阶段五 | 形象细节可迭代 | 原创性、可辨认表情/行为、图层白名单、低动态 |
-| 阶段六 | 演示数据可准备 | 迁移、恢复、错误提示、无 Key 主流程 |
+| 阶段二 | 描述文案可先候选 | 五维台账、幂等、纠正替换、单日上限、主导选择、v3 迁移 |
+| 阶段三 | 动作可先用简化图形/几何占位 | 主导池选择、确定性、最低占比、防连续、隐藏暂停、互动不加分 |
+| 阶段四 | 离线事件文案可先候选 | 时间窗口、幂等、无分数变化、无惩罚、有界事件、保存后展示 |
+| 阶段五 | 问候文案可先候选 | 阈值判定、一次触发、刷新不重复、回答不加分、无负罪感 |
+| 阶段六 | mock Provider 仅测试 | 请求校验、降级、密钥隔离、限流/超时、用户确认 |
+| 阶段七 | 形象细节可迭代 | 原创性、可辨认表情/主导行为、图层白名单、低动态 |
+| 阶段八 | 演示数据可准备 | 迁移、恢复、错误提示、无 Key 主流程 |
 
 占位必须明确标识，不得描述为真实模型、真实美术或已获批准的设计。
 
@@ -152,15 +187,16 @@
 
 | 旧阶段/机制 | 新位置 | 说明 |
 | --- | --- | --- |
-| P2 情绪识别 | 阶段四 | 基础已在 PR #10 实现，改为复核与真实接入 |
+| P2 情绪识别 | 阶段六 | 基础已在 PR #10 实现，改为复核与真实接入 |
 | P3 自主行为/共鸣 | 阶段三 | 保留确定性行为与情绪反馈；世界成长不做 |
-| P4 装饰与成长 | 阶段二 + V2 | 性格进入 V1；装饰后置 V2 |
-| P5 完整度/兼容 | 阶段六 + 阶段五 | 演示与兼容归阶段六，视觉归阶段五 |
-| P6 演示 | 阶段六 | — |
+| P4 装饰与成长 | 阶段二 + V2 | 五维性格进入 V1；装饰后置 V2 |
+| P5 完整度/兼容 | 阶段八 + 阶段七 | 演示与兼容归阶段八，视觉归阶段七 |
+| P6 演示 | 阶段八 | — |
 | C1 三维护账 | 阶段二 | 重构为五维，旧数据只读兼容 |
-| C2 AI 识别 | 阶段四 | 已完成基础实现 |
-| C3 自主生活 | 阶段三 | 去掉习惯与世界成长 |
+| C2 AI 识别 | 阶段六 | 已完成基础实现 |
+| C3 自主生活 | 阶段三 + 阶段四 | 行为调度归阶段三，离线生活归阶段四 |
 | C4 即时共鸣 | 阶段三 | 只保留保存后一次性情绪反馈 |
 | C5 装饰系统 | V2 | 不属于 V1 |
-| C6 集成发布 | 阶段六 | — |
-| UI 视觉阶段 | 阶段五 | 需用户重新确认视觉方向 |
+| C6 集成发布 | 阶段八 | — |
+| UI 视觉阶段 | 阶段七 | 需用户重新确认视觉方向 |
+| 旧五维草案（活泼/勇敢/温柔/敏感/好奇） | 不作迁移来源 | 从未在 `main` 实现；新五维见产品规格 §4 |
