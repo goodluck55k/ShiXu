@@ -129,7 +129,7 @@
 5. 单维裁剪到 `[-perSaveCap, +perSaveCap]`。
 6. 计算该 `dayKey` 已保存贡献的当前净值 `dayDeltas`；本步骤只约束**当前版本的新写入**，不回算历史。设 `lower = min(0, max(-perSaveCap, -dailyNetCap - dayDeltas))`、`upper = max(0, min(perSaveCap, dailyNetCap - dayDeltas))`，将 `x` 裁剪到 `[lower, upper]`。
    - 若历史合计未越界（`-dailyNetCap ≤ dayDeltas ≤ dailyNetCap`），裁剪后必须满足 `-dailyNetCap ≤ dayDeltas + x ≤ dailyNetCap`。
-   - 若历史合计已越界，新贡献只允许 `0`，或使 `|dayDeltas + x| < |dayDeltas|`；结果允许仍超过当前上限，但不得扩大绝对值。
+   - 若历史合计已越界，新贡献只允许 `0`，或使 `|dayDeltas + x| < |dayDeltas|`；结果允许仍越界，但不得扩大绝对值。
    - 正负方向对称。示例：历史上限 `dailyNetCap = 4`、历史合计 `+6` 时，新增 `-1` 得 `+5` 允许，新增 `+1` 得 `+7` 拒绝；历史合计 `-6` 时，新增 `+1` 得 `-5` 允许，新增 `-1` 得 `-7` 拒绝。
 7. 保存整数增量；`0` 也保留为显式 `0`，便于审计与纠正。
 
@@ -169,7 +169,7 @@ score(d) = clamp(initialScore + Σ contribution.deltas[d], minScore, maxScore)
 1. 只有正式保存成功的日记才写入贡献；保存失败不得留下半条贡献。
 2. 同一 `entryId` 最多一条贡献；重复事件、刷新、重试不得重复计分。
 3. `CONFIRM_ENTRY` 使用当前规则版本和新日记的 `dayKey` 创建贡献。
-4. `CORRECT_EMOTION` 必须找到原贡献，使用**原贡献的 `dayKey` 和 `rulesVersion`**，先减去旧贡献，再按该版本剩余每日额度重算并替换；余量按该 `dayKey` 下所有已保存贡献的实际合计计算（不区分版本），但上限参数取原贡献版本；重算的裁剪与超限规则按 2.5.2 执行，若扣除旧贡献后该日合计仍超过原版本上限，新贡献只允许 0 或使合计绝对值严格减小。不得按新日期、新版本或当前 `dailyNetCap` 重算，不得追补其他日期，也不得改动其他贡献。
+4. `CORRECT_EMOTION` 必须找到原贡献，使用**原贡献的 `dayKey` 和 `rulesVersion`**，先减去旧贡献，再按该版本剩余每日额度重算并替换；余量按该 `dayKey` 下所有已保存贡献的实际合计计算（不区分版本），但上限参数取原贡献版本；重算的裁剪与超限规则按 2.5.2 执行，若扣除旧贡献后该日合计仍越界（绝对值超过原版本上限），新贡献只允许 0 或使合计绝对值严格减小。不得按新日期、新版本或当前 `dailyNetCap` 重算，不得追补其他日期，也不得改动其他贡献。
 5. 找不到原贡献或找不到该 `rulesVersion` 的配置时，拒绝纠正并保留原状态；不得猜测旧参数。
 6. 正文编辑不改变情绪贡献；只有情绪纠正才替换贡献。
 7. 纠正不得回退其他日期已形成的成长，也不得批量重算历史。
@@ -214,7 +214,7 @@ score(d) = clamp(initialScore + Σ contribution.deltas[d], minScore, maxScore)
 - 配置至少包含：维度顺序、初始/上下限、单次/每日上限、九类情绪基础表、强度分带、惯性配置、描述分带、主导并列顺序、规则版本。
 - 旧规则配置必须保留，供历史贡献解释和纠正使用；不得因为升级而删除旧配置。
 - 读取旧贡献时按贡献自身 `rulesVersion` 验证：单条 `deltas` 不超该版本 `perSaveCap`；同一 `dayKey` 内若全部贡献同版本，每个维度的合计不超该版本 `dailyNetCap`；同日混合版本时只逐条校验，不按当前版本重新聚合拒绝。
-- 新写入只受 `PersonalityState.rulesVersion` 的 `perSaveCap` / `dailyNetCap` 约束；不得用新规则重算旧贡献。历史日合计未超当前上限时，写入后不得超限；历史合计已超限时，只允许 0 或使该维度合计绝对值严格减小（结果可仍超限）。
+- 新写入只受 `PersonalityState.rulesVersion` 的 `perSaveCap` / `dailyNetCap` 约束；不得用新规则重算旧贡献。历史日合计在 `[-dailyNetCap, dailyNetCap]` 内时，写入后不得越界；历史合计已越界（`|dayDeltas| > dailyNetCap`）时，只允许 0 或使该维度合计绝对值严格减小（结果可仍越界）。
 - 旧版本配置缺失时，保留原贡献并标记不可纠正；纠正请求拒绝，不得猜测旧参数或静默改写存档。
 - 修改已确认规则或候选参数必须由用户决定；实现者只能报告差异、影响和建议。
 
