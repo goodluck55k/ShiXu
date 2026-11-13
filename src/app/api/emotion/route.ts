@@ -98,6 +98,7 @@ export async function POST(request: Request): Promise<Response> {
   const startedAt = Date.now();
   const config = readAiConfig();
   let logCode = "ok";
+  let echo: RequestEcho = {};
 
   const finish = (response: Response, code: string): Response => {
     logCode = code;
@@ -109,12 +110,14 @@ export async function POST(request: Request): Promise<Response> {
     if (!contentType.includes("application/json")) return finish(failure("INVALID_INPUT", {}), "INVALID_INPUT");
 
     const raw = await readBodyLimited(request, config.maxBodyBytes);
+    // 超限时不保留也不解析正文，因此没有可靠三元组可回显；
+    // 客户端对当前会话中不带冲突关联字段的失败响应按固定错误码提示。
     if (raw === null) return finish(failure("INPUT_TOO_LONG", {}), "INPUT_TOO_LONG");
 
     const parsed = parseRequest(raw);
     if (!parsed.ok) return finish(failure("INVALID_INPUT", parsed.echo), "INVALID_INPUT");
     const { req } = parsed;
-    const echo: RequestEcho = { requestId: req.requestId, entryId: req.entryId, inputRevision: req.inputRevision };
+    echo = { requestId: req.requestId, entryId: req.entryId, inputRevision: req.inputRevision };
 
     // 保守的发送前输入保护；真实 token 超限由上游明确错误识别（AI_CONTRACT §2.4）
     if (req.text.length > config.maxInputChars) return finish(failure("INPUT_TOO_LONG", echo), "INPUT_TOO_LONG");
@@ -156,6 +159,9 @@ export async function POST(request: Request): Promise<Response> {
     } finally {
       release();
     }
+  } catch {
+    // 读取请求体等意外失败也返回固定错误码，不把异常详情、密钥或正文写回客户端或日志。
+    return finish(failure("AI_UPSTREAM_ERROR", echo), "AI_UPSTREAM_ERROR");
   } finally {
     // 只记录结果码与耗时；不打印日记正文、密钥与模型原始内容
     console.info(`[emotion] code=${logCode} durationMs=${Date.now() - startedAt}`);
