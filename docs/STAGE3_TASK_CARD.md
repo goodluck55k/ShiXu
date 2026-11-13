@@ -22,7 +22,7 @@
 ### 配置与版本
 - 配置文件：src/config/behavior.ts
 - 规则版本：behavior-v2；不影响存档（无 schema 变化）。
-- 可调参数（候选，PR 标注「参数待验收」）：ambientShare 0.15、specialProbability 0.15、minShare 0.05（以权重下限实现长期份额下限）、maxConsecutive 2、tickIntervalMs [20000,40000]、interactionDurationMs [2500,4000]、saveFeedbackDurationMs 3000、各行为 baseWeight/durationMs、ambientTimeWeights、emotionExpression。
+- 可调参数（候选，PR 标注「参数待验收」）：ambientShare 0.15、specialProbability 0.15、minShare 0.05（以权重下限实现长期份额下限）、maxConsecutive 2、tickIntervalMs [20000,40000]、interactionDurationMs [2500,4000]、saveFeedbackDurationMs 3000、emotionExpressionDurationMs 3000、各行为 baseWeight/durationMs、ambientTimeWeights、emotionExpression。
 - 待确认（正式保持关闭）：specialBehaviorEnabled=false；lowMoodEmotionLabels 候选 ["sadness"]；streakDaysRequired 候选 3；dayFourSemantics 候选 "A"（仅配置占位与测试入口使用，正式不触发）。
 
 ### 依赖与边界
@@ -50,3 +50,11 @@
 - 「低落日」标签映射、连续天数细则、第 4 天语义 A/B 未确认 → specialBehaviorEnabled 正式 false。
 - minShare 以权重下限实现（无历史状态下的长期份额保证），属候选实现方式，待验收。
 - tick/互动/反馈时长、权重、表情映射均为候选参数，待验收。
+
+### 审核修复（PR #19 审核问题）
+
+- P1-1 即时情绪持续覆盖长期性格表现：根因是 `useBehaviorRuntime` 把持久化 `currentEmotion` 无条件传入每次自主选择。修复为运行时有效期 `emotionExpiresAtRef`（初始 0，刷新即失）：仅保存成功后 `emotionExpressionDurationMs`（新增候选 3000 毫秒，待验收）内传入情绪；到期回行为配置基础表情；不改已保存情绪/日记/五维贡献。
+- P1-2 自主行为 durationMs 未生效：根因是只靠 20–40 秒 tick 切换，动作动画循环整个间隔。修复为区分动作时长与选择间隔：新增 `actionEndTimerRef`，自主动作按配置 `durationMs` 结束后 `animation` 置 `none`、保持姿态等待下一次 tick；短动作不再循环整个间隔；互动打断、恢复、隐藏、卸载与 StrictMode 清理均清除该计时器；无每 tick 存储写入。
+- P2 隐藏时 CSS 动画未显式暂停：运行时新增 `paused` 状态，`CompanionScreen` 对 `.scene-character` 加 `is-paused` 类，CSS `animation-play-state: paused` 显式暂停。最小改动完成，不登记 Issue。
+- 契约同步：`BehaviorRuleConfig` 新增 `emotionExpressionDurationMs`；ARCHITECTURE §4.3、COMPANION_SPEC §3.3/§3.4 已同步。
+- 验证方式：stage3 测试新增基础表情/时长断言；集中一轮 typecheck/lint/build + stage2/stage3 + 浏览器冒烟（反馈到期、刷新恢复、动作时长、互动打断、隐藏/恢复、StrictMode、定时器清理）。

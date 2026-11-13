@@ -48,6 +48,7 @@ async function main() {
   assert.equal(BEHAVIOR_V2.behaviors.filter((b) => b.category === "interaction").length, 3);
   assert.equal(BEHAVIOR_V2.special.behaviors.length, 2);
   assert.equal(BEHAVIOR_V2.specialBehaviorEnabled, false);
+  assert.ok(BEHAVIOR_V2.emotionExpressionDurationMs > 0);
 
   // 确定性：相同上下文同结果
   const s0 = dominantState("cheerfulness");
@@ -94,6 +95,10 @@ async function main() {
     assert.equal(joy.expression, "happy");
     assert.equal(joy.amplitude, 1.2);
     assert.equal(plain.amplitude, 1);
+    // 无即时情绪时回行为配置基础表情；自主行为时长取配置 durationMs
+    const def = BEHAVIOR_V2.behaviors.find((b) => b.id === plain.behaviorId)!;
+    assert.equal(plain.expression, def.expression);
+    assert.equal(plain.durationMs, def.durationMs);
   }
 
   // 最低份额（长期）与防连续

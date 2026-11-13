@@ -50,6 +50,7 @@ export const BEHAVIOR_V2: BehaviorRuleConfig = {
   tickIntervalMs: [20000, 40000],
   interactionDurationMs: [2500, 4000],
   saveFeedbackDurationMs: 3000,
+  emotionExpressionDurationMs: 3000,
   emotionExpression: {
     joy: { expression: "happy", intensity: 1.2 },
     calm: { expression: "soft", intensity: 0.8 },

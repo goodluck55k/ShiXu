@@ -212,7 +212,7 @@ interface InteractionEvent {
 
 interface BehaviorContext {
   personality: PersonalitySnapshot;   // 只读；主池只看 dominantId
-  emotion: EmotionReading | null;     // 只用于表情/幅度，不参与主池
+  emotion: EmotionReading | null;     // 只用于表情/幅度，不参与主池；应用层按运行时有效期传入
   interaction: InteractionEvent | null;
   specialEligible: boolean;           // 由应用层只读计算；行为引擎不读日记
   dayKey: string;
@@ -264,6 +264,7 @@ interface BehaviorRuleConfig {
   tickIntervalMs: [number, number];   // 候选 [20000, 40000]
   interactionDurationMs: [number, number]; // 候选 [2500, 4000]
   saveFeedbackDurationMs: number;     // 候选 3000；保存后一次性反馈时长
+  emotionExpressionDurationMs: number; // 候选 3000；即时情绪表情/幅度的运行时有效期
   emotionExpression: Record<EmotionLabel, { expression: string; intensity: number }>;
   ambientTimeWeights: Record<TimeBand, Partial<Record<BehaviorId, number>>>;
 }
@@ -272,6 +273,8 @@ interface BehaviorRuleConfig {
 行为决策不写 `Snapshot`，不需要 `eventId` 幂等；互动反馈与保存后情绪表现只存在于运行时内存。特殊行为不是必然触发；只有 `specialEligible`、主导为 `low_mood`、配置开启且概率命中时才可能发生。`specialEligible` 的连续天数判定（含第 4 天 A/B 语义）属于待确认项，见 [COMPANION_SPEC](COMPANION_SPEC.md) 3.5。
 
 阶段三实现（本分支）：`selectBehavior` 按 interaction → special → ambient → dominant 固定顺序选择；抽样使用显式 `createBehaviorRng(seed, dayKey, sequence, rulesVersion)`，相同上下文同结果；`minShare` 以权重下限公式保证同池每个候选长期份额不低于配置值；结果与 `lastBehaviorId` 相同且 `consecutiveCount >= maxConsecutive` 时按配置顺序轮换同池下一个。`selectSaveFeedback(base, emotion, config)` 只生成运行时一次性反馈决策（reasonCode `save_feedback`），不写存档。应用层 `useBehaviorRuntime` 负责可见调度、隐藏暂停、恢复重读、三种互动打断与恢复、`lastConfirmedSave` 一次性消费（会话级去重）、`prefers-reduced-motion` 降级；`computeSpecialEligibility` 在应用层只读计算连续低落日，正式配置关闭时不参与触发。
+
+运行时即时情绪有有效期：仅在保存成功后 `emotionExpressionDurationMs`（候选 3000 毫秒，待验收）内把 `currentEmotion` 传入表情/幅度；到期或刷新后回到主导行为配置的基础表情，不重新激活已结束的反馈，也不改变已保存情绪、日记与五维贡献。自主行为按行为条目 `durationMs` 结束动画（`animation` 置 `none`、保持姿态），等待下一次 tick 选择；`tickIntervalMs` 只决定下一次选择间隔，不是动作循环时长。页面隐藏时除暂停调度外，运行时 `paused` 状态经 `is-paused` 类显式暂停 CSS 动画；互动打断、恢复、隐藏、卸载与 StrictMode 清理均清除全部运行时计时器。
 
 ### 4.4 离线生活与久别重逢（阶段四/五）
 

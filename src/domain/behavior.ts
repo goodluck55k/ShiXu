@@ -100,6 +100,7 @@ export interface BehaviorRuleConfig {
   tickIntervalMs: [number, number];
   interactionDurationMs: [number, number];
   saveFeedbackDurationMs: number;
+  emotionExpressionDurationMs: number;
   emotionExpression: Record<EmotionLabel, { expression: string; intensity: number }>;
   ambientTimeWeights: Record<TimeBand, Partial<Record<BehaviorId, number>>>;
 }
