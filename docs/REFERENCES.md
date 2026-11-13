@@ -1,6 +1,6 @@
 # 参考仓库与源码阅读记录
 
-阅读日期：2026-11-04（北京时间）。本文件记录实际查看的 GitHub 源码和取舍；引用用于定位学习，当前指南没有复制第三方产品代码。分支 main 会变化，后续若复用代码需重新核实目标版本和许可。
+阅读日期：2026-11-04（北京时间；阶段七参考补充于 2026-11-13）。本文件记录实际查看的 GitHub 源码、角色/场景参考与取舍；引用用于定位学习，当前指南没有复制第三方产品代码或美术素材。分支 main 会变化，后续若复用代码需重新核实目标版本和许可。
 
 ## 1. Pet Mochi
 
@@ -44,8 +44,47 @@
 | [src/utils.ts](https://github.com/dapi-labs/react-nice-avatar/blob/main/src/utils.ts) | 支持种子配置和补齐缺省值；非种子分支也使用随机选择 | 拾绪用固定初始配置与显式确定性规则，禁止每次渲染随机重抽外观 |
 | [LICENSE](https://github.com/dapi-labs/react-nice-avatar/blob/main/LICENSE) | MIT；Copyright (c) 2021 Chill Lab | 若未来复制实质代码，保留版权和完整 MIT 许可 |
 
-README 另提到 Figma 的 Avatar Illustration System 与设计作者 Micah；代码仓库 MIT 不自动证明外部 Figma 文件、商标或其他素材都适用同一授权。拾绪本次不复用这些素材，最终角色为自行开发的原创全身白色小人。
+README 另提到 Figma 的 Avatar Illustration System 与设计作者 Micah；代码仓库 MIT 不自动证明外部 Figma 文件、商标或其他素材都适用同一授权。拾绪本次不复用这些素材；阶段七最终角色为自行开发的原创黑白企鹅，当前白色小人是历史占位。
 
-## 4. 采用原则
+## 4. React Kawaii（阶段七表情系统结构参考）
 
-三个参考不是技术依赖清单，不必安装它们才能开发。先遵循本项目 [AGENTS](../AGENTS.md)、[ARCHITECTURE](ARCHITECTURE.md)、[PRODUCT_SPEC](PRODUCT_SPEC.md)、[COMPANION_SPEC](COMPANION_SPEC.md) 和 [AI_CONTRACT](AI_CONTRACT.md)。后续真实复用代码时记录来源路径、固定提交、修改说明及适用许可；许可不明则自行实现，不让研究或授权等待阻塞已有可行方案。
+阅读日期：2026-11-13。仓库：<https://github.com/elizabetdev/react-kawaii>。GitHub 元数据显示许可为 MIT；本次只检查仓库结构与文件列表，未复制代码。
+
+| 观察 | 拾绪借鉴与边界 |
+| --- | --- |
+| `packages/react-kawaii/src/components` 下每个角色为独立组件（如 `Cat.tsx`、`Ghost.tsx`、`Planet.tsx`），`common/Face.tsx` 与 `common/paths.ts` 提供共享面部/路径 | 借鉴身体与面部分离、共享面部部件、按角色组合；拾绪自行设计企鹅身体与五官，不复制其角色造型 |
+| `common/Face.tsx` 把面部拆成 mouth、eyes、blush 等独立分组，按 `mood` 组合；角色只传入 `mood` 等有限属性 | 借鉴眼睛/嘴巴独立控制与状态组合；拾绪明确**不加腮红**，不复用其 blush 层或角色造型 |
+| 组件库提供可复用 React 组件 | 只作结构参考，不把 React Kawaii 作为运行时依赖；若未来复制实质代码，保留 MIT 版权与许可文本 |
+
+## 5. LINEpenguin 企鹅表情作品（视觉语言参考）
+
+链接：<https://www.behance.net/gallery/155133579/LINEpenguin>。阅读日期：2026-11-13。
+
+| 观察 | 拾绪借鉴与边界 |
+| --- | --- |
+| 用简洁的形状与身体姿态传达明确情绪，表情生动但装饰克制 | 借鉴表情清晰度、姿态与情绪一致性、幼态可爱但不过度装饰 |
+| 属于第三方作者作品，未见可复用许可说明 | 仅作视觉学习；不得复制具体角色形象、构图或受版权保护的美术素材 |
+
+## 6. Penguin-Pet（阶段七自主活动与状态切换参考）
+
+阅读日期：2026-11-13。仓库：<https://github.com/Myrrow/Penguin-Pet>。仓库根目录含 MIT 许可文本（Copyright (c) 2026 ZFHR）；GitHub 元数据许可为 `NOASSERTION`，复用前仍需重新核实。本次只检查仓库结构与文件列表，未复制代码。
+
+| 已观察文件/目录 | 观察 | 拾绪借鉴与边界 |
+| --- | --- | --- |
+| `main.js`、`preload.js`、`package.json` | Electron 桌面宠物应用，含主进程与渲染进程 | 不引入 Electron、桌面常驻、系统级窗口或完整宠物框架；拾绪仍是 Web 应用 |
+| `renderer/renderer.js`、`gait.js`、`affine.js` | 渲染层包含步态/运动与状态相关逻辑，角色可在桌面活动 | 借鉴待机、走路、转身、休息与动作状态切换；行为选择仍由拾绪现有确定性行为引擎决定 |
+| `renderer/speech.js`、`assets/sprites` | 具备互动表现与精灵图资源 | 不复制其美术素材或台词；拾绪自行设计企鹅 SVG/组件与文案 |
+| `LICENSE` | 含 MIT 许可文本；元数据未自动识别 | 若未来复用实质代码，重新核实许可并保留版权与许可文本；当前仅学习思路 |
+
+## 7. Kinder World（生活空间与 UI 氛围参考）
+
+链接：<https://www.playkinderworld.com/game>。阅读日期：2026-11-13。
+
+| 观察 | 拾绪借鉴与边界 |
+| --- | --- |
+| 温暖舒适的场景氛围、柔和自然光、少量植物与生活元素、清晰空间层次，角色在场景中有自然存在感 | 借鉴生活空间尺度、治愈系美术语言与角色存在感；企鹅应有相对独立且足够大的生活空间 |
+| 商业游戏，含自身玩法、货币与收集系统 | 仅作视觉与交互参考；不复制场景、角色、UI 素材或代码；不引入其玩法、货币、家具或收集系统 |
+
+## 8. 采用原则
+
+上述参考不是技术依赖清单，不必安装它们才能开发；阶段七的角色、表情、动作与场景参考还须遵守 [STAGE7_DESIGN](STAGE7_DESIGN.md) 的已确认/参考/未定分类。先遵循本项目 [AGENTS](../AGENTS.md)、[ARCHITECTURE](ARCHITECTURE.md)、[PRODUCT_SPEC](PRODUCT_SPEC.md)、[COMPANION_SPEC](COMPANION_SPEC.md) 和 [AI_CONTRACT](AI_CONTRACT.md)。后续真实复用代码时记录来源路径、固定提交、修改说明及适用许可；许可不明则自行实现，不让研究或授权等待阻塞已有可行方案。

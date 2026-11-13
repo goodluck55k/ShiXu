@@ -2,7 +2,7 @@
 
 > 状态：V1 架构基线。标注「已实现」的以 `main` 分支代码为准；「阶段 N 规划」表示尚未合入。产品范围见 [PRODUCT_SPEC](PRODUCT_SPEC.md)，性格与行为参数见 [COMPANION_SPEC](COMPANION_SPEC.md)。
 >
-> 存档 `schemaVersion` 为 3；本文档版本与存档版本无关。截至本版，`main` 已含 `schemaVersion` 3、五维 `personality-v2` 台账与迁移（PR #18）、主导行为引擎（PR #19）与离线自主生活（PR #20）；久别重逢在 `feature/reunion` 分支实现，尚未合入 `main`。
+> 存档 `schemaVersion` 为 3；本文档版本与存档版本无关。截至本版，`main` 已含 `schemaVersion` 3、五维 `personality-v2` 台账与迁移（PR #18）、主导行为引擎（PR #19）、离线自主生活（PR #20）、久别重逢（PR #22）与 AI 情绪识别复核（PR #23）；阶段七的企鹅形象、表情、动作、生活空间与正式 UI 尚未开发，设计基线见 [STAGE7_DESIGN](STAGE7_DESIGN.md)。
 
 ## 1. 架构原则
 
@@ -25,7 +25,7 @@
 | 行为 | `behavior` | 主导行为、普通待机、特殊行为、互动反应 | `BehaviorContext`、`BehaviorDecision`、`BehaviorRuleConfig`、`selectBehavior` | 无持久状态（运行时序号） | `BEHAVIOR_RULES_VERSION` + 规则配置 |
 | 离线生活 | `offlineLife` | 按离线窗口生成有限生活事件 | `OfflineLifeState`、`OfflineLifeEvent`、`OfflineLifeRuleConfig`、`planOfflineLife` | 事件历史（通过快照持有） | `offline-life-v1` |
 | 久别重逢 | `reunion` | 判断长期未访问、生成问候、记录触发窗口 | `ReunionState`、`ReunionRuleConfig`、`evaluateReunion` | 已触发窗口（通过快照持有） | `reunion-v1` |
-| 角色展示 | `character` | 按视图渲染小人、表情、动作、图层 | `CharacterView`、`AppearanceConfig` | 无 | 图层/动作映射 |
+| 角色展示 | `character` | 按视图渲染企鹅、组合表情、动作与生活空间 | `CharacterView`、`AppearanceConfig` | 无（仅运行时展示状态） | 表情/动作/图层映射（阶段七） |
 | 存储 | `storage` | 版本化存档、加载、保存、恢复、迁移入口 | `StoragePort`、`LoadResult`、`SaveResult` | localStorage 键 | 迁移表 |
 | 装扮（V2） | `decoration` | 饰品状态、解锁、穿戴 | 仅预留读取与外观扩展点 | V2 自行持有 | V2 定义 |
 
@@ -88,8 +88,10 @@ graph TD
 | `src/config/behavior.ts` | 阶段三已实现（PR #19） | `BehaviorRuleConfig` |
 | `src/config/offlineLife.ts` | 阶段四已实现（PR #20） | `OfflineLifeRuleConfig` |
 | `src/config/reunion.ts` | 阶段五已实现（PR #22） | `ReunionRuleConfig` |
+| 阶段七角色/表情/场景配置 | 规划，未创建 | 表情与动作映射、生活空间配置；文件名、版本与参数待任务卡确认 |
 | `src/lib/storage/{port,localStorageAdapter}.ts` | 已实现 | 存储接口与浏览器实现 |
-| `src/components/character/CharacterRenderer.tsx` | 已实现（阶段三最小姿态/表情/动画占位，PR #19） | SVG 渲染与图层白名单 |
+| `src/components/character/CharacterRenderer.tsx` | 已实现（阶段三最小姿态/表情/动画占位，PR #19） | 当前为白色小人 SVG 占位；阶段七替换为原创企鹅、组合表情与动作 |
+| `src/components/character/` 阶段七组件 | 规划，未创建 | 企鹅身体/面部、表情、动作与生活空间组件；具体文件与资源路径由任务卡确认，不得把规划路径当作已有文件 |
 | `src/components/character/OfflineLifePanel.tsx` | 阶段四已实现（PR #20） | 只读已落盘离线事件，区分本次与历史；不写日记/回忆/分数 |
 | `src/components/character/ReunionPanel.tsx` | 阶段五已实现（PR #22） | 只渲染应用层已提交的一次性问候；回答/跳过仅本地临时状态 |
 | `src/application/useBehaviorRuntime.ts` | 阶段三已实现（PR #19） | 行为调度、隐藏暂停、互动、保存后一次性反馈、低动态降级；不写存档 |
@@ -505,13 +507,18 @@ AI 识别（阶段六复核）：
 
 ## 7. 角色渲染
 
-- 原创全白小人使用 React + SVG；V1 规划 `viewBox="0 0 240 320"`。
-- 图层顺序：后景特效 → 身体/四肢 → 表情/五官 → 头部细节 → 装饰图层（V2）→ 前景特效。
-- 图层 ID 必须来自白名单；未知 ID 忽略并回落到基础形象，不得崩溃。
-- `CharacterRenderer` 只接收 `CharacterView` 与可选外观，不读取 `Snapshot`、不调用规则函数。
+- 正式角色为**原创黑白企鹅**，使用 React + SVG 自行实现；当前 `CharacterRenderer` 仍是阶段三的白色小人占位，不是正式美术。阶段七的概念稿不是仓库已有资源。
+- 视觉基准（已确认）：圆润幼态、经典黑白配色、允许橘黄色嘴巴和小脚、不添加腮红、简洁柔和治愈；不复制第三方角色造型。
+- 表情系统参考 React Kawaii 的组件化结构自行实现：身体与面部职责分离，眼睛、嘴巴等部位独立控制，按当前状态组合表情，保持不同表情下的形象一致，并为后续过渡动画预留扩展点。React Kawaii 不是运行时依赖。
+- 动作表现参考 Penguin-Pet 的自主活动与状态切换思路，但不引入 Electron/桌面宠物框架；动作仍由现有行为引擎的 `BehaviorDecision` 决定，渲染层只做映射。
+- 图层顺序：后景特效 → 身体/四肢 → 表情/五官 → 头部细节 → 装饰图层（V2）→ 前景特效。图层 ID 必须来自白名单；未知 ID 忽略并回落到基础形象，不得崩溃。
+- `CharacterRenderer` 只接收 `CharacterView` 与可选外观，不读取 `Snapshot`、不调用规则函数、不重新选择行为。
 - `CharacterView` 含可选 `behaviorId`、`category`、`amplitude`（阶段三已实现，便于调试与最小幅度反馈）；渲染层不得据此反推性格或重新选择行为。
+- 企鹅拥有相对独立的生活空间；场景元素（柔和自然光、少量植物/窗户等）只影响表现，不写存档、不读取完整快照、不改变离线或重逢判定。
+- 保存日记成功后的一次性反馈由应用层已有的 `lastConfirmedSave` 门控触发，渲染层负责企鹅短暂中断、转身/看向用户、表情/动作与恢复；不得重复触发，不得在保存失败时播放。具体动作、时长、中断优先级与异常处理属于阶段七待确认设计，见 [STAGE7_DESIGN](STAGE7_DESIGN.md) §C。
 - 尊重 `prefers-reduced-motion`；页面隐藏时暂停动画与行为调度。
-- 现有静态占位渲染属于阶段七之前的临时载体，不得当作定稿视觉继续美化。
+- 阶段七不得引入服装、饰品、家具、商店或货币系统；V2 饰品只能通过 `AppearanceConfig`/图层白名单扩展，渲染层不判定解锁。
+- 现有静态占位渲染与临时场景属于阶段七之前的临时载体，不得当作定稿视觉继续美化。
 
 ## 8. 兼容与交付
 
