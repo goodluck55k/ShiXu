@@ -13,12 +13,17 @@ import {
 import { MANUAL_EMOTION_DEFAULTS } from "@/domain/emotions";
 import type { EmotionDimensions, EmotionLabel } from "@/domain/types";
 import { applyGameEvent, createInitialSnapshot } from "@/domain/rules";
+import { OFFLINE_LIFE_V1 } from "@/config/offlineLife";
+import { derivePersonality } from "@/domain/personality";
+import { planOfflineLife } from "@/domain/offlineLife";
 import type {
+  ActivityCheckpointEvent,
   Analysis,
   AnalysisMeta,
   EmotionReading,
   GameContext,
   GameEvent,
+  SessionStartedEvent,
   Snapshot,
 } from "@/domain/types";
 import {
@@ -41,6 +46,12 @@ interface PendingOperation {
   expectedRevision: number;
 }
 
+// 会话启动保存失败时冻结 SESSION_STARTED：窗口与事件已生成但未提交，必须随下一次正式写入一起补交。
+interface PendingSession {
+  event: SessionStartedEvent;
+  context: GameContext;
+}
+
 // C1 → C4 接口：保存成功结果与本次确认情绪，运行时内存，供 C4 构造一次性共鸣上下文
 export interface ConfirmedSaveContext {
   eventId: string;
@@ -60,6 +71,7 @@ export interface AppState {
   pending: PendingOperation | null;
   tabConflict: boolean;
   lastConfirmedSave: ConfirmedSaveContext | null;
+  loadId: number;
 }
 
 const initialState: AppState = {
@@ -73,6 +85,7 @@ const initialState: AppState = {
   pending: null,
   tabConflict: false,
   lastConfirmedSave: null,
+  loadId: 0,
 };
 
 type Action =
@@ -80,6 +93,7 @@ type Action =
   | { type: "SAVE_START"; pending: PendingOperation }
   | { type: "SAVE_OK"; snapshot: Snapshot }
   | { type: "SAVE_FAIL"; message: string; conflict: boolean }
+  | { type: "COMMIT_SNAPSHOT"; snapshot: Snapshot }
   | { type: "INVALIDATE_PENDING" }
   | { type: "ENABLE_TEMP" }
   | { type: "TAB_CONFLICT" };
@@ -94,6 +108,7 @@ function reducer(state: AppState, action: Action): AppState {
         tabConflict: false,
         saveError: null,
         lastConfirmedSave: null,
+        loadId: state.loadId + 1,
       };
       const result = action.result;
       switch (result.status) {
@@ -157,6 +172,8 @@ function reducer(state: AppState, action: Action): AppState {
         saveError: null,
         lastConfirmedSave: null,
       };
+    case "COMMIT_SNAPSHOT":
+      return { ...state, phase: "ready", problem: null, snapshot: action.snapshot };
     case "TAB_CONFLICT":
       return { ...state, tabConflict: true };
   }
@@ -208,17 +225,69 @@ function sameEmotion(a: EmotionReading, b: EmotionReading): boolean {
   );
 }
 
+const CHECKPOINT_INTERVAL_MS = 5 * 60 * 1000;
+const ACTIVITY_RESCUE_KEY = "shixu.activityRescue";
+
+// 同标签页救援时间戳：仅用于避免刷新/恢复被误判离线；不是正式存档，不替代 StoragePort。
+function readActivityRescue(): number | null {
+  try {
+    const raw = window.sessionStorage.getItem(ACTIVITY_RESCUE_KEY);
+    if (raw === null) return null;
+    const value = Number(raw);
+    return Number.isFinite(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeActivityRescue(at: number): void {
+  try {
+    window.sessionStorage.setItem(ACTIVITY_RESCUE_KEY, String(at));
+  } catch {
+    // 隐私模式等禁用存储时忽略；降级为最后一次成功的 lastActiveAt。
+  }
+}
+
+function clearActivityRescue(): void {
+  try {
+    window.sessionStorage.removeItem(ACTIVITY_RESCUE_KEY);
+  } catch {
+    // 忽略
+  }
+}
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [draft, setDraft] = useState<{ text: string; label: EmotionLabel | null; dimensions: EmotionDimensions }>({ text: "", label: null, dimensions: MANUAL_EMOTION_DEFAULTS.neutral });
   const savingRef = useRef(false);
   const [storage] = useState<StoragePort>(() => createLocalStorageAdapter());
+  const sessionStartedRef = useRef(false);
+  // 会话启动窗口的未提交事件；存在时禁止单独推进 lastActiveAt，避免离线窗口被跳过。
+  const sessionPendingRef = useRef<PendingSession | null>(null);
+  const sessionDoneLoadRef = useRef(-1);
+  const loadedRef = useRef(false);
+  const snapshotRef = useRef<Snapshot | null>(state.snapshot);
+  const temporaryRef = useRef(state.temporary);
+  const tabConflictRef = useRef(state.tabConflict);
+  // 与 state.pending 同步镜像（而非 useEffect）：checkpoint 须在 SAVE_FAIL 提交的同一时刻看到 pending，避免渲染提交间隙竞态。
+  const pendingRef = useRef<PendingOperation | null>(null);
+  useEffect(() => {
+    snapshotRef.current = state.snapshot;
+    temporaryRef.current = state.temporary;
+    tabConflictRef.current = state.tabConflict;
+  });
 
   const load = useCallback(async () => {
-    dispatch({ type: "LOAD_DONE", result: await storage.load() });
+    sessionStartedRef.current = false;
+    const result = await storage.load();
+    pendingRef.current = null;
+    sessionPendingRef.current = null;
+    dispatch({ type: "LOAD_DONE", result });
   }, [storage]);
 
   useEffect(() => {
+    if (loadedRef.current) return;
+    loadedRef.current = true;
     void load();
   }, [load]);
 
@@ -232,13 +301,162 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("storage", onStorage);
   }, [state.temporary]);
 
+  // 正式存档包含该 SESSION_STARTED 才算会话窗口已结算；只有此时才允许推进救援时间戳。
+  const settlePendingSession = useCallback((snapshot: Snapshot) => {
+    const pendingSession = sessionPendingRef.current;
+    if (!pendingSession) return;
+    if (!snapshot.appliedEventIds.includes(pendingSession.event.eventId)) return;
+    sessionPendingRef.current = null;
+    sessionStartedRef.current = true;
+    clearActivityRescue();
+  }, []);
+
+  // 未提交的会话窗口必须先合并进本次候选快照，否则 lastActiveAt 会越过窗口起点导致事件永久丢失。
+  const applyPendingSession = useCallback((snapshot: Snapshot): Snapshot => {
+    const pendingSession = sessionPendingRef.current;
+    if (!pendingSession) return snapshot;
+    const result = applyGameEvent(snapshot, pendingSession.event, pendingSession.context);
+    if (result.changed) return result.snapshot;
+    // 窗口已由其他写入提交或基准已被外部推进：无法再补交，放弃重试以免永久阻塞正式写入。
+    sessionPendingRef.current = null;
+    sessionStartedRef.current = true;
+    clearActivityRescue();
+    return snapshot;
+  }, []);
+
+  // 会话开始：先按当前基准计算离线窗口，再推进访问时间；只有保存成功才提交正式状态。
+  const startSession = useCallback(
+    async (snapshot: Snapshot) => {
+      const now = Date.now();
+      const dominantId = derivePersonality(snapshot.personality).dominantId;
+      const plan = planOfflineLife(
+        {
+          lastActiveAt: snapshot.offlineLife.lastActiveAt,
+          lastVisitAt: snapshot.offlineLife.lastVisitAt,
+          now,
+          dominantId,
+        },
+        OFFLINE_LIFE_V1,
+      );
+      // 同标签页刷新救援：最近活动距今不足最小离线时长时抑制事件，避免把刷新误判为离线。
+      // 只抑制事件生成，不改变 windowStart（必须等于快照基准，否则领域拒绝提交）。
+      const rescue = readActivityRescue();
+      const refreshRescue =
+        rescue !== null &&
+        rescue <= now &&
+        plan.windowStart !== null &&
+        rescue > plan.windowStart &&
+        now - rescue < OFFLINE_LIFE_V1.minAbsenceMs;
+      const event: SessionStartedEvent = {
+        type: "SESSION_STARTED",
+        eventId: `session:${plan.windowStart ?? "first"}`,
+        windowStart: plan.windowStart,
+        offlineEvents: refreshRescue ? [] : plan.events,
+        reunionTriggered: false,
+      };
+      const context: GameContext = { now, dayKey: localDayKey(now) };
+      const result = applyGameEvent(snapshot, event, context);
+      if (!result.changed) {
+        sessionStartedRef.current = true;
+        clearActivityRescue();
+        return;
+      }
+      // 保存失败前先冻结，保证后续 checkpoint/日记保存能一并补交该窗口。
+      sessionPendingRef.current = { event, context };
+      if (savingRef.current) return;
+      savingRef.current = true;
+      try {
+        const saved = await storage.save(result.snapshot, snapshot.revision);
+        if (saved.status === "saved") {
+          sessionPendingRef.current = null;
+          sessionStartedRef.current = true;
+          clearActivityRescue();
+          dispatch({ type: "COMMIT_SNAPSHOT", snapshot: saved.snapshot });
+        } else if (saved.status === "conflict") {
+          sessionPendingRef.current = null;
+          dispatch({ type: "TAB_CONFLICT" });
+        }
+        // 其他失败静默降级：保留冻结事件与最后成功的基准，后续写入合并重试。
+      } finally {
+        savingRef.current = false;
+      }
+    },
+    [storage],
+  );
+
+  useEffect(() => {
+    if (state.phase !== "ready" || !state.snapshot || state.temporary) return;
+    if (sessionDoneLoadRef.current === state.loadId) return;
+    sessionDoneLoadRef.current = state.loadId;
+    void startSession(state.snapshot);
+  }, [state.loadId, state.phase, state.snapshot, state.temporary, startSession]);
+
+  // 活动检查点：单调推进 lastActiveAt，不进 appliedEventIds/回忆/五维；失败按最后成功值降级。
+  const checkpoint = useCallback(async () => {
+    const snapshot = snapshotRef.current;
+    // pending 未解决时暂停正式写入：checkpoint 推进 revision 会使 retrySave 冻结的 expectedRevision 失效，误判跨标签页冲突。
+    if (!snapshot || temporaryRef.current || tabConflictRef.current || savingRef.current || pendingRef.current) return;
+    // 先合并未提交的会话窗口，checkpoint 不得单独把 lastActiveAt 推过窗口起点。
+    const base = applyPendingSession(snapshot);
+    const now = Date.now();
+    const event: ActivityCheckpointEvent = {
+      type: "ACTIVITY_CHECKPOINT",
+      eventId: `checkpoint:${now}`,
+      at: now,
+    };
+    const result = applyGameEvent(base, event, { now, dayKey: localDayKey(now) });
+    const candidate = result.changed ? result.snapshot : base;
+    if (candidate === snapshot) return;
+    savingRef.current = true;
+    try {
+      const saved = await storage.save(candidate, snapshot.revision);
+      if (saved.status === "saved") {
+        settlePendingSession(saved.snapshot);
+        dispatch({ type: "COMMIT_SNAPSHOT", snapshot: saved.snapshot });
+      }
+      // 冲突/失败静默跳过：跨标签页冲突由 storage 事件与日记保存的 expectedRevision 兜底。
+    } finally {
+      savingRef.current = false;
+    }
+  }, [storage, applyPendingSession, settlePendingSession]);
+
+  useEffect(() => {
+    if (state.phase !== "ready" || state.temporary) return;
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") void checkpoint();
+    }, CHECKPOINT_INTERVAL_MS);
+    const rescueNow = () => {
+      // 仅在会话已成功提交后写救援时间戳；失败会话不写，刷新后保留真实离线窗口。
+      if (sessionStartedRef.current) writeActivityRescue(Date.now());
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        rescueNow();
+        void checkpoint();
+      }
+    };
+    const onPageHide = () => {
+      rescueNow();
+      void checkpoint();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", onPageHide);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", onPageHide);
+    };
+  }, [state.phase, state.temporary, checkpoint]);
+
   const saveCandidate = useCallback(
     async (pending: PendingOperation, temporary: boolean): Promise<boolean> => {
       if (savingRef.current) return false;
       savingRef.current = true;
+      pendingRef.current = pending;
       dispatch({ type: "SAVE_START", pending });
       try {
         if (temporary) {
+          pendingRef.current = null;
           dispatch({
             type: "SAVE_OK",
             snapshot: { ...pending.candidate, revision: pending.expectedRevision + 1 },
@@ -247,6 +465,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
         const result = await storage.save(pending.candidate, pending.expectedRevision);
         if (result.status === "saved") {
+          pendingRef.current = null;
+          settlePendingSession(result.snapshot);
           dispatch({ type: "SAVE_OK", snapshot: result.snapshot });
           return true;
         }
@@ -258,7 +478,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         savingRef.current = false;
       }
     },
-    [storage],
+    [storage, settlePendingSession],
   );
 
   const runOperation = useCallback(
@@ -274,7 +494,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (!pending || !matchesPending(pending.event)) {
         const built = build();
         if (!built) return false;
-        const result = applyGameEvent(state.snapshot, built.event, built.context);
+        // 未提交的会话窗口先合入候选，日记保存不能把它覆盖或遗漏。
+        const base = applyPendingSession(state.snapshot);
+        const result = applyGameEvent(base, built.event, built.context);
         if (!result.changed) return false;
         pending = {
           event: built.event,
@@ -286,7 +508,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
       return saveCandidate(pending, state.temporary);
     },
-    [state, saveCandidate],
+    [state, saveCandidate, applyPendingSession],
   );
 
   const confirmEntry = useCallback(
@@ -394,13 +616,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return saveCandidate(state.pending, state.temporary);
   }, [state, saveCandidate]);
 
-  const invalidatePending = useCallback(() => dispatch({ type: "INVALIDATE_PENDING" }), []);
+  const invalidatePending = useCallback(() => {
+    pendingRef.current = null;
+    dispatch({ type: "INVALIDATE_PENDING" });
+  }, []);
   const reload = useCallback(async () => load(), [load]);
-  const enableTemporary = useCallback(() => dispatch({ type: "ENABLE_TEMP" }), []);
+  const enableTemporary = useCallback(() => {
+    pendingRef.current = null;
+    sessionPendingRef.current = null;
+    dispatch({ type: "ENABLE_TEMP" });
+  }, []);
 
   const resetStorage = useCallback(async () => {
     const result = await storage.reset();
     if (result.status === "saved") {
+      pendingRef.current = null;
+      sessionPendingRef.current = null;
+      sessionStartedRef.current = true;
+      clearActivityRescue();
       dispatch({ type: "SAVE_OK", snapshot: result.snapshot });
       return;
     }

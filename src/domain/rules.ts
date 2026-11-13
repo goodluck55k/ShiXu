@@ -1,6 +1,9 @@
+import { OFFLINE_LIFE_V1 } from "@/config/offlineLife";
+import type { OfflineLifeEvent, OfflineLifeState } from "./offlineLife";
 import { addContribution, createEmptyPersonality, reviseContribution } from "./personality";
 import {
   SNAPSHOT_SCHEMA_VERSION,
+  type ActivityCheckpointEvent,
   type ConfirmEntryEvent,
   type CorrectEmotionEvent,
   type EditEntryTextEvent,
@@ -10,6 +13,7 @@ import {
   type GameEvent,
   type MemoryEvent,
   type RuleResult,
+  type SessionStartedEvent,
   type Snapshot,
 } from "./types";
 
@@ -31,6 +35,13 @@ export function createInitialSnapshot(): Snapshot {
 
 function unchanged(snapshot: Snapshot): RuleResult {
   return { snapshot, events: [], changed: false };
+}
+
+// 单调推进 lastActiveAt：重复、乱序或重放都不会倒退；不写回忆、不改分数。
+function advanceActivity(offlineLife: OfflineLifeState, at: number): OfflineLifeState {
+  const lastActiveAt = Math.max(offlineLife.lastActiveAt ?? at, at);
+  if (lastActiveAt === offlineLife.lastActiveAt) return offlineLife;
+  return { ...offlineLife, lastActiveAt };
 }
 
 function findEntry(snapshot: Snapshot, entryId: string): Entry | undefined {
@@ -77,6 +88,7 @@ function confirmEntry(
       memories: [...snapshot.memories, memory],
       appliedEventIds: [...snapshot.appliedEventIds, event.eventId],
       personality,
+      offlineLife: advanceActivity(snapshot.offlineLife, context.now),
     },
     events: [memory],
     changed: true,
@@ -133,6 +145,7 @@ function correctEmotion(
       memories: [...snapshot.memories, memory],
       appliedEventIds: [...snapshot.appliedEventIds, event.eventId],
       personality,
+      offlineLife: advanceActivity(snapshot.offlineLife, context.now),
     },
     events: [memory],
     changed: true,
@@ -169,8 +182,62 @@ function editEntryText(
       entries: snapshot.entries.map((item) => (item.id === event.entryId ? nextEntry : item)),
       memories: [...snapshot.memories, memory],
       appliedEventIds: [...snapshot.appliedEventIds, event.eventId],
+      offlineLife: advanceActivity(snapshot.offlineLife, context.now),
     },
     events: [memory],
+    changed: true,
+  };
+}
+
+function activityCheckpoint(
+  snapshot: Snapshot,
+  event: ActivityCheckpointEvent,
+  context: GameContext,
+): RuleResult {
+  if (!Number.isFinite(event.at) || event.at < 0 || event.at > context.now) return unchanged(snapshot);
+  const offlineLife = advanceActivity(snapshot.offlineLife, event.at);
+  if (offlineLife === snapshot.offlineLife) return unchanged(snapshot);
+  return { snapshot: { ...snapshot, offlineLife }, events: [], changed: true };
+}
+
+function sessionStarted(
+  snapshot: Snapshot,
+  event: SessionStartedEvent,
+  context: GameContext,
+): RuleResult {
+  const baseline = snapshot.offlineLife.lastActiveAt ?? snapshot.offlineLife.lastVisitAt;
+  // 窗口起点必须等于当前基准；保存成功后基准推进到 now，旧窗口无法再次提交。
+  if (event.windowStart !== baseline) return unchanged(snapshot);
+
+  const seenIds = new Set(snapshot.offlineLife.events.map((item) => item.id));
+  const appended: OfflineLifeEvent[] = [];
+  for (const item of event.offlineEvents) {
+    if (seenIds.has(item.id)) continue;
+    seenIds.add(item.id);
+    appended.push(item);
+  }
+  const merged = [...snapshot.offlineLife.events, ...appended];
+  const events = merged.length > OFFLINE_LIFE_V1.maxStoredEvents
+    ? merged.slice(merged.length - OFFLINE_LIFE_V1.maxStoredEvents)
+    : merged;
+
+  const offlineLife: OfflineLifeState = {
+    lastVisitAt: context.now,
+    lastActiveAt: context.now,
+    lastWindowStart: event.windowStart,
+    events,
+  };
+  const reunion = event.reunionTriggered
+    ? { lastTriggeredWindowStart: event.windowStart, lastTriggeredAt: context.now }
+    : snapshot.reunion;
+  return {
+    snapshot: {
+      ...snapshot,
+      offlineLife,
+      reunion,
+      appliedEventIds: [...snapshot.appliedEventIds, event.eventId],
+    },
+    events: [],
     changed: true,
   };
 }
@@ -180,6 +247,8 @@ export function applyGameEvent(
   event: GameEvent,
   context: GameContext,
 ): RuleResult {
+  // checkpoint 不进入 appliedEventIds，单调 max 保证重复/乱序/重放无副作用。
+  if (event.type === "ACTIVITY_CHECKPOINT") return activityCheckpoint(snapshot, event, context);
   if (snapshot.appliedEventIds.includes(event.eventId)) return unchanged(snapshot);
   switch (event.type) {
     case "CONFIRM_ENTRY":
@@ -188,6 +257,8 @@ export function applyGameEvent(
       return correctEmotion(snapshot, event, context);
     case "EDIT_ENTRY_TEXT":
       return editEntryText(snapshot, event, context);
+    case "SESSION_STARTED":
+      return sessionStarted(snapshot, event, context);
     default:
       throw new Error(`事件 ${event.type} 在后续阶段实现`);
   }
