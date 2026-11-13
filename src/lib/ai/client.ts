@@ -110,12 +110,20 @@ export function errorFromHttpStatus(status: number): EmotionAnalysisError {
   return { code, message: EMOTION_API_ERROR_MESSAGES[code] };
 }
 
+const CORRELATION_KEYS = ["requestId", "entryId", "inputRevision"] as const;
+
 function matchesTriple(payload: Record<string, unknown>, session: AnalysisSession): boolean {
   return (
     payload.requestId === session.requestId &&
     payload.entryId === session.entryId &&
     payload.inputRevision === session.inputRevision
   );
+}
+
+// 请求体超限等解析前失败可能不带三元组；只要已有字段不与当前会话冲突，
+// 就按当前请求处理。调用方保证 evaluate 只接收仍有效的会话，旧响应在更早处丢弃。
+function conflictsWithSession(payload: Record<string, unknown>, session: AnalysisSession): boolean {
+  return CORRELATION_KEYS.some((key) => key in payload && payload[key] !== session[key]);
 }
 
 export function evaluateEmotionResponse(
@@ -126,27 +134,35 @@ export function evaluateEmotionResponse(
   if (!isRecord(payload) || typeof payload.ok !== "boolean") {
     return { kind: "error", error: errorFromHttpStatus(status) };
   }
-  // 成功与失败 envelope 都必须回传匹配原请求的三元组；不匹配的旧响应直接丢弃。
-  if (!matchesTriple(payload, session)) return { kind: "ignore" };
 
-  if (!payload.ok) {
-    const code =
-      typeof payload.code === "string" && ERROR_CODES.has(payload.code)
+  if (payload.ok) {
+    // 成功 envelope 必须完整回传匹配三元组，且 HTTP 状态必须为 2xx。
+    if (!matchesTriple(payload, session)) return { kind: "ignore" };
+    if (status < 200 || status >= 300) {
+      return { kind: "error", error: errorFromHttpStatus(status) };
+    }
+    if (payload.needsConfirmation !== true) {
+      return { kind: "error", error: { code: "AI_INVALID_OUTPUT", message: EMOTION_API_ERROR_MESSAGES.AI_INVALID_OUTPUT } };
+    }
+    const analysis = toAnalysis(payload.analysis);
+    const rawMeta = payload.analysisMeta;
+    const analysisMeta = rawMeta === undefined || rawMeta === null ? null : toAnalysisMeta(rawMeta);
+    if (!analysis || (rawMeta !== undefined && rawMeta !== null && !analysisMeta)) {
+      return { kind: "error", error: { code: "AI_INVALID_OUTPUT", message: EMOTION_API_ERROR_MESSAGES.AI_INVALID_OUTPUT } };
+    }
+    return { kind: "success", suggestion: { analysis, analysisMeta } };
+  }
+
+  // 失败响应：带出的关联字段必须与当前会话一致；完全不带三元组的解析前失败
+  // （如请求体超限）仍按当前请求映射固定错误码。
+  if (conflictsWithSession(payload, session)) return { kind: "ignore" };
+  const code =
+    typeof payload.code === "string"
+      ? ERROR_CODES.has(payload.code)
         ? (payload.code as EmotionApiErrorCode)
-        : "AI_UPSTREAM_ERROR";
-    return { kind: "error", error: { code, message: EMOTION_API_ERROR_MESSAGES[code] } };
-  }
-
-  if (payload.needsConfirmation !== true) {
-    return { kind: "error", error: { code: "AI_INVALID_OUTPUT", message: EMOTION_API_ERROR_MESSAGES.AI_INVALID_OUTPUT } };
-  }
-  const analysis = toAnalysis(payload.analysis);
-  const rawMeta = payload.analysisMeta;
-  const analysisMeta = rawMeta === undefined || rawMeta === null ? null : toAnalysisMeta(rawMeta);
-  if (!analysis || (rawMeta !== undefined && rawMeta !== null && !analysisMeta)) {
-    return { kind: "error", error: { code: "AI_INVALID_OUTPUT", message: EMOTION_API_ERROR_MESSAGES.AI_INVALID_OUTPUT } };
-  }
-  return { kind: "success", suggestion: { analysis, analysisMeta } };
+        : "AI_UPSTREAM_ERROR"
+      : (status >= 400 ? errorFromHttpStatus(status).code : "AI_UPSTREAM_ERROR");
+  return { kind: "error", error: { code, message: EMOTION_API_ERROR_MESSAGES[code] } };
 }
 
 // 会话序号单调递增；新请求、正文编辑、手选、保存或取消都会使旧会话失效。

@@ -52,6 +52,7 @@
 - `npm run typecheck`、`npm run lint`、`npm run build`：通过。
 - 阶段二～五既有测试：全部通过。
 - 浏览器冒烟（`AI_PROVIDER_MODE=mock` 明确标注演示数据）：手选保存、AI 建议展示但不自动选中、编辑正文使旧建议消失、显式采纳后保存为 AI、历史纠正为手动纠正、刷新后存档与主导描述保持；结束后恢复默认真实 Provider 模式。
+- 审核定点修复（PR #23 后续提交）：请求体超限的 413 解析前响应不带三元组时，当前有效会话显示固定 `INPUT_TOO_LONG`；与当前会话冲突的旧关联字段仍丢弃。`ok:true` 但 HTTP 非 2xx 的 envelope 不再视为成功，按状态映射固定错误。已补充客户端最小回归测试。
 - 未验证：真实百炼 8–12 条中文样例（缺 `MODEL_API_KEY` 与 `BAILIAN_WORKSPACE_ID`）；多实例公开部署平台层限流。
 
 ### 存档与迁移

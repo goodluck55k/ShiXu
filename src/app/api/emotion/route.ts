@@ -110,6 +110,8 @@ export async function POST(request: Request): Promise<Response> {
     if (!contentType.includes("application/json")) return finish(failure("INVALID_INPUT", {}), "INVALID_INPUT");
 
     const raw = await readBodyLimited(request, config.maxBodyBytes);
+    // 超限时不保留也不解析正文，因此没有可靠三元组可回显；
+    // 客户端对当前会话中不带冲突关联字段的失败响应按固定错误码提示。
     if (raw === null) return finish(failure("INPUT_TOO_LONG", {}), "INPUT_TOO_LONG");
 
     const parsed = parseRequest(raw);

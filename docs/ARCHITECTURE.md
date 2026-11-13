@@ -468,7 +468,7 @@ AI 识别（阶段六复核）：
 
 1. 草稿或已保存记录产生请求三元组 `requestId`、`entryId`、`inputRevision`；`src/lib/ai/client.ts` 的会话跟踪器在编辑、手选、重新识别、保存、取消时递增修订并使旧会话失效。
 2. `useEmotionAnalysis` 只在客户端请求当前会话；20 秒超时会中止并映射 `AI_TIMEOUT`，不自动重试。
-3. 响应必须回显同一三元组；缺回显的失败响应无法关联，直接忽略；非 envelope 响应只按 HTTP 状态映射固定错误码。
+3. 成功响应必须完整回显同一三元组且 HTTP 状态为 2xx，否则不作为建议；失败响应带出的关联字段与当前会话冲突时丢弃，请求体超限等解析前失败可不带回显，由当前有效会话按固定错误码提示；非 envelope 响应只按 HTTP 状态映射固定错误码。
 4. 成功响应要求 `needsConfirmation=true`，并对 `analysis` 与 `analysisMeta` 做字段集合、类型、枚举与 0–1 有限数校验；任一不符按 `AI_INVALID_OUTPUT` 拒绝，不进入草稿或正式保存。
 5. 建议只保存在运行时内存；用户显式采纳后才写入草稿/纠正草稿。修改建议按 `source=corrected`、`confidence=null` 保存；无建议的手选按 `source=manual`；接受原建议才为 `source=ai`。
 6. 已保存记录重识别额外绑定 `entryId`、`Entry.revision` 与正文；确认纠正前再次核对，过期结果丢弃。纠正仍走既有 `CORRECT_EMOTION` 替换贡献，不重复计分。
