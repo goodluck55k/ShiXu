@@ -41,7 +41,8 @@
 - [x] 存储失败不展示未提交事件、不留半写状态；恢复重试不产生重复事件。
 - [x] 离线前后五维分数完全不变；low_mood 不因离线增加；不写日记/回忆/奖励。
 - [x] 日记保存、性格、行为、互动、刷新恢复无回归（stage2/stage3 复跑）；临时体验不误写正式存档。
-- 验证方式：`npx --yes tsx tests/stage4.ts` + stage2/stage3 复跑 + 一次 typecheck/lint/build + 浏览器最小冒烟。
+- [x] P1 修复：pending 日记未解决时暂停正式 checkpoint（含周期/隐藏/pagehide），成功提交或明确取消后恢复；重试复用冻结 eventId/entryId/now/dayKey/正文/情绪；跨标签页冲突保护不被绕过；救援与最后成功 checkpoint 降级语义不变。回归 `tests/stage4-checkpoint.ts`（零依赖最小 DOM shim 渲染 AppProvider，覆盖保存失败→checkpoint→恢复重试、隐藏/pagehide、取消恢复、不重复结算、真实跨标签页冲突 5 场景；含移除守卫的负向验证）。
+- 验证方式：`npx --yes tsx tests/stage4.ts` + `npx --yes tsx tests/stage4-checkpoint.ts` + stage2/stage3 复跑 + 一次 typecheck/lint/build + 浏览器最小冒烟。
 - 未验证项：真实百炼 API（阶段六）；正式视觉（阶段七）；候选参数产品验收；pagehide 异步落盘在真实浏览器关闭时序下的成功率（按救援值降级，不宣称精确）。
 
 ### 存档与迁移
@@ -54,3 +55,4 @@
 - pagehide 异步保存不保证完成：以 sessionStorage 同步救援值 + 最后成功 checkpoint 降级，不引入后台心跳/高频写盘。
 - 救援值仅在会话成功启动后写入，避免「会话启动保存失败后刷新」丢失真实离线窗口。
 - `reunionTriggered` 本阶段恒为 false（合法不触发值），阶段五复用本阶段形成的 lastActiveAt/lastVisitAt/lastWindowStart 契约。
+- P2（非阻塞，已登记 Issue #21）：`SESSION_STARTED` 每次成功会话都向 `appliedEventIds` 追加 `session:` eventId，长期无界增长且对幂等冗余（`windowStart===baseline` 前置校验已保证幂等）。最小修复会改动 ARCHITECTURE §5.1 已记录的幂等契约，需独立任务卡 + 契约同步 + 用户批准，不在本 PR 实施；严禁盲目删除 `evt:` 日记 eventId。

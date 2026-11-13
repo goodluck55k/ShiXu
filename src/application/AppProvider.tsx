@@ -261,6 +261,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const snapshotRef = useRef<Snapshot | null>(state.snapshot);
   const temporaryRef = useRef(state.temporary);
   const tabConflictRef = useRef(state.tabConflict);
+  // 与 state.pending 同步镜像（而非 useEffect）：checkpoint 须在 SAVE_FAIL 提交的同一时刻看到 pending，避免渲染提交间隙竞态。
+  const pendingRef = useRef<PendingOperation | null>(null);
   useEffect(() => {
     snapshotRef.current = state.snapshot;
     temporaryRef.current = state.temporary;
@@ -269,7 +271,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const load = useCallback(async () => {
     sessionStartedRef.current = false;
-    dispatch({ type: "LOAD_DONE", result: await storage.load() });
+    const result = await storage.load();
+    pendingRef.current = null;
+    dispatch({ type: "LOAD_DONE", result });
   }, [storage]);
 
   useEffect(() => {
@@ -353,7 +357,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // 活动检查点：单调推进 lastActiveAt，不进 appliedEventIds/回忆/五维；失败按最后成功值降级。
   const checkpoint = useCallback(async () => {
     const snapshot = snapshotRef.current;
-    if (!snapshot || temporaryRef.current || tabConflictRef.current || savingRef.current) return;
+    // pending 未解决时暂停正式写入：checkpoint 推进 revision 会使 retrySave 冻结的 expectedRevision 失效，误判跨标签页冲突。
+    if (!snapshot || temporaryRef.current || tabConflictRef.current || savingRef.current || pendingRef.current) return;
     const now = Date.now();
     const event: ActivityCheckpointEvent = {
       type: "ACTIVITY_CHECKPOINT",
@@ -406,9 +411,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     async (pending: PendingOperation, temporary: boolean): Promise<boolean> => {
       if (savingRef.current) return false;
       savingRef.current = true;
+      pendingRef.current = pending;
       dispatch({ type: "SAVE_START", pending });
       try {
         if (temporary) {
+          pendingRef.current = null;
           dispatch({
             type: "SAVE_OK",
             snapshot: { ...pending.candidate, revision: pending.expectedRevision + 1 },
@@ -417,6 +424,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
         const result = await storage.save(pending.candidate, pending.expectedRevision);
         if (result.status === "saved") {
+          pendingRef.current = null;
           dispatch({ type: "SAVE_OK", snapshot: result.snapshot });
           return true;
         }
@@ -564,13 +572,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return saveCandidate(state.pending, state.temporary);
   }, [state, saveCandidate]);
 
-  const invalidatePending = useCallback(() => dispatch({ type: "INVALIDATE_PENDING" }), []);
+  const invalidatePending = useCallback(() => {
+    pendingRef.current = null;
+    dispatch({ type: "INVALIDATE_PENDING" });
+  }, []);
   const reload = useCallback(async () => load(), [load]);
-  const enableTemporary = useCallback(() => dispatch({ type: "ENABLE_TEMP" }), []);
+  const enableTemporary = useCallback(() => {
+    pendingRef.current = null;
+    dispatch({ type: "ENABLE_TEMP" });
+  }, []);
 
   const resetStorage = useCallback(async () => {
     const result = await storage.reset();
     if (result.status === "saved") {
+      pendingRef.current = null;
       dispatch({ type: "SAVE_OK", snapshot: result.snapshot });
       return;
     }

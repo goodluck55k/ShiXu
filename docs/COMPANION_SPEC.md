@@ -430,6 +430,7 @@ OfflineLifeEvent {
 
 活动 checkpoint：
 - 页面隐藏、`pagehide`、刷新前提交 `ACTIVITY_CHECKPOINT`；可见期间的周期性 checkpoint 最多每 5 分钟一次，避免高频写盘。任何正式保存成功后也在同一 `applyGameEvent` 中顺带更新 `lastActiveAt`。不得按行为 tick 或动画帧写盘。
+- 存在未解决的 pending 日记操作（保存失败后保留的待重试事件）时，暂停正式 checkpoint 写入，直到该 pending 成功提交或被明确取消。否则 checkpoint 推进 `revision` 会使 `retrySave` 冻结的 `expectedRevision` 失效，把本标签页自己的 checkpoint 误判为跨标签页冲突。pending 解决/取消后 checkpoint 恢复；重试复用冻结的 `eventId/entryId/now/dayKey/正文/情绪`，不重算。跨标签页冲突保护与救援/降级语义不变，不引入新的高频写盘。
 - 同一标签页可用 `sessionStorage` 保存救援时间戳，仅用于避免刷新/同标签页恢复被误判为离线；它不是正式存档，不得替代 `StoragePort`。
 - 直接关闭且 checkpoint 成功时，下一窗口从关闭前最后活动开始；checkpoint 失败时，降级为最后一次成功的 `lastActiveAt`（或救援值）。该降级可能把未 checkpoint 的在线时长计入离线，但不会少算，也不会在保存失败时展示离线事件。
 - 浏览器崩溃、隐私模式禁用存储等情况无法精确捕捉关闭时间，按上述降级处理；不得引入后台 Agent、服务器心跳或高频写盘来追求精确。
