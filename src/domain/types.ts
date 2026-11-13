@@ -157,7 +157,7 @@ export interface CompanionState {
   companionRulesVersion: string;
 }
 
-export const SNAPSHOT_SCHEMA_VERSION = 2;
+export const SNAPSHOT_SCHEMA_VERSION = 3;
 
 export interface SnapshotV1 {
   schemaVersion: 1;
@@ -169,8 +169,8 @@ export interface SnapshotV1 {
   appliedEventIds: string[];
 }
 
-export interface Snapshot {
-  schemaVersion: typeof SNAPSHOT_SCHEMA_VERSION;
+export interface SnapshotV2 {
+  schemaVersion: 2;
   revision: number;
   character: CharacterState;
   entries: Entry[];
@@ -178,6 +178,20 @@ export interface Snapshot {
   memories: MemoryEvent[];
   appliedEventIds: string[];
   companion: CompanionState;
+}
+
+
+export interface Snapshot {
+  schemaVersion: typeof SNAPSHOT_SCHEMA_VERSION;
+  revision: number;
+  character: Pick<CharacterState, "latestEntryId" | "currentEmotion">;
+  entries: Entry[];
+  memories: MemoryEvent[];
+  appliedEventIds: string[];
+  personality: import("./personality").PersonalityState;
+  offlineLife: { lastVisitAt: number | null; lastActiveAt: number | null; lastWindowStart: number | null; events: unknown[] };
+  reunion: { lastTriggeredWindowStart: number | null; lastTriggeredAt: number | null };
+  legacy?: { character?: Pick<CharacterState, "totalXp" | "stage">; decorations?: unknown; companion?: unknown };
 }
 
 interface GameEventBase {

@@ -5,7 +5,7 @@ import {
   type PersonalityContribution,
   type PersonalityDeltas,
   type PersonalityDimension,
-  type Snapshot,
+  type SnapshotV2,
   type SnapshotV1,
 } from "./types";
 
@@ -156,7 +156,7 @@ export function derivePersonality(
   return { scores, descriptions };
 }
 
-export function migrateSnapshotV1toV2(v1: SnapshotV1): Snapshot {
+export function migrateSnapshotV1toV2(v1: SnapshotV1): SnapshotV2 {
   return {
     schemaVersion: 2,
     revision: v1.revision,

@@ -1,3 +1,5 @@
+import { getPersonalityRule } from "@/config/personality";
+import { DIMENSIONS } from "./personality";
 import { PERSONALITY_PARAMS } from "./companion";
 import {
   EMOTION_LABELS,
@@ -6,6 +8,7 @@ import {
   SNAPSHOT_SCHEMA_VERSION,
   type Snapshot,
   type SnapshotV1,
+  type SnapshotV2,
 } from "./types";
 
 export type SnapshotValidation =
@@ -14,7 +17,8 @@ export type SnapshotValidation =
 
 export type VersionedSnapshotValidation =
   | { ok: true; schemaVersion: 1; snapshot: SnapshotV1 }
-  | { ok: true; schemaVersion: 2; snapshot: Snapshot }
+  | { ok: true; schemaVersion: 2; snapshot: SnapshotV2 }
+  | { ok: true; schemaVersion: 3; snapshot: Snapshot }
   | { ok: false; kind: "unsupported-version" | "corrupt"; reason: string };
 
 const EMOTION_SOURCES = ["ai", "manual", "corrected"] as const;
@@ -294,38 +298,74 @@ function collectEntryIndex(value: Record<string, unknown>): Map<string, { dayKey
   return entries;
 }
 
+function validatePersonality(value: unknown, entries: Map<string, { dayKey: string; revision: number }>): string | null {
+  if (!isRecord(value) || !isRecord(value.contributions) || !isNonEmptyString(value.rulesVersion)) return "personality 结构非法";
+  if (value.dominantId !== null && !DIMENSIONS.includes(value.dominantId as never)) return "personality.dominantId 非法";
+  const days = new Map<string, { versions: Set<string>; totals: Record<string, number> }>();
+  for (const [id, c] of Object.entries(value.contributions)) {
+    const entry = entries.get(id);
+    if (!entry || !isRecord(c) || c.dayKey !== entry.dayKey || !EMOTION_LABELS.includes(c.label as never) || !isNonNegativeInteger(c.entryRevision) || c.entryRevision > entry.revision || !isNonEmptyString(c.rulesVersion) || !isRecord(c.deltas)) return `personality.contributions.${id} 非法`;
+    const config = getPersonalityRule(c.rulesVersion);
+    const day = days.get(c.dayKey as string) ?? { versions: new Set<string>(), totals: {} };
+    day.versions.add(c.rulesVersion);
+    for (const d of DIMENSIONS) {
+      const delta = c.deltas[d];
+      if (!isFiniteNumber(delta) || !Number.isInteger(delta) || (config && Math.abs(delta) > config.perSaveCap)) return `personality.contributions.${id}.deltas.${d} 非法`;
+      day.totals[d] = (day.totals[d] ?? 0) + delta;
+    }
+    days.set(c.dayKey as string, day);
+  }
+  for (const day of days.values()) {
+    if (day.versions.size !== 1) continue;
+    const config = getPersonalityRule([...day.versions][0]);
+    if (config && DIMENSIONS.some(d => Math.abs(day.totals[d]) > config.dailyNetCap)) return "personality 当日贡献超过对应版本上限";
+  }
+  return null;
+}
+
+function validateV3(value: Record<string, unknown>): string | null {
+  // 复用共同字段校验；旧字段只属于兼容数据，不参与 v3 业务。
+  const base = validateSnapshotStructure({ ...value, character: isRecord(value.character) ? { ...value.character, totalXp: 0, stage: 0 } : value.character, decorations: { ownedIds: [], equippedBySlot: {}, hiddenById: {} } });
+  if (base) return base;
+  const personalityError = validatePersonality(value.personality, collectEntryIndex(value));
+  if (personalityError) return personalityError;
+  if (!isRecord(value.offlineLife) || !isRecord(value.reunion)) return "离线或重逢状态非法";
+  const offline = value.offlineLife, reunion = value.reunion;
+  for (const item of [offline.lastVisitAt, offline.lastActiveAt, offline.lastWindowStart, reunion.lastTriggeredWindowStart, reunion.lastTriggeredAt]) if (item !== null && !isFiniteNumber(item)) return "离线或重逢时间非法";
+  if (!Array.isArray(offline.events)) return "offlineLife.events 非法";
+  const offlineIds = new Set<string>();
+  for (const event of offline.events) {
+    if (!isRecord(event) || !isNonEmptyString(event.id) || offlineIds.has(event.id) || !isFiniteNumber(event.windowStart) || !isFiniteNumber(event.occurredAt) || event.occurredAt < event.windowStart || !DIMENSIONS.includes(event.dominantId as never) || !isNonEmptyString(event.activityId) || !isNonEmptyString(event.text)) return "offlineLife.events 内容非法";
+    offlineIds.add(event.id);
+  }
+  if (isFiniteNumber(offline.lastActiveAt) && isFiniteNumber(offline.lastVisitAt) && offline.lastActiveAt < offline.lastVisitAt) return "offlineLife.lastActiveAt 非法";
+  if (isFiniteNumber(reunion.lastTriggeredWindowStart) && (!isFiniteNumber(offline.lastWindowStart) || reunion.lastTriggeredWindowStart > offline.lastWindowStart)) return "reunion 窗口非法";
+  if (value.legacy !== undefined && !isRecord(value.legacy)) return "legacy 非法";
+  return null;
+}
+
 export function validateSnapshotJson(raw: string): VersionedSnapshotValidation {
   let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return fail("corrupt", "存档不是合法 JSON");
-  }
+  try { parsed = JSON.parse(raw); } catch { return fail("corrupt", "存档不是合法 JSON"); }
   if (!isRecord(parsed)) return fail("corrupt", "存档根节点必须是对象");
   if (!isFiniteNumber(parsed.schemaVersion)) return fail("corrupt", "存档缺少有效 schemaVersion");
-  if (parsed.schemaVersion !== 1 && parsed.schemaVersion !== SNAPSHOT_SCHEMA_VERSION) {
-    return fail("unsupported-version", `不支持的存档版本 ${parsed.schemaVersion}`);
+  if (parsed.schemaVersion !== 1 && parsed.schemaVersion !== 2 && parsed.schemaVersion !== 3) return fail("unsupported-version", `不支持的存档版本 ${parsed.schemaVersion}`);
+  if (parsed.schemaVersion === 3) {
+    const error = validateV3(parsed);
+    return error ? fail("corrupt", error) : { ok: true, schemaVersion: 3, snapshot: parsed as unknown as Snapshot };
   }
   const error = validateSnapshotStructure(parsed);
   if (error) return fail("corrupt", error);
-  if (parsed.schemaVersion === 1) {
-    return { ok: true, schemaVersion: 1, snapshot: parsed as unknown as SnapshotV1 };
-  }
+  if (parsed.schemaVersion === 1) return { ok: true, schemaVersion: 1, snapshot: parsed as unknown as SnapshotV1 };
   const companionError = validateCompanion(parsed.companion, collectEntryIndex(parsed));
-  if (companionError) return fail("corrupt", companionError);
-  return { ok: true, schemaVersion: 2, snapshot: parsed as unknown as Snapshot };
+  return companionError ? fail("corrupt", companionError) : { ok: true, schemaVersion: 2, snapshot: parsed as unknown as SnapshotV2 };
 }
 
 export function validateSnapshot(value: unknown): SnapshotValidation {
   if (!isRecord(value)) return fail("corrupt", "存档根节点必须是对象");
-  if (value.schemaVersion !== SNAPSHOT_SCHEMA_VERSION) {
-    return fail("unsupported-version", "存档版本与当前 schema 不一致");
-  }
-  const error = validateSnapshotStructure(value);
-  if (error) return fail("corrupt", error);
-  const companionError = validateCompanion(value.companion, collectEntryIndex(value));
-  if (companionError) return fail("corrupt", companionError);
-  return { ok: true, snapshot: value as unknown as Snapshot };
+  if (value.schemaVersion !== SNAPSHOT_SCHEMA_VERSION) return fail("unsupported-version", "存档版本与当前 schema 不一致");
+  const error = validateV3(value);
+  return error ? fail("corrupt", error) : { ok: true, snapshot: value as unknown as Snapshot };
 }
 
 export function serializeSnapshot(snapshot: Snapshot): string {

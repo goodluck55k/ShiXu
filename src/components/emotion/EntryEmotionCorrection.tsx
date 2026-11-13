@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useApp } from "@/application/AppProvider";
 import { useEmotionAnalysis } from "@/application/useEmotionAnalysis";
+import { canCorrectContribution } from "@/domain/personality";
 import { MANUAL_EMOTION_DEFAULTS } from "@/domain/emotions";
 import {
   EMOTION_NAMES,
@@ -25,7 +26,8 @@ export function EntryEmotionCorrection({ entry }: { entry: Entry }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [requestedRevision, setRequestedRevision] = useState<number | null>(null);
 
-  const busy = state.saving || state.tabConflict;
+  const unavailable = !!state.snapshot && !canCorrectContribution(state.snapshot.personality, entry.id);
+  const busy = state.saving || state.tabConflict || unavailable;
   const invalidate = ai.invalidate;
   useEffect(() => invalidate, [invalidate]);
 
@@ -91,6 +93,7 @@ export function EntryEmotionCorrection({ entry }: { entry: Entry }) {
   return (
     <div className="dimensions">
       <p>纠正这条记录的心情（不改变正文，不重复计分）。</p>
+      {unavailable && <p role="status">这条记录的历史性格规则不可用，暂时无法纠正心情；原记录已保留。</p>}
       <button type="button" className="text-button" disabled={busy || ai.loading || state.phase !== "ready"} onClick={handleAnalyze}>{ai.loading ? "AI 重新识别中…" : "AI 重新识别"}</button>
       {ai.error && <div role="alert" className="save-error"><p>{ai.error.message}</p><p>也可手动选择新心情后保存纠正。</p></div>}
       {suggestion && revisionChanged && <p role="alert" className="form-hint">这条记录已变化，识别结果已丢弃，请重新识别。</p>}

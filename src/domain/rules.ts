@@ -1,8 +1,4 @@
-import {
-  buildContribution,
-  createEmptyCompanion,
-  reviseContribution,
-} from "./companion";
+import { addContribution, createEmptyPersonality, reviseContribution } from "./personality";
 import {
   SNAPSHOT_SCHEMA_VERSION,
   type ConfirmEntryEvent,
@@ -23,12 +19,13 @@ export function createInitialSnapshot(): Snapshot {
   return {
     schemaVersion: SNAPSHOT_SCHEMA_VERSION,
     revision: 0,
-    character: { totalXp: 0, stage: 0, latestEntryId: null, currentEmotion: null },
+    character: { latestEntryId: null, currentEmotion: null },
     entries: [],
-    decorations: { ownedIds: [], equippedBySlot: {}, hiddenById: {} },
     memories: [],
     appliedEventIds: [],
-    companion: createEmptyCompanion(),
+    personality: createEmptyPersonality(),
+    offlineLife: { lastVisitAt: null, lastActiveAt: null, lastWindowStart: null, events: [] },
+    reunion: { lastTriggeredWindowStart: null, lastTriggeredAt: null },
   };
 }
 
@@ -70,12 +67,8 @@ function confirmEntry(
     rulesVersion: RULES_VERSION,
     payload: { emotionLabel: event.emotion.label, source: event.emotion.source },
   };
-  const contribution = buildContribution(
-    context.dayKey,
-    event.emotion.label,
-    entry.revision,
-    snapshot.companion.contributions,
-  );
+  const personality = addContribution(snapshot.personality, event.entryId, context.dayKey, event.emotion.label, event.emotion.intensity, entry.revision);
+  if (!personality) return unchanged(snapshot);
   return {
     snapshot: {
       ...snapshot,
@@ -83,13 +76,7 @@ function confirmEntry(
       entries: [...snapshot.entries, entry],
       memories: [...snapshot.memories, memory],
       appliedEventIds: [...snapshot.appliedEventIds, event.eventId],
-      companion: {
-        ...snapshot.companion,
-        contributions: {
-          ...snapshot.companion.contributions,
-          [event.entryId]: contribution,
-        },
-      },
+      personality,
     },
     events: [memory],
     changed: true,
@@ -133,13 +120,8 @@ function correctEmotion(
       toRevision: nextRevision,
     },
   };
-  // 替换修订沿用该日记冻结的 dayKey；v1 旧日记无台账贡献时不补算
-  const contributions = reviseContribution(
-    snapshot.companion.contributions,
-    event.entryId,
-    event.emotion.label,
-    nextRevision,
-  );
+  const personality = reviseContribution(snapshot.personality, event.entryId, event.emotion.label, event.emotion.intensity, nextRevision);
+  if (!personality) return unchanged(snapshot);
   const isLatest = snapshot.character.latestEntryId === event.entryId;
   return {
     snapshot: {
@@ -150,7 +132,7 @@ function correctEmotion(
       entries: snapshot.entries.map((item) => (item.id === event.entryId ? nextEntry : item)),
       memories: [...snapshot.memories, memory],
       appliedEventIds: [...snapshot.appliedEventIds, event.eventId],
-      companion: { ...snapshot.companion, contributions },
+      personality,
     },
     events: [memory],
     changed: true,
