@@ -227,9 +227,11 @@ function sessionStarted(
     lastWindowStart: event.windowStart,
     events,
   };
-  const reunion = event.reunionTriggered
-    ? { lastTriggeredWindowStart: event.windowStart, lastTriggeredAt: context.now }
-    : snapshot.reunion;
+  // 首次会话窗口（windowStart=null）不可能构成久别重逢；防御性拒绝空窗口触发。
+  const reunion =
+    event.reunionTriggered && event.windowStart !== null
+      ? { lastTriggeredWindowStart: event.windowStart, lastTriggeredAt: context.now }
+      : snapshot.reunion;
   return {
     snapshot: {
       ...snapshot,

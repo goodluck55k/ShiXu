@@ -2,7 +2,7 @@
 
 > 状态：V1 架构基线。标注「已实现」的以 `main` 分支代码为准；「阶段 N 规划」表示尚未合入。产品范围见 [PRODUCT_SPEC](PRODUCT_SPEC.md)，性格与行为参数见 [COMPANION_SPEC](COMPANION_SPEC.md)。
 >
-> 存档 `schemaVersion` 为 3；本文档版本与存档版本无关。截至本版，`main` 已含 `schemaVersion` 3、五维 `personality-v2` 台账与迁移（PR #18）；行为引擎与角色最小接入在 `feature/companion-behavior` 分支实现，待合入。
+> 存档 `schemaVersion` 为 3；本文档版本与存档版本无关。截至本版，`main` 已含 `schemaVersion` 3、五维 `personality-v2` 台账与迁移（PR #18）、主导行为引擎（PR #19）与离线自主生活（PR #20）；久别重逢在 `feature/reunion` 分支实现，尚未合入 `main`。
 
 ## 1. 架构原则
 
@@ -70,7 +70,7 @@ graph TD
 | --- | --- | --- |
 | `src/app/{layout,page}.tsx`、`src/app/companion/page.tsx`、`src/app/memories/page.tsx` | 已实现 | 路由与页面壳，共享根布局状态 |
 | `src/app/api/emotion/route.ts` | 已实现 | 服务端情绪识别入口 |
-| `src/application/AppProvider.tsx` | 已实现，阶段二至五扩展 | 状态编排、保存、会话启动、恢复、跨标签页冲突 |
+| `src/application/AppProvider.tsx` | 已实现，阶段二至五扩展；阶段五本分支接入重逢 | 状态编排、保存、会话启动、恢复、跨标签页冲突、重逢一次性展示 |
 | `src/application/useEmotionAnalysis.ts` | 已实现 | AI 建议请求、过期响应丢弃、降级 |
 | `src/domain/types.ts` | 已实现，阶段二扩展 | 公共类型与契约 |
 | `src/domain/emotions.ts` | 已实现 | 手选默认 VAD、规范化 |
@@ -80,15 +80,16 @@ graph TD
 | `src/domain/personality.ts` | 已实现（PR #18） | 五维派生、主导判定、描述、只读查询 |
 | `src/domain/behavior.ts` | 阶段三已实现（PR #19） | 确定性主导行为/待机/特殊/互动选择 |
 | `src/domain/offlineLife.ts` | 阶段四已实现（本分支） | 离线窗口规划、活动选择、幂等 ID |
-| `src/domain/reunion.ts` | 阶段五规划 | 长期未访问判断、问候模板选择 |
+| `src/domain/reunion.ts` | 阶段五已实现（本分支） | 长期未访问判断、问候模板选择 |
 | `src/domain/characterView.ts` | 已实现（阶段三最小接入，PR #19） | 由快照/行为推导视图 |
 | `src/config/personality.ts` | 已实现（PR #18） | `PersonalityRuleConfig` |
 | `src/config/behavior.ts` | 阶段三已实现（PR #19） | `BehaviorRuleConfig` |
 | `src/config/offlineLife.ts` | 阶段四已实现（本分支） | `OfflineLifeRuleConfig` |
-| `src/config/reunion.ts` | 阶段五规划 | `ReunionRuleConfig` |
+| `src/config/reunion.ts` | 阶段五已实现（本分支） | `ReunionRuleConfig` |
 | `src/lib/storage/{port,localStorageAdapter}.ts` | 已实现 | 存储接口与浏览器实现 |
 | `src/components/character/CharacterRenderer.tsx` | 已实现（阶段三最小姿态/表情/动画占位，PR #19） | SVG 渲染与图层白名单 |
-| `src/components/character/OfflineLifePanel.tsx` | 阶段四已实现（本分支） | 只读已落盘离线事件，区分本次与历史；不写日记/回忆/分数 |
+| `src/components/character/OfflineLifePanel.tsx` | 阶段四已实现（PR #20） | 只读已落盘离线事件，区分本次与历史；不写日记/回忆/分数 |
+| `src/components/character/ReunionPanel.tsx` | 阶段五已实现（本分支） | 只渲染应用层已提交的一次性问候；回答/跳过仅本地临时状态 |
 | `src/application/useBehaviorRuntime.ts` | 阶段三已实现（PR #19） | 行为调度、隐藏暂停、互动、保存后一次性反馈、低动态降级；不写存档 |
 | `src/application/lowMoodStreak.ts` | 阶段三已实现（PR #19，候选判定） | 连续低落日只读判定；正式 `specialBehaviorEnabled=false` 不接入触发 |
 | `src/components/emotion/*`、`src/components/memories/*` | 已实现 | 记录、纠正、历史界面 |
@@ -277,7 +278,7 @@ interface BehaviorRuleConfig {
 
 运行时即时情绪有有效期：仅在保存成功后 `emotionExpressionDurationMs`（候选 3000 毫秒，待验收）内把 `currentEmotion` 传入表情/幅度；到期或刷新后回到主导行为配置的基础表情，不重新激活已结束的反馈，也不改变已保存情绪、日记与五维贡献。自主行为按行为条目 `durationMs` 结束动画（`animation` 置 `none`、保持姿态），等待下一次 tick 选择；`tickIntervalMs` 只决定下一次选择间隔，不是动作循环时长。页面隐藏时除暂停调度外，运行时 `paused` 状态经 `is-paused` 类显式暂停 CSS 动画；互动打断、恢复、隐藏、卸载与 StrictMode 清理均清除全部运行时计时器。
 
-### 4.4 离线生活与久别重逢（阶段四已实现本分支；阶段五规划）
+### 4.4 离线生活与久别重逢（阶段四 PR #20；阶段五本分支实现重逢）
 
 ```ts
 interface OfflineLifeEvent {
@@ -310,11 +311,35 @@ interface OfflineLifeRuleConfig {
   activities: Record<DimensionId, Array<{ id: string; label: string; text: string; weight: number }>>;
 }
 
+interface ReunionTemplate {
+  tone: string;                               // 语气说明（候选）
+  generic: string;                            // 无具体事件时的通用问候（候选）
+  activityLines: Record<string, string>;      // 离线 activityId → 具体生活描述（候选）
+}
+
 interface ReunionRuleConfig {
   rulesVersion: "reunion-v1";
-  thresholdMs: number;              // 候选严格 > 3 天
-  baseQuestion: string;             // "最近过得还好吗？"
-  templates: Record<DimensionId, { tone: string; recentActivity?: string }>;
+  thresholdMs: number;              // 候选严格 > 3 天（72 小时）
+  baseQuestion: string;             // 已确认 "最近过得还好吗？"
+  templates: Record<DimensionId, ReunionTemplate>;
+}
+
+interface ReunionEvaluationInput {
+  now: number;
+  lastActiveAt: number | null;
+  lastVisitAt: number | null;
+  lastTriggeredWindowStart: number | null;
+  dominantId: DimensionId;
+  offlineEvents?: OfflineLifeEvent[]; // 仅用于挑选真实生成的具体生活描述
+  activityRescueAt?: number | null;   // 同标签页救援值，只抬高判定基准
+}
+
+interface ReunionEvaluation {
+  triggered: boolean;
+  windowStart: number | null;
+  reasonCode: "triggered" | "no-baseline" | "within-threshold" | "already-triggered";
+  absenceMs: number | null;
+  greeting: ReunionGreeting | null;
 }
 ```
 
@@ -324,7 +349,9 @@ interface ReunionRuleConfig {
 - 任何正式保存成功后也在同一 `applyGameEvent` 中顺带更新 `lastActiveAt`；不得按动画帧或行为 tick 写盘。
 - 存在未解决的 pending 日记操作（保存失败后保留的待重试事件）时，应用层暂停正式 checkpoint 写入，直到该 pending 成功提交或被明确取消（`INVALIDATE_PENDING` / 重新加载 / 临时体验 / 重置）。checkpoint 与日记保存共用 `savingRef` 互斥；pending 镜像须与 `state.pending` 同步更新，避免渲染提交间隙竞态。否则 checkpoint 推进 `revision` 会使 `retrySave` 冻结的 `expectedRevision` 失效，误判跨标签页冲突。pending 解决/取消后恢复；跨标签页冲突保护与救援/降级语义不变。
 - 同一次离线窗口最多生成一次：`eventId = session:<windowStart>` + `lastWindowStart` + 事件 `id` 去重；`windowStart = baseline`。
-- 重逢在更新 `lastVisitAt` / `lastActiveAt` 之前判断；同一次离线窗口只触发一次；保存成功后才展示。
+- 重逢在更新 `lastVisitAt` / `lastActiveAt` 之前判断；`baseline = lastActiveAt ?? lastVisitAt`，`absence = now - max(baseline, rescue)`，只有严格 `absence > thresholdMs` 且 `lastTriggeredWindowStart < baseline` 才触发；同一次离线窗口只触发一次；保存成功后才展示。
+- 重逢问候只从配置模板与本次已规划（并随同一事件提交）的离线事件生成；无对应事件时使用通用问候，不虚构具体经历。问候、回答与跳过均不写入 `entries`、`memories`、`appliedEventIds` 或性格台账。
+- 一次性展示状态只存在于应用层内存：只有包含该 `SESSION_STARTED` 的正式快照保存成功后，才把问候放入 `reunionPrompt`；会话启动保存失败时问候随未提交窗口一起冻结；checkpoint/日记保存补交成功后展示一次；回答或跳过只清除运行时状态并记录本次已处理窗口，不产生第二次展示。不得从旧快照的 `lastTriggeredAt` 反推展示。
 - 直接关闭、浏览器崩溃或 checkpoint 写入失败时，只能使用最后一次成功的 `lastActiveAt`（或同标签页救援值）作为降级基准。该降级可能把未 checkpoint 的在线时长计入离线，但不得反向少算；保存失败时不得展示离线事件或重逢。
 - 离线/重逢都不得修改 `personality.contributions`、`scores` 或 `entries`。
 
@@ -370,7 +397,7 @@ interface SnapshotV3 {
 | `resolveDominant(scores, previous, priority)` | personality | 阶段二 | 严格超过才切换；并列确定性 |
 | `selectBehavior(context, config)` | behavior | 阶段三（PR #19） | 四类行为分离的确定性选择 |
 | `planOfflineLife(input, config)` | offlineLife | 阶段四（本分支） | 生成有限事件与下一 `lastVisitAt` / `lastActiveAt` |
-| `evaluateReunion(input, config)` | reunion | 阶段五 | 判断是否触发并选择模板 |
+| `evaluateReunion(input, config)` | reunion | 阶段五（本分支） | 判断是否触发并选择模板；纯函数，不写存档 |
 | `deriveCharacterView(snapshot, decision?)` | character | 阶段三最小（PR #19）/七正式 | 视图映射，只读 |
 | `applyGameEvent(snapshot, event, context)` | rules | 已实现，阶段二至五扩展 | 唯一正式状态变更入口 |
 | `migrateSnapshotV1toV2(v1)` | storage/rules | 已实现 | 保留 |
@@ -408,7 +435,7 @@ interface ActivityCheckpointEvent {
 - `applyGameEvent` 对除 `ACTIVITY_CHECKPOINT` 外的事件先查 `appliedEventIds`：重复 `eventId` 返回 `changed=false`，不产生副作用。
 - `ACTIVITY_CHECKPOINT` 不进入 `memories`，也不写入 `appliedEventIds`；应用 `lastActiveAt = max(lastActiveAt, at)`，因此重复、乱序或重放都不会改变结果。checkpoint 仍走同一条整快照保存路径，失败不改变正式状态。
 - 任何成功的日记正式事件（`CONFIRM_ENTRY` / `EDIT_ENTRY_TEXT` / `CORRECT_EMOTION`）在同一 `applyGameEvent` 中把 `offlineLife.lastActiveAt` 推进到 `context.now`；保存失败时与事件一起回滚。
-- `SESSION_STARTED` 原子更新：`offlineLife.lastVisitAt = context.now`、`offlineLife.lastActiveAt = context.now`、`lastWindowStart = windowStart`、按 `id` 去重追加事件并裁剪到 `maxStoredEvents`；`reunionTriggered` 为真时写 `reunion.lastTriggeredWindowStart = windowStart`、`lastTriggeredAt = context.now`。
+- `SESSION_STARTED` 原子更新：`offlineLife.lastVisitAt = context.now`、`offlineLife.lastActiveAt = context.now`、`lastWindowStart = windowStart`、按 `id` 去重追加事件并裁剪到 `maxStoredEvents`；`reunionTriggered` 为真且 `windowStart !== null` 时写 `reunion.lastTriggeredWindowStart = windowStart`、`lastTriggeredAt = context.now`；否则保留原重逢标记不变。
 - `RESTORE_DECORATION`、`EQUIP_DECORATION`、`UNEQUIP_DECORATION` **不属于 V1**；`GameEvent` 联合类型可保留兼容分支但必须显式拒绝，不得悄悄执行业务。
 - 回忆事件 id 由 `eventId + 类型 + entryId` 确定性生成，保证重放不重复。
 - `GameContext` 只含 `now` 与 `dayKey`，由应用层生成；任何新增上下文（种子、时间段）必须显式加入契约。
@@ -428,8 +455,8 @@ interface ActivityCheckpointEvent {
 
 1. 加载快照，取 `context.now`、`context.dayKey`、当前 `dominantId`；计算 `baseline = offlineLife.lastActiveAt ?? offlineLife.lastVisitAt`。
 2. 调用 `planOfflineLife({ lastActiveAt, lastVisitAt, now, dominantId }, config)`；首次/迁移存档返回空事件。
-3. 调用 `evaluateReunion({ lastActiveAt, lastVisitAt, now, lastTriggeredWindowStart, dominantId }, config)`。
-4. 生成 `SESSION_STARTED`；`windowStart = baseline`，事件与 `reunionTriggered` 由纯函数结果填充。
+3. 调用 `evaluateReunion({ lastActiveAt, lastVisitAt, now, lastTriggeredWindowStart, dominantId, offlineEvents, activityRescueAt }, config)`；救援值只抬高判定基准，不改变 `windowStart`。
+4. 生成 `SESSION_STARTED`；`windowStart = baseline`，事件与 `reunionTriggered` 由纯函数结果填充；问候对象随冻结的会话保存在应用层内存，不进入 `SESSION_STARTED` 或存档。
 5. `applyGameEvent` 得到候选快照，`storage.save(candidate, expectedRevision)`。
 6. 只有保存成功后才展示离线事件与重逢问候；失败保留旧状态，不展示、不提前确认“已经回来过”。
 7. 页面隐藏、`pagehide`、刷新前生成 `ACTIVITY_CHECKPOINT`；可见期间最多每 5 分钟一次，`at = context.now`，走同一保存路径；失败只保留旧 `lastActiveAt`，不展示未保存事件。

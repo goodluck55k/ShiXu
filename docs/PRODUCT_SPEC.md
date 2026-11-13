@@ -24,10 +24,10 @@ V1 的四件事：
 | 原文日记、手选情绪、保存、历史、localStorage 恢复 | 已实现 | PR #4 / #5；`main` 分支 |
 | AI 情绪建议（百炼适配器 + mock + 手选降级 + 建议确认） | 已实现 | PR #10；`src/app/api/emotion/route.ts` |
 | 隐藏性格贡献台账（**三**内部维度）、纠正替换、v1→v2 迁移 | 已实现，将被五维体系替代 | PR #8；`src/domain/companion.ts` |
-| 五维性格、`personality-v2` 规则、主导判定、v2→v3 迁移、描述查询 | 阶段二开发 | 本规格 §4；COMPANION_SPEC §2 |
-| 主导性格行为、普通待机、特殊行为、互动、保存后情绪反馈 | 阶段三开发 | 本规格 §5；COMPANION_SPEC §3 |
-| 离线自主生活 | 阶段四开发 | 本规格 §5.2；COMPANION_SPEC §4 |
-| 久别重逢 | 阶段五开发 | 本规格 §5.3；COMPANION_SPEC §5 |
+| 五维性格、`personality-v2` 规则、主导判定、v2→v3 迁移、描述查询 | 已实现 | PR #18；本规格 §4；COMPANION_SPEC §2 |
+| 主导性格行为、普通待机、特殊行为、互动、保存后情绪反馈 | 已实现 | PR #19；本规格 §5；COMPANION_SPEC §3 |
+| 离线自主生活 | 已实现 | PR #20；本规格 §5.2；COMPANION_SPEC §4 |
+| 久别重逢 | 阶段五开发中 | 本规格 §5.3；COMPANION_SPEC §5 |
 | AI 情绪识别复核与主流程整合 | 阶段六开发（基线已有） | 本规格 §3；AI_CONTRACT |
 | 原创小白人基础形象、表情与动作、V1 必要界面 | 阶段七开发 | 本规格 §6 |
 | 最终演示与发布 | 阶段八开发 | ROADMAP |
