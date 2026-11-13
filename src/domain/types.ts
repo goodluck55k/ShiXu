@@ -264,4 +264,7 @@ export interface CharacterView {
   animation: string;
   visibleLayerIds: string[];
   effects: string[];
+  behaviorId?: string;
+  category?: string;
+  amplitude?: number;
 }
