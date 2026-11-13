@@ -190,7 +190,7 @@ export interface Snapshot {
   appliedEventIds: string[];
   personality: import("./personality").PersonalityState;
   offlineLife: import("./offlineLife").OfflineLifeState;
-  reunion: { lastTriggeredWindowStart: number | null; lastTriggeredAt: number | null };
+  reunion: import("./reunion").ReunionState;
   legacy?: { character?: Pick<CharacterState, "totalXp" | "stage">; decorations?: unknown; companion?: unknown };
 }
 

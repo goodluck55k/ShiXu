@@ -4,7 +4,7 @@
 >
 > 本文件是性格、主导性格、行为、离线生活与久别重逢的**唯一详细设计来源**。文档版本为 v4；存档 `schemaVersion` 仍为 3。文档版本与存档版本不是同一概念，不得因为本文档升版而改写存档版本。
 >
-> 截至本版，`main` 上已实现五维 `personality-v2` 台账与纠正替换（PR #18）、主导性格行为引擎与互动（PR #19）、v3 存档与迁移；旧 `companion-v1` 三维账本（`exploration` / `serenity` / `affinity`）只作 `legacy` 兼容保留，不参与结算。离线自主生活在 `feature/offline-life` 分支实现（阶段四，待审核，未合入）；久别重逢尚未实现。本文档描述正式目标与候选参数，候选项不代表已验收。
+> 截至本版，`main` 上已实现五维 `personality-v2` 台账与纠正替换（PR #18）、主导性格行为引擎与互动（PR #19）、离线自主生活（PR #20）、v3 存档与迁移；旧 `companion-v1` 三维账本（`exploration` / `serenity` / `affinity`）只作 `legacy` 兼容保留，不参与结算。久别重逢在 `feature/reunion` 分支实现（阶段五，待审核，未合入）。本文档描述正式目标与候选参数，候选项不代表已验收。
 
 ## 1. 职责与原则
 
@@ -468,6 +468,7 @@ OfflineLifeEvent {
 
 - 候选阈值：`absence > 3 天`（严格大于 72 小时）；`reunion-v1` 配置化，可调整。
 - `absence = now - (lastActiveAt ?? lastVisitAt)`；用户重新打开 ShiXu 时，在更新 `lastVisitAt` / `lastActiveAt` 之前判断。
+- 同标签页刷新可用 `sessionStorage` 救援时间戳抬高判定基准（`max(baseline, rescue)`），只影响是否缺席、不改变离线窗口起点，避免刷新被误判为长期离线。
 - 同一次离线窗口只触发一次：`reunion.lastTriggeredWindowStart` 记录已触发的窗口起点（即 `baseline`）。
 - 触发后必须**先成功保存** `SESSION_STARTED`（含 `reunionTriggered: true`），再展示问候；保存失败不展示，避免刷新重复。
 
@@ -510,6 +511,14 @@ OfflineLifeEvent {
 5. 文案不含责备/负罪感；不调用实时大模型。
 6. 问候语气随主导性格变化，但基础问句保持“最近过得还好吗？”。
 
+### 5.5 实现状态（阶段五分支）
+
+- `src/config/reunion.ts` 提供 `REUNION_V1`：候选 `thresholdMs = 72 小时`、固定 `baseQuestion`、五主导候选 `generic` 问候与按离线 `activityId` 的具体文案。阈值与文案均待用户验收。
+- `src/domain/reunion.ts` 的 `evaluateReunion` 是纯函数：基准 `lastActiveAt ?? lastVisitAt`；基准为 null、未严格超过阈值、或 `lastTriggeredWindowStart >= baseline` 时不触发；相同输入同结果；不写存档、不调用时间/随机/网络/AI。
+- 触发结果只以 `SESSION_STARTED.reunionTriggered` 进入正式状态；`applyGameEvent` 仅在 `windowStart !== null` 时写 `reunion.lastTriggeredWindowStart / lastTriggeredAt`，未触发时保留原标记。
+- 问候对象不进入快照；应用层仅在包含该会话事件的正式快照保存成功后，把问候放入本次运行会话的一次性展示状态。会话保存失败时问候随未提交窗口冻结，由 checkpoint 或日记保存补交成功后展示一次；回答或跳过只清运行时状态并记录已处理窗口。
+- 具体生活描述只引用本次窗口真实生成并随同一事件提交的离线事件；无对应事件时回落到通用问候；不虚构经历、不要求角色依赖用户生活。
+
 ## 6. 角色展示
 
 - `CharacterView` 至少包含 `expression`、`pose`、`animation`、`visibleLayerIds`、`effects`；阶段三可增加 `behaviorId` 便于调试。
@@ -547,10 +556,12 @@ OfflineLifeEvent {
 | 离线不扣分、不惩罚、不掉资源 | 已确认 | 必须实现 |
 | 离线活动表 | 已确认（内容候选） | 配置驱动 |
 | 离线间隔/数量/上限 | 候选 | 可配置 |
-| 重逢阈值 >3 天 | 候选 | 可配置 |
+| 重逢阈值 >3 天 | 候选 | 可配置；严格大于才触发 |
 | 重逢基础问句 | 已确认 | “最近过得还好吗？” |
 | 重逢语气/文案 | 候选 | 配置化；禁止负罪感文案 |
 | 重逢回答不改分 | 已确认 | 只有正式日记产生贡献 |
+| 重逢展示时机 | 已确认 | 包含 `SESSION_STARTED` 的快照保存成功后才展示；同窗口仅一次 |
+| 回答/跳过是否持久化 | 待确认 | V1 不持久化；只保存“已触发窗口” |
 
 ### 8.2 不得自行发明的事项
 
