@@ -76,19 +76,20 @@ function classifyUpstreamError(status: number, body: unknown): ProviderErrorKind
   }
   if (status === 401 || status === 403 || status === 404) return "unavailable";
   if (/Arrearage|InvalidApiKey|AccessDenied|ModelNotFound|Model\.NotExist/i.test(code)) return "unavailable";
+  if (status === 413) return "input-too-long";
   if (status === 400 && /input|token|length|context|too\s*long/i.test(`${code} ${message}`)) return "input-too-long";
   return "upstream";
 }
 
+// 15 秒超时覆盖获取响应头与读取响应体的完整过程；超时只报固定错误码，不自动重试。
 export async function requestEmotionNative(text: string, config: AiConfig): Promise<unknown> {
   if (config.mode === "mock") return mockNativeResponse(text);
   if (!config.apiKey || !config.baseUrl) throw new ProviderError("unavailable");
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
-  let response: Response;
   try {
-    response = await fetch(`${config.baseUrl}/systemone`, {
+    const response = await fetch(`${config.baseUrl}/systemone`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -98,25 +99,26 @@ export async function requestEmotionNative(text: string, config: AiConfig): Prom
       signal: controller.signal,
       cache: "no-store",
     });
-  } catch {
-    if (controller.signal.aborted) throw new ProviderError("timeout");
-    throw new ProviderError("upstream");
+    if (!response.ok) {
+      let body: unknown = null;
+      try {
+        body = await response.json();
+      } catch {
+        body = null;
+      }
+      if (controller.signal.aborted) throw new ProviderError("timeout");
+      throw new ProviderError(classifyUpstreamError(response.status, body));
+    }
+    try {
+      return (await response.json()) as unknown;
+    } catch {
+      if (controller.signal.aborted) throw new ProviderError("timeout");
+      throw new ProviderError("invalid-output");
+    }
+  } catch (error) {
+    if (error instanceof ProviderError) throw error;
+    throw new ProviderError(controller.signal.aborted ? "timeout" : "upstream");
   } finally {
     clearTimeout(timer);
-  }
-
-  if (!response.ok) {
-    let body: unknown = null;
-    try {
-      body = await response.json();
-    } catch {
-      body = null;
-    }
-    throw new ProviderError(classifyUpstreamError(response.status, body));
-  }
-  try {
-    return (await response.json()) as unknown;
-  } catch {
-    throw new ProviderError("invalid-output");
   }
 }

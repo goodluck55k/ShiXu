@@ -24,7 +24,8 @@ export function EntryEmotionCorrection({ entry }: { entry: Entry }) {
   const [label, setLabel] = useState<EmotionLabel | null>(null);
   const [dimensions, setDimensions] = useState<EmotionDimensions>(MANUAL_EMOTION_DEFAULTS.neutral);
   const [notice, setNotice] = useState<string | null>(null);
-  const [requestedRevision, setRequestedRevision] = useState<number | null>(null);
+  // 绑定发起识别时的记录身份；正文或修订变化后建议不可再提交。
+  const [requested, setRequested] = useState<{ entryId: string; revision: number; text: string } | null>(null);
 
   const unavailable = !!state.snapshot && !canCorrectContribution(state.snapshot.personality, entry.id);
   const busy = state.saving || state.tabConflict || unavailable;
@@ -32,15 +33,29 @@ export function EntryEmotionCorrection({ entry }: { entry: Entry }) {
   useEffect(() => invalidate, [invalidate]);
 
   const suggestion = ai.suggestion;
-  const revisionChanged = requestedRevision !== null && entry.revision !== requestedRevision;
-  const usableSuggestion = suggestion && !revisionChanged ? suggestion : null;
-  const needsExtraConfirmation =
-    usableSuggestion !== null &&
-    (usableSuggestion.analysis.confidence < LOW_CONFIDENCE_THRESHOLD || usableSuggestion.analysis.label === "unknown");
+  const suggestionSession = ai.suggestionSession;
+  const bindingChanged =
+    requested !== null &&
+    (requested.entryId !== entry.id || requested.revision !== entry.revision || requested.text !== entry.text);
+  const usableSuggestion =
+    suggestion &&
+    suggestionSession &&
+    requested !== null &&
+    !bindingChanged &&
+    suggestionSession.entryId === entry.id &&
+    suggestionSession.text === entry.text
+      ? suggestion
+      : null;
+  const lowConfidence = usableSuggestion !== null && usableSuggestion.analysis.confidence < LOW_CONFIDENCE_THRESHOLD;
+  const unknownSuggestion = usableSuggestion?.analysis.label === "unknown";
+  const suggestionHints: string[] = [];
+  if (lowConfidence) suggestionHints.push("置信度较低，请确认或手动选择。");
+  if (unknownSuggestion) suggestionHints.push("AI 无法判断具体心情，请手动选择，或明确采纳「说不清」。");
+  if (usableSuggestion && suggestionHints.length === 0) suggestionHints.push("建议仅为参考，采纳后仍可手动调整。");
   const isDemo = usableSuggestion?.analysisMeta?.provider === MOCK_PROVIDER_NAME;
 
   function resetControls(message: string | null) {
-    setRequestedRevision(null);
+    setRequested(null);
     setLabel(null);
     setDimensions(MANUAL_EMOTION_DEFAULTS.neutral);
     ai.invalidate();
@@ -49,11 +64,20 @@ export function EntryEmotionCorrection({ entry }: { entry: Entry }) {
 
   function handleAnalyze() {
     setNotice(null);
-    setRequestedRevision(entry.revision);
+    setRequested({ entryId: entry.id, revision: entry.revision, text: entry.text });
     void ai.requestAnalysis(entry.text, entry.id);
   }
 
   async function submitCorrection(emotion: EmotionReading) {
+    if (
+      requested !== null &&
+      (requested.entryId !== entry.id || requested.revision !== entry.revision || requested.text !== entry.text)
+    ) {
+      ai.invalidate();
+      setRequested(null);
+      setNotice("这条记录已变化，识别结果已丢弃，请重新识别。");
+      return;
+    }
     const analysis = usableSuggestion?.analysis ?? null;
     const analysisMeta = usableSuggestion?.analysisMeta ?? null;
     const saved = await correctEmotion(entry.id, entry.revision, emotion, analysis, analysisMeta);
@@ -96,8 +120,13 @@ export function EntryEmotionCorrection({ entry }: { entry: Entry }) {
       {unavailable && <p role="status">这条记录的历史性格规则不可用，暂时无法纠正心情；原记录已保留。</p>}
       <button type="button" className="text-button" disabled={busy || ai.loading || state.phase !== "ready"} onClick={handleAnalyze}>{ai.loading ? "AI 重新识别中…" : "AI 重新识别"}</button>
       {ai.error && <div role="alert" className="save-error"><p>{ai.error.message}</p><p>也可手动选择新心情后保存纠正。</p></div>}
-      {suggestion && revisionChanged && <p role="alert" className="form-hint">这条记录已变化，识别结果已丢弃，请重新识别。</p>}
-      {usableSuggestion && <p role="status" className="form-hint">AI 建议：{EMOTION_NAMES[usableSuggestion.analysis.label]}（置信度 {usableSuggestion.analysis.confidence.toFixed(2)}）。{needsExtraConfirmation ? "建议先确认或手动选择。" : ""}{isDemo ? "（演示数据，非真实模型结果）" : ""}<button type="button" className="text-button" disabled={busy} onClick={handleAdoptSuggestion}>采纳建议并纠正</button></p>}
+      {suggestion && bindingChanged && <p role="alert" className="form-hint">这条记录已变化，识别结果已丢弃，请重新识别。</p>}
+      {usableSuggestion && (
+        <div role="status" className="form-hint">
+          <p>AI 建议：{EMOTION_NAMES[usableSuggestion.analysis.label]}（置信度 {usableSuggestion.analysis.confidence.toFixed(2)}）。{suggestionHints.join("")}{isDemo ? "（演示数据，非真实模型结果）" : ""}</p>
+          <button type="button" className="text-button" disabled={busy} onClick={handleAdoptSuggestion}>{unknownSuggestion ? "仍采纳「说不清」并纠正" : "采纳建议并纠正"}</button>
+        </div>
+      )}
       <EmotionCategoryPicker value={label} disabled={busy} onSelect={selectLabel} />
       {label !== null && <details className="dimensions"><summary>细调一下这种感觉 <span>（可选）</span></summary><div><p>已选「{EMOTION_NAMES[label]}」，可以按自己的感觉调整。</p><EmotionDimensionSliders value={dimensions} disabled={busy} onChange={setDimensions} /></div></details>}
       <button type="button" className="text-button" disabled={label === null || busy} onClick={handleManualCorrect}>保存纠正</button>

@@ -70,8 +70,10 @@ graph TD
 | --- | --- | --- |
 | `src/app/{layout,page}.tsx`、`src/app/companion/page.tsx`、`src/app/memories/page.tsx` | 已实现 | 路由与页面壳，共享根布局状态 |
 | `src/app/api/emotion/route.ts` | 已实现 | 服务端情绪识别入口 |
-| `src/application/AppProvider.tsx` | 已实现，阶段二至五扩展；阶段五本分支接入重逢 | 状态编排、保存、会话启动、恢复、跨标签页冲突、重逢一次性展示 |
-| `src/application/useEmotionAnalysis.ts` | 已实现 | AI 建议请求、过期响应丢弃、降级 |
+| `src/application/AppProvider.tsx` | 已实现，阶段二至五扩展 | 状态编排、保存、会话启动、恢复、跨标签页冲突、重逢一次性展示；阶段六不新增持久状态 |
+| `src/application/useEmotionAnalysis.ts` | 已实现，阶段六扩展 | AI 建议请求、会话失效、过期响应丢弃、客户端超时与降级 |
+| `src/lib/ai/client.ts` | 阶段六新增 | 浏览器侧识别会话、三元组关联、严格 analysis/analysisMeta 校验、HTTP 错误映射；不导入服务端 Provider |
+| `src/lib/ai/server/{config,provider,native,questions,protection}.ts` | 已实现，阶段六复核 | 配置读取、百炼 System One 调用与显式映射、固定错误分类、进程内频率/并发/预算保护 |
 | `src/domain/types.ts` | 已实现，阶段二扩展 | 公共类型与契约 |
 | `src/domain/emotions.ts` | 已实现 | 手选默认 VAD、规范化 |
 | `src/domain/rules.ts` | 已实现，阶段二至五扩展 | 领域事件、原子结算、会话启动入口 |
@@ -79,17 +81,17 @@ graph TD
 | `src/domain/companion.ts` | 已实现（三维护账） | 阶段二拆分为 `personality.ts` + 配置，之后只作兼容/删除 |
 | `src/domain/personality.ts` | 已实现（PR #18） | 五维派生、主导判定、描述、只读查询 |
 | `src/domain/behavior.ts` | 阶段三已实现（PR #19） | 确定性主导行为/待机/特殊/互动选择 |
-| `src/domain/offlineLife.ts` | 阶段四已实现（本分支） | 离线窗口规划、活动选择、幂等 ID |
-| `src/domain/reunion.ts` | 阶段五已实现（本分支） | 长期未访问判断、问候模板选择 |
+| `src/domain/offlineLife.ts` | 阶段四已实现（PR #20） | 离线窗口规划、活动选择、幂等 ID |
+| `src/domain/reunion.ts` | 阶段五已实现（PR #22） | 长期未访问判断、问候模板选择 |
 | `src/domain/characterView.ts` | 已实现（阶段三最小接入，PR #19） | 由快照/行为推导视图 |
 | `src/config/personality.ts` | 已实现（PR #18） | `PersonalityRuleConfig` |
 | `src/config/behavior.ts` | 阶段三已实现（PR #19） | `BehaviorRuleConfig` |
-| `src/config/offlineLife.ts` | 阶段四已实现（本分支） | `OfflineLifeRuleConfig` |
-| `src/config/reunion.ts` | 阶段五已实现（本分支） | `ReunionRuleConfig` |
+| `src/config/offlineLife.ts` | 阶段四已实现（PR #20） | `OfflineLifeRuleConfig` |
+| `src/config/reunion.ts` | 阶段五已实现（PR #22） | `ReunionRuleConfig` |
 | `src/lib/storage/{port,localStorageAdapter}.ts` | 已实现 | 存储接口与浏览器实现 |
 | `src/components/character/CharacterRenderer.tsx` | 已实现（阶段三最小姿态/表情/动画占位，PR #19） | SVG 渲染与图层白名单 |
 | `src/components/character/OfflineLifePanel.tsx` | 阶段四已实现（PR #20） | 只读已落盘离线事件，区分本次与历史；不写日记/回忆/分数 |
-| `src/components/character/ReunionPanel.tsx` | 阶段五已实现（本分支） | 只渲染应用层已提交的一次性问候；回答/跳过仅本地临时状态 |
+| `src/components/character/ReunionPanel.tsx` | 阶段五已实现（PR #22） | 只渲染应用层已提交的一次性问候；回答/跳过仅本地临时状态 |
 | `src/application/useBehaviorRuntime.ts` | 阶段三已实现（PR #19） | 行为调度、隐藏暂停、互动、保存后一次性反馈、低动态降级；不写存档 |
 | `src/application/lowMoodStreak.ts` | 阶段三已实现（PR #19，候选判定） | 连续低落日只读判定；正式 `specialBehaviorEnabled=false` 不接入触发 |
 | `src/components/emotion/*`、`src/components/memories/*` | 已实现 | 记录、纠正、历史界面 |
@@ -461,6 +463,16 @@ interface ActivityCheckpointEvent {
 6. 只有保存成功后才展示离线事件与重逢问候；失败保留旧状态，不展示、不提前确认“已经回来过”。
 7. 页面隐藏、`pagehide`、刷新前生成 `ACTIVITY_CHECKPOINT`；可见期间最多每 5 分钟一次，`at = context.now`，走同一保存路径；失败只保留旧 `lastActiveAt`，不展示未保存事件。
 8. 刷新后 `lastVisitAt` / `lastActiveAt` 已更新，同一窗口不会重复生成或重复问候。
+
+AI 识别（阶段六复核）：
+
+1. 草稿或已保存记录产生请求三元组 `requestId`、`entryId`、`inputRevision`；`src/lib/ai/client.ts` 的会话跟踪器在编辑、手选、重新识别、保存、取消时递增修订并使旧会话失效。
+2. `useEmotionAnalysis` 只在客户端请求当前会话；20 秒超时会中止并映射 `AI_TIMEOUT`，不自动重试。
+3. 响应必须回显同一三元组；缺回显的失败响应无法关联，直接忽略；非 envelope 响应只按 HTTP 状态映射固定错误码。
+4. 成功响应要求 `needsConfirmation=true`，并对 `analysis` 与 `analysisMeta` 做字段集合、类型、枚举与 0–1 有限数校验；任一不符按 `AI_INVALID_OUTPUT` 拒绝，不进入草稿或正式保存。
+5. 建议只保存在运行时内存；用户显式采纳后才写入草稿/纠正草稿。修改建议按 `source=corrected`、`confidence=null` 保存；无建议的手选按 `source=manual`；接受原建议才为 `source=ai`。
+6. 已保存记录重识别额外绑定 `entryId`、`Entry.revision` 与正文；确认纠正前再次核对，过期结果丢弃。纠正仍走既有 `CORRECT_EMOTION` 替换贡献，不重复计分。
+7. 服务端只返回规范化结果和可选 `analysisMeta`；原生 answers、概率、usage、错误详情、Key 不进入响应、日志或存档。
 
 行为循环：可见时由应用层按 `tickInterval` 用显式种子与序号调用 `selectBehavior`，把 `BehaviorDecision` 映射为 `CharacterView` 交给角色层；不写存档。页面隐藏时暂停；关闭网页不运行后台 Agent。
 
