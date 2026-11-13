@@ -130,6 +130,8 @@ interface Entry {
 
 ### 4.2 性格（阶段二，schemaVersion 3）
 
+阶段二实现：配置 `src/config/personality.ts`，领域查询与结算 `src/domain/personality.ts`，迁移 `src/domain/migrations.ts`。候选参数待验收。
+
 ```ts
 type DimensionId = "gentleness" | "curiosity" | "cheerfulness" | "fearfulness" | "low_mood";
 
@@ -164,7 +166,7 @@ interface PersonalityRuleConfig {
   maxScore: number;
   perSaveCap: number;
   dailyNetCap: number;
-  intensityBands: Array<{ maxInclusive: number; factor: number }>;
+  intensityBands: { lowExclusive: number; highInclusive: number; factors: [number, number, number] };
   roomFactor: number;                  // 未确认惯性公式前为 1.0
   emotionDeltas: Record<EmotionLabel, Record<DimensionId, number>>;
   descriptions: Record<DimensionId, { low: string; balanced: string; high: string }>;
@@ -174,13 +176,14 @@ interface PersonalityRuleConfig {
 ```
 
 - 分数永远由 `contributions` 纯派生：`clamp(initial + Σdeltas, min, max)`；`deltas` 是写入时已受单次/单日上限约束的最终增量，派生不再按日重算，不存储第二份分数。
+- 强度分档使用 `lowExclusive` 和 `highInclusive` 明确表达 0.35 与 0.7 的边界。
 - 配置以 `rulesVersion` 为键注册；每条贡献按其自身 `rulesVersion` 解释。`PersonalityState.rulesVersion` 只决定“新结算使用哪个配置”，不能用来重新解释旧贡献或重新拒绝历史日。
 - `initialScore`/`minScore`/`maxScore` 是存档级不变量；变更必须走显式迁移，不能只升 `rulesVersion` 就让旧分数随当前配置变化。
 - `dominantId` 必须持久化：只有其他维度严格高于当前主导时才切换；并列保留当前主导。首次/迁移后为 `null`，按 `dominantPriority` 从最高分中取第一个。
-- 纠正只重算被纠正条目：先扣除旧贡献，以该 `dayKey` 下所有已保存贡献的实际合计为余量（不区分版本），上限参数取原贡献的 `rulesVersion`；其他条目、其他日期不重算。余量不足时该条最终增量可为 0；若该日合计已越界（绝对值超过原版本上限），则只允许 0 或使合计绝对值严格减小（裁剪规则见 COMPANION_SPEC §2.6）。旧配置缺失时拒绝纠正。
+- 纠正只重算被纠正条目：先扣除旧贡献，以该 `dayKey` 下所有已保存贡献的实际合计为余量（不区分版本），上限参数取原贡献的 `rulesVersion`；其他条目、其他日期不重算。余量不足时该条最终增量可为 0；若该日合计已越界（绝对值超过原版本上限），则只允许 0 或使合计绝对值严格减小（裁剪规则见 COMPANION_SPEC §2.6）。旧配置缺失时拒绝纠正；`canCorrectContribution` 提供只读可纠正状态，历史记录界面提示原因。
 - 旧 `CompanionState.contributions`（三维护账）不进入 `PersonalityState`；迁移后放入 `legacy`，不自动换算。
 - 配置集中在 `src/config/personality.ts`，组件与页面不得引用 `emotionDeltas` 自行算分，也不得展示 `scores`。
-- 当前 `companion-v1` 的 `dailyNetCap` 为 6，与 [COMPANION_SPEC](COMPANION_SPEC.md) 候选值 4 不一致；阶段二必须显式对齐或由用户确认，不得静默保留。
+- 旧 `companion-v1` 的 `dailyNetCap` 为 6，仅供旧存档校验；五维 `personality-v2` 按已授权候选值使用 4，参数待验收。
 
 ### 4.3 行为（阶段三，运行时）
 
