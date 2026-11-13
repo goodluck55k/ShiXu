@@ -42,7 +42,8 @@
 - [x] 离线前后五维分数完全不变；low_mood 不因离线增加；不写日记/回忆/奖励。
 - [x] 日记保存、性格、行为、互动、刷新恢复无回归（stage2/stage3 复跑）；临时体验不误写正式存档。
 - [x] P1 修复：pending 日记未解决时暂停正式 checkpoint（含周期/隐藏/pagehide），成功提交或明确取消后恢复；重试复用冻结 eventId/entryId/now/dayKey/正文/情绪；跨标签页冲突保护不被绕过；救援与最后成功 checkpoint 降级语义不变。回归 `tests/stage4-checkpoint.ts`（零依赖最小 DOM shim 渲染 AppProvider，覆盖保存失败→checkpoint→恢复重试、隐藏/pagehide、取消恢复、不重复结算、真实跨标签页冲突 5 场景；含移除守卫的负向验证）。
-- 验证方式：`npx --yes tsx tests/stage4.ts` + `npx --yes tsx tests/stage4-checkpoint.ts` + stage2/stage3 复跑 + 一次 typecheck/lint/build + 浏览器最小冒烟。
+- [x] P1 修复：会话启动 `SESSION_STARTED` 保存失败后冻结未提交窗口（事件、windowStart、now）；后续 checkpoint / 日记保存先把该窗口合入同一候选快照再原子提交，不得单独推进 `lastActiveAt`；存储恢复后由 checkpoint 或 `retrySave` 补交；离线事件仅在正式存档包含该会话事件后展示；窗口幂等与 revision 冲突检查不变。回归 `tests/stage4-session-retry.ts`（预置 5 小时离线窗口 + 首次会话保存失败，覆盖 checkpoint 补交、日记保存补交、日记失败后 retry、刷新不重放 4 场景；含移除补交逻辑的负向验证）。
+- 验证方式：`npx --yes tsx tests/stage4.ts` + `npx --yes tsx tests/stage4-checkpoint.ts` + `npx --yes tsx tests/stage4-session-retry.ts` + stage2/stage3 复跑 + 一次 typecheck/lint/build + 浏览器最小冒烟。
 - 未验证项：真实百炼 API（阶段六）；正式视觉（阶段七）；候选参数产品验收；pagehide 异步落盘在真实浏览器关闭时序下的成功率（按救援值降级，不宣称精确）。
 
 ### 存档与迁移
