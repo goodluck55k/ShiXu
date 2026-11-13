@@ -2,7 +2,7 @@
 
 > 状态：V1 架构基线。标注「已实现」的以 `main` 分支代码为准；「阶段 N 规划」表示尚未合入。产品范围见 [PRODUCT_SPEC](PRODUCT_SPEC.md)，性格与行为参数见 [COMPANION_SPEC](COMPANION_SPEC.md)。
 >
-> 存档 `schemaVersion` 为 3；本文档版本与存档版本无关。截至本版，`main` 只有 `schemaVersion` 2、`companion-v1` 三维账本与静态角色占位；v3 尚未发布，因此可在首次实现前修订 v3 形状，但一旦有真实 v3 存档，必须改用新版本号与迁移。
+> 存档 `schemaVersion` 为 3；本文档版本与存档版本无关。截至本版，`main` 已含 `schemaVersion` 3、五维 `personality-v2` 台账与迁移（PR #18）；行为引擎与角色最小接入在 `feature/companion-behavior` 分支实现，待合入。
 
 ## 1. 架构原则
 
@@ -77,17 +77,19 @@ graph TD
 | `src/domain/rules.ts` | 已实现，阶段二至五扩展 | 领域事件、原子结算、会话启动入口 |
 | `src/domain/schema.ts` | 已实现，阶段二扩展 | 存档结构校验 |
 | `src/domain/companion.ts` | 已实现（三维护账） | 阶段二拆分为 `personality.ts` + 配置，之后只作兼容/删除 |
-| `src/domain/personality.ts` | 阶段二规划 | 五维派生、主导判定、描述、只读查询 |
-| `src/domain/behavior.ts` | 阶段三规划 | 确定性主导行为/待机/特殊/互动选择 |
+| `src/domain/personality.ts` | 已实现（PR #18） | 五维派生、主导判定、描述、只读查询 |
+| `src/domain/behavior.ts` | 阶段三已实现（本分支） | 确定性主导行为/待机/特殊/互动选择 |
 | `src/domain/offlineLife.ts` | 阶段四规划 | 离线窗口规划、活动选择、幂等 ID |
 | `src/domain/reunion.ts` | 阶段五规划 | 长期未访问判断、问候模板选择 |
-| `src/domain/characterView.ts` | 已实现（静态占位），阶段三扩展 | 由快照/行为推导视图 |
-| `src/config/personality.ts` | 阶段二规划 | `PersonalityRuleConfig` |
-| `src/config/behavior.ts` | 阶段三规划 | `BehaviorRuleConfig` |
+| `src/domain/characterView.ts` | 已实现（阶段三最小接入，本分支） | 由快照/行为推导视图 |
+| `src/config/personality.ts` | 已实现（PR #18） | `PersonalityRuleConfig` |
+| `src/config/behavior.ts` | 阶段三已实现（本分支） | `BehaviorRuleConfig` |
 | `src/config/offlineLife.ts` | 阶段四规划 | `OfflineLifeRuleConfig` |
 | `src/config/reunion.ts` | 阶段五规划 | `ReunionRuleConfig` |
 | `src/lib/storage/{port,localStorageAdapter}.ts` | 已实现 | 存储接口与浏览器实现 |
-| `src/components/character/CharacterRenderer.tsx` | 已实现（静态占位） | SVG 渲染与图层白名单 |
+| `src/components/character/CharacterRenderer.tsx` | 已实现（阶段三最小姿态/表情/动画占位，本分支） | SVG 渲染与图层白名单 |
+| `src/application/useBehaviorRuntime.ts` | 阶段三已实现（本分支） | 行为调度、隐藏暂停、互动、保存后一次性反馈、低动态降级；不写存档 |
+| `src/application/lowMoodStreak.ts` | 阶段三已实现（本分支，候选判定） | 连续低落日只读判定；正式 `specialBehaviorEnabled=false` 不接入触发 |
 | `src/components/emotion/*`、`src/components/memories/*` | 已实现 | 记录、纠正、历史界面 |
 
 阶段二不要求一次性重命名所有文件；但新代码必须落在上表声明的目标位置，旧文件只做兼容或删除，不允许出现两份性格实现，也不允许把离线/重逢逻辑塞进 `personality.ts`。
@@ -228,6 +230,7 @@ interface BehaviorDecision {
   pose: string;
   expression: string;
   animation: string;
+  amplitude: number;                // 即时情绪幅度（emotionExpression.intensity），无情绪为 1
   durationMs: number;
   reasonCode: string;
 }
@@ -239,10 +242,12 @@ interface BehaviorRuleConfig {
     label: string;
     category: BehaviorCategory;
     dominantId?: DimensionId;         // 仅 dominant 行为必填
+    interactionType?: InteractionType; // 仅 interaction 行为必填，类型→行为映射配置驱动
     baseWeight: number;
     pose: string;
     expression: string;
     animation: string;
+    durationMs: number;               // 自主行为持续时间；互动改用 interactionDurationMs 区间
   }>;
   ambientShare: number;               // 候选 0.15
   specialBehaviorEnabled: boolean;    // 默认 false，待用户确认连续低落语义
@@ -250,17 +255,23 @@ interface BehaviorRuleConfig {
   special: {
     dominantId: "low_mood";
     behaviors: Array<{ id: "drink" | "smoke"; baseWeight: number }>;
+    streakDaysRequired: number;       // 候选 3，待确认
+    lowMoodEmotionLabels: EmotionLabel[]; // 候选 ["sadness"]，待确认
+    dayFourSemantics: "A" | "B";      // 待确认；仅测试入口使用，正式不触发
   };
-  minShare: number;                   // 候选 0.05
+  minShare: number;                   // 候选 0.05；以权重下限实现长期份额下限
   maxConsecutive: number;             // 候选 2
   tickIntervalMs: [number, number];   // 候选 [20000, 40000]
   interactionDurationMs: [number, number]; // 候选 [2500, 4000]
+  saveFeedbackDurationMs: number;     // 候选 3000；保存后一次性反馈时长
   emotionExpression: Record<EmotionLabel, { expression: string; intensity: number }>;
   ambientTimeWeights: Record<TimeBand, Partial<Record<BehaviorId, number>>>;
 }
 ```
 
 行为决策不写 `Snapshot`，不需要 `eventId` 幂等；互动反馈与保存后情绪表现只存在于运行时内存。特殊行为不是必然触发；只有 `specialEligible`、主导为 `low_mood`、配置开启且概率命中时才可能发生。`specialEligible` 的连续天数判定（含第 4 天 A/B 语义）属于待确认项，见 [COMPANION_SPEC](COMPANION_SPEC.md) 3.5。
+
+阶段三实现（本分支）：`selectBehavior` 按 interaction → special → ambient → dominant 固定顺序选择；抽样使用显式 `createBehaviorRng(seed, dayKey, sequence, rulesVersion)`，相同上下文同结果；`minShare` 以权重下限公式保证同池每个候选长期份额不低于配置值；结果与 `lastBehaviorId` 相同且 `consecutiveCount >= maxConsecutive` 时按配置顺序轮换同池下一个。`selectSaveFeedback(base, emotion, config)` 只生成运行时一次性反馈决策（reasonCode `save_feedback`），不写存档。应用层 `useBehaviorRuntime` 负责可见调度、隐藏暂停、恢复重读、三种互动打断与恢复、`lastConfirmedSave` 一次性消费（会话级去重）、`prefers-reduced-motion` 降级；`computeSpecialEligibility` 在应用层只读计算连续低落日，正式配置关闭时不参与触发。
 
 ### 4.4 离线生活与久别重逢（阶段四/五）
 
@@ -352,10 +363,10 @@ interface SnapshotV3 {
 | `getDimensionScore(snapshot, id)` | personality | 阶段二 | 只读单维查询；不进入 UI |
 | `describeDominantPersonality(snapshot, config)` | personality | 阶段二 | 只返回当前主导描述 |
 | `resolveDominant(scores, previous, priority)` | personality | 阶段二 | 严格超过才切换；并列确定性 |
-| `selectBehavior(context, config)` | behavior | 阶段三 | 四类行为分离的确定性选择 |
+| `selectBehavior(context, config)` | behavior | 阶段三（本分支） | 四类行为分离的确定性选择 |
 | `planOfflineLife(input, config)` | offlineLife | 阶段四 | 生成有限事件与下一 `lastVisitAt` / `lastActiveAt` |
 | `evaluateReunion(input, config)` | reunion | 阶段五 | 判断是否触发并选择模板 |
-| `deriveCharacterView(snapshot, decision?)` | character | 阶段三/七 | 视图映射，只读 |
+| `deriveCharacterView(snapshot, decision?)` | character | 阶段三最小（本分支）/七正式 | 视图映射，只读 |
 | `applyGameEvent(snapshot, event, context)` | rules | 已实现，阶段二至五扩展 | 唯一正式状态变更入口 |
 | `migrateSnapshotV1toV2(v1)` | storage/rules | 已实现 | 保留 |
 | `migrateSnapshotV2toV3(v2)` | storage | 阶段二 | 新增；只做结构转换，不调用计分规则 |
@@ -454,7 +465,7 @@ interface ActivityCheckpointEvent {
 - 图层顺序：后景特效 → 身体/四肢 → 表情/五官 → 头部细节 → 装饰图层（V2）→ 前景特效。
 - 图层 ID 必须来自白名单；未知 ID 忽略并回落到基础形象，不得崩溃。
 - `CharacterRenderer` 只接收 `CharacterView` 与可选外观，不读取 `Snapshot`、不调用规则函数。
-- `CharacterView` 可增加 `behaviorId`、`category` 便于调试；渲染层不得据此反推性格或重新选择行为。
+- `CharacterView` 含可选 `behaviorId`、`category`、`amplitude`（阶段三已实现，便于调试与最小幅度反馈）；渲染层不得据此反推性格或重新选择行为。
 - 尊重 `prefers-reduced-motion`；页面隐藏时暂停动画与行为调度。
 - 现有静态占位渲染属于阶段七之前的临时载体，不得当作定稿视觉继续美化。
 
