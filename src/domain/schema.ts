@@ -1,4 +1,5 @@
 import { getPersonalityRule } from "@/config/personality";
+import { OFFLINE_LIFE_V1 } from "@/config/offlineLife";
 import { DIMENSIONS } from "./personality";
 import { PERSONALITY_PARAMS } from "./companion";
 import {
@@ -338,6 +339,7 @@ function validateV3(value: Record<string, unknown>): string | null {
     if (!isRecord(event) || !isNonEmptyString(event.id) || offlineIds.has(event.id) || !isFiniteNumber(event.windowStart) || !isFiniteNumber(event.occurredAt) || event.occurredAt < event.windowStart || !DIMENSIONS.includes(event.dominantId as never) || !isNonEmptyString(event.activityId) || !isNonEmptyString(event.text)) return "offlineLife.events 内容非法";
     offlineIds.add(event.id);
   }
+  if (offline.events.length > OFFLINE_LIFE_V1.maxStoredEvents) return "offlineLife.events 超过存储上限";
   if (isFiniteNumber(offline.lastActiveAt) && isFiniteNumber(offline.lastVisitAt) && offline.lastActiveAt < offline.lastVisitAt) return "offlineLife.lastActiveAt 非法";
   if (isFiniteNumber(reunion.lastTriggeredWindowStart) && (!isFiniteNumber(offline.lastWindowStart) || reunion.lastTriggeredWindowStart > offline.lastWindowStart)) return "reunion 窗口非法";
   if (value.legacy !== undefined && !isRecord(value.legacy)) return "legacy 非法";

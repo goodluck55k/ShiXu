@@ -189,7 +189,7 @@ export interface Snapshot {
   memories: MemoryEvent[];
   appliedEventIds: string[];
   personality: import("./personality").PersonalityState;
-  offlineLife: { lastVisitAt: number | null; lastActiveAt: number | null; lastWindowStart: number | null; events: unknown[] };
+  offlineLife: import("./offlineLife").OfflineLifeState;
   reunion: { lastTriggeredWindowStart: number | null; lastTriggeredAt: number | null };
   legacy?: { character?: Pick<CharacterState, "totalXp" | "stage">; decorations?: unknown; companion?: unknown };
 }
@@ -239,10 +239,24 @@ export interface UnequipDecorationEvent extends GameEventBase {
   itemId: string;
 }
 
+export interface ActivityCheckpointEvent extends GameEventBase {
+  type: "ACTIVITY_CHECKPOINT";
+  at: number;
+}
+
+export interface SessionStartedEvent extends GameEventBase {
+  type: "SESSION_STARTED";
+  windowStart: number | null;
+  offlineEvents: import("./offlineLife").OfflineLifeEvent[];
+  reunionTriggered: boolean;
+}
+
 export type GameEvent =
   | ConfirmEntryEvent
   | EditEntryTextEvent
   | CorrectEmotionEvent
+  | ActivityCheckpointEvent
+  | SessionStartedEvent
   | RestoreDecorationEvent
   | EquipDecorationEvent
   | UnequipDecorationEvent;

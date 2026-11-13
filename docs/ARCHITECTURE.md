@@ -78,18 +78,19 @@ graph TD
 | `src/domain/schema.ts` | 已实现，阶段二扩展 | 存档结构校验 |
 | `src/domain/companion.ts` | 已实现（三维护账） | 阶段二拆分为 `personality.ts` + 配置，之后只作兼容/删除 |
 | `src/domain/personality.ts` | 已实现（PR #18） | 五维派生、主导判定、描述、只读查询 |
-| `src/domain/behavior.ts` | 阶段三已实现（本分支） | 确定性主导行为/待机/特殊/互动选择 |
-| `src/domain/offlineLife.ts` | 阶段四规划 | 离线窗口规划、活动选择、幂等 ID |
+| `src/domain/behavior.ts` | 阶段三已实现（PR #19） | 确定性主导行为/待机/特殊/互动选择 |
+| `src/domain/offlineLife.ts` | 阶段四已实现（本分支） | 离线窗口规划、活动选择、幂等 ID |
 | `src/domain/reunion.ts` | 阶段五规划 | 长期未访问判断、问候模板选择 |
-| `src/domain/characterView.ts` | 已实现（阶段三最小接入，本分支） | 由快照/行为推导视图 |
+| `src/domain/characterView.ts` | 已实现（阶段三最小接入，PR #19） | 由快照/行为推导视图 |
 | `src/config/personality.ts` | 已实现（PR #18） | `PersonalityRuleConfig` |
-| `src/config/behavior.ts` | 阶段三已实现（本分支） | `BehaviorRuleConfig` |
-| `src/config/offlineLife.ts` | 阶段四规划 | `OfflineLifeRuleConfig` |
+| `src/config/behavior.ts` | 阶段三已实现（PR #19） | `BehaviorRuleConfig` |
+| `src/config/offlineLife.ts` | 阶段四已实现（本分支） | `OfflineLifeRuleConfig` |
 | `src/config/reunion.ts` | 阶段五规划 | `ReunionRuleConfig` |
 | `src/lib/storage/{port,localStorageAdapter}.ts` | 已实现 | 存储接口与浏览器实现 |
-| `src/components/character/CharacterRenderer.tsx` | 已实现（阶段三最小姿态/表情/动画占位，本分支） | SVG 渲染与图层白名单 |
-| `src/application/useBehaviorRuntime.ts` | 阶段三已实现（本分支） | 行为调度、隐藏暂停、互动、保存后一次性反馈、低动态降级；不写存档 |
-| `src/application/lowMoodStreak.ts` | 阶段三已实现（本分支，候选判定） | 连续低落日只读判定；正式 `specialBehaviorEnabled=false` 不接入触发 |
+| `src/components/character/CharacterRenderer.tsx` | 已实现（阶段三最小姿态/表情/动画占位，PR #19） | SVG 渲染与图层白名单 |
+| `src/components/character/OfflineLifePanel.tsx` | 阶段四已实现（本分支） | 只读已落盘离线事件，区分本次与历史；不写日记/回忆/分数 |
+| `src/application/useBehaviorRuntime.ts` | 阶段三已实现（PR #19） | 行为调度、隐藏暂停、互动、保存后一次性反馈、低动态降级；不写存档 |
+| `src/application/lowMoodStreak.ts` | 阶段三已实现（PR #19，候选判定） | 连续低落日只读判定；正式 `specialBehaviorEnabled=false` 不接入触发 |
 | `src/components/emotion/*`、`src/components/memories/*` | 已实现 | 记录、纠正、历史界面 |
 
 阶段二不要求一次性重命名所有文件；但新代码必须落在上表声明的目标位置，旧文件只做兼容或删除，不允许出现两份性格实现，也不允许把离线/重逢逻辑塞进 `personality.ts`。
@@ -276,7 +277,7 @@ interface BehaviorRuleConfig {
 
 运行时即时情绪有有效期：仅在保存成功后 `emotionExpressionDurationMs`（候选 3000 毫秒，待验收）内把 `currentEmotion` 传入表情/幅度；到期或刷新后回到主导行为配置的基础表情，不重新激活已结束的反馈，也不改变已保存情绪、日记与五维贡献。自主行为按行为条目 `durationMs` 结束动画（`animation` 置 `none`、保持姿态），等待下一次 tick 选择；`tickIntervalMs` 只决定下一次选择间隔，不是动作循环时长。页面隐藏时除暂停调度外，运行时 `paused` 状态经 `is-paused` 类显式暂停 CSS 动画；互动打断、恢复、隐藏、卸载与 StrictMode 清理均清除全部运行时计时器。
 
-### 4.4 离线生活与久别重逢（阶段四/五）
+### 4.4 离线生活与久别重逢（阶段四已实现本分支；阶段五规划）
 
 ```ts
 interface OfflineLifeEvent {
@@ -366,10 +367,10 @@ interface SnapshotV3 {
 | `getDimensionScore(snapshot, id)` | personality | 阶段二 | 只读单维查询；不进入 UI |
 | `describeDominantPersonality(snapshot, config)` | personality | 阶段二 | 只返回当前主导描述 |
 | `resolveDominant(scores, previous, priority)` | personality | 阶段二 | 严格超过才切换；并列确定性 |
-| `selectBehavior(context, config)` | behavior | 阶段三（本分支） | 四类行为分离的确定性选择 |
-| `planOfflineLife(input, config)` | offlineLife | 阶段四 | 生成有限事件与下一 `lastVisitAt` / `lastActiveAt` |
+| `selectBehavior(context, config)` | behavior | 阶段三（PR #19） | 四类行为分离的确定性选择 |
+| `planOfflineLife(input, config)` | offlineLife | 阶段四（本分支） | 生成有限事件与下一 `lastVisitAt` / `lastActiveAt` |
 | `evaluateReunion(input, config)` | reunion | 阶段五 | 判断是否触发并选择模板 |
-| `deriveCharacterView(snapshot, decision?)` | character | 阶段三最小（本分支）/七正式 | 视图映射，只读 |
+| `deriveCharacterView(snapshot, decision?)` | character | 阶段三最小（PR #19）/七正式 | 视图映射，只读 |
 | `applyGameEvent(snapshot, event, context)` | rules | 已实现，阶段二至五扩展 | 唯一正式状态变更入口 |
 | `migrateSnapshotV1toV2(v1)` | storage/rules | 已实现 | 保留 |
 | `migrateSnapshotV2toV3(v2)` | storage | 阶段二 | 新增；只做结构转换，不调用计分规则 |
