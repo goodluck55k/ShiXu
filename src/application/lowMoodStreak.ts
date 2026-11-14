@@ -7,7 +7,7 @@ export interface LowMoodStreakOptions {
   dayFourSemantics: "A" | "B";
 }
 
-// 候选判定（COMPANION_SPEC 3.5.1），仅供测试入口；正式 specialBehaviorEnabled=false，不接入触发。
+// 连续日总数包含当天；只读取已提交条目的当前有效情绪和冻结日期。
 export function computeSpecialEligibility(
   entries: readonly Entry[],
   todayKey: string,
@@ -20,12 +20,15 @@ export function computeSpecialEligibility(
   );
   let streak = 0;
   let cursor = todayKey;
-  for (;;) {
+  if (options.dayFourSemantics === "A") {
     const [year, month, day] = cursor.split("-").map(Number);
     cursor = localDayKey(new Date(year, month - 1, day - 1).getTime());
+  }
+  for (;;) {
     if (!lowDays.has(cursor)) break;
     streak += 1;
+    const [year, month, day] = cursor.split("-").map(Number);
+    cursor = localDayKey(new Date(year, month - 1, day - 1).getTime());
   }
-  if (streak < options.streakDaysRequired) return false;
-  return options.dayFourSemantics === "A" || lowDays.has(todayKey);
+  return streak >= options.streakDaysRequired;
 }

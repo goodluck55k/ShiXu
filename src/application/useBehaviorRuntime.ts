@@ -13,8 +13,8 @@ import {
 } from "@/domain/behavior";
 import { deriveCharacterView } from "@/domain/characterView";
 import { derivePersonality } from "@/domain/personality";
-import type { CharacterView } from "@/domain/types";
-import { useApp } from "./AppProvider";
+import type { CharacterView, Snapshot } from "@/domain/types";
+import { useApp, type ConfirmedSaveContext } from "./AppProvider";
 import { createId, localDayKey } from "./ids";
 import { computeSpecialEligibility } from "./lowMoodStreak";
 
@@ -41,14 +41,18 @@ export interface BehaviorRuntime {
 
 export function useBehaviorRuntime(): BehaviorRuntime {
   const { state } = useApp();
-  const snapshot = state.snapshot;
+  return useBehaviorRuntimeState(state.snapshot, state.lastConfirmedSave);
+}
+
+// 开发验收复用同一运行时，但只传入内存快照；正式调用使用 AppProvider 的已提交快照。
+export function useBehaviorRuntimeState(snapshot: Snapshot | null, lastConfirmedSave: ConfirmedSaveContext | null, simulation = false, initialSequence = 0): BehaviorRuntime {
   const ready = snapshot !== null;
   const [decision, setDecision] = useState<BehaviorDecision | null>(null);
   const [feedbackActive, setFeedbackActive] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
   const [paused, setPaused] = useState(false);
 
-  const sequenceRef = useRef(0);
+  const sequenceRef = useRef(initialSequence);
   const lastRef = useRef<{ id: BehaviorId | null; count: number }>({ id: null, count: 0 });
   const autonomousRef = useRef<BehaviorDecision | null>(null);
   const modeRef = useRef<"auto" | "interaction" | "feedback">("auto");
@@ -59,6 +63,7 @@ export function useBehaviorRuntime(): BehaviorRuntime {
   const emotionExpiresAtRef = useRef(0);
   const liveRef = useRef({ snapshot });
   const scheduleTickRef = useRef<() => void>(() => {});
+  const selectNextRef = useRef<(allowSpecial?: boolean) => BehaviorDecision | null>(() => null);
 
   const clearTick = useCallback(() => {
     if (tickTimerRef.current !== null) {
@@ -81,7 +86,7 @@ export function useBehaviorRuntime(): BehaviorRuntime {
     }
   }, []);
 
-  const selectNext = useCallback((): BehaviorDecision | null => {
+  const selectNext = useCallback((allowSpecial = true): BehaviorDecision | null => {
     const current = liveRef.current.snapshot;
     if (!current) return null;
     const now = Date.now();
@@ -92,7 +97,7 @@ export function useBehaviorRuntime(): BehaviorRuntime {
       emotion: now < emotionExpiresAtRef.current ? current.character.currentEmotion : null,
       interaction: null,
       specialEligible:
-        BEHAVIOR_V2.specialBehaviorEnabled &&
+        allowSpecial && (BEHAVIOR_V2.specialBehaviorEnabled || simulation) &&
         computeSpecialEligibility(current.entries, dayKey, BEHAVIOR_V2.special),
       dayKey,
       timeBand: timeBandOf(now),
@@ -100,7 +105,7 @@ export function useBehaviorRuntime(): BehaviorRuntime {
       seed: SESSION_SEED,
       lastBehaviorId: lastRef.current.id,
       consecutiveCount: lastRef.current.count,
-    });
+    }, simulation ? { ...BEHAVIOR_V2, specialBehaviorEnabled: true } : BEHAVIOR_V2);
     lastRef.current =
       next.behaviorId === lastRef.current.id
         ? { id: next.behaviorId, count: lastRef.current.count + 1 }
@@ -109,7 +114,13 @@ export function useBehaviorRuntime(): BehaviorRuntime {
     if (modeRef.current === "auto") {
       setDecision(next);
       clearAction();
-      if (next.animation !== "none") {
+      if (next.category === "special") {
+        actionEndTimerRef.current = window.setTimeout(() => {
+          if (modeRef.current !== "auto" || document.visibilityState !== "visible") return;
+          selectNextRef.current(false);
+          scheduleTickRef.current();
+        }, next.durationMs);
+      } else if (next.animation !== "none") {
         // 动作按配置时长结束动画，保持姿态等待下一次 tick 选择
         actionEndTimerRef.current = window.setTimeout(() => {
           if (modeRef.current === "auto") setDecision((d) => (d ? { ...d, animation: "none" } : d));
@@ -117,7 +128,9 @@ export function useBehaviorRuntime(): BehaviorRuntime {
       }
     }
     return next;
-  }, [clearAction]);
+  }, [clearAction, simulation]);
+
+  useEffect(() => { selectNextRef.current = selectNext; }, [selectNext]);
 
   const scheduleTick = useCallback(() => {
     clearTick();
@@ -156,6 +169,7 @@ export function useBehaviorRuntime(): BehaviorRuntime {
         clearEnd();
         clearAction();
         modeRef.current = "auto";
+        setDecision(null);
         setFeedbackActive(false);
         setPaused(true);
       } else {
@@ -211,13 +225,14 @@ export function useBehaviorRuntime(): BehaviorRuntime {
     [clearTick, clearEnd, clearAction, resumeAuto],
   );
 
-  const lastConfirmedSave = state.lastConfirmedSave;
   useEffect(() => {
     if (!lastConfirmedSave) return;
     if (lastConfirmedSave.eventId !== consumedSaveEventId) {
       consumedSaveEventId = lastConfirmedSave.eventId;
-      const base = autonomousRef.current ?? selectNext();
+      const previous = autonomousRef.current;
+      const base = previous?.category === "special" ? selectNext(false) : previous ?? selectNext(false);
       if (!base) return;
+      clearTick();
       clearAction();
       emotionExpiresAtRef.current = Date.now() + BEHAVIOR_V2.emotionExpressionDurationMs;
       modeRef.current = "feedback";
@@ -229,7 +244,7 @@ export function useBehaviorRuntime(): BehaviorRuntime {
       clearEnd();
       endTimerRef.current = window.setTimeout(resumeAuto, BEHAVIOR_V2.saveFeedbackDurationMs);
     }
-  }, [lastConfirmedSave, clearEnd, clearAction, selectNext, resumeAuto]);
+  }, [lastConfirmedSave, clearTick, clearEnd, clearAction, selectNext, resumeAuto]);
 
   const view = useMemo(() => {
     if (!snapshot) return null;
