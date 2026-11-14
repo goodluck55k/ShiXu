@@ -2,7 +2,7 @@
 
 > 状态：V1 架构基线。标注「已实现」的以 `main` 分支代码为准；「阶段 N 规划」表示尚未合入。产品范围见 [PRODUCT_SPEC](PRODUCT_SPEC.md)，性格与行为参数见 [COMPANION_SPEC](COMPANION_SPEC.md)。
 >
-> 存档 `schemaVersion` 为 3；本文档版本与存档版本无关。截至本版，`main` 已含 `schemaVersion` 3、五维 `personality-v2` 台账与迁移（PR #18）、主导行为引擎（PR #19）、离线自主生活（PR #20）、久别重逢（PR #22）与 AI 情绪识别复核（PR #23）；阶段七的企鹅形象、表情、动作、生活空间与正式 UI 尚未开发，设计基线见 [STAGE7_DESIGN](STAGE7_DESIGN.md)。
+> 存档 `schemaVersion` 为 3；本文档版本与存档版本无关。截至本版，`main` 已含 `schemaVersion` 3、五维 `personality-v2` 台账与迁移（PR #18）、主导行为引擎（PR #19）、离线自主生活（PR #20）、久别重逢（PR #22）与 AI 情绪识别复核（PR #23）；阶段七的原创企鹅正面母版（PR #27）与九种组合表情（PR #28）已合入，侧面/背面、基础动作、抽烟/喝酒特殊动作、生活空间与正式 UI 尚未开发，设计基线见 [STAGE7_DESIGN](STAGE7_DESIGN.md)。连续低落特殊行为规则已于 2026-11-14 定稿，但代码未同步且功能默认关闭，见 §4.3。
 
 ## 1. 架构原则
 
@@ -90,12 +90,12 @@ graph TD
 | `src/config/reunion.ts` | 阶段五已实现（PR #22） | `ReunionRuleConfig` |
 | 阶段七角色/表情/场景配置 | 规划，未创建 | 表情与动作映射、生活空间配置；文件名、版本与参数待任务卡确认 |
 | `src/lib/storage/{port,localStorageAdapter}.ts` | 已实现 | 存储接口与浏览器实现 |
-| `src/components/character/CharacterRenderer.tsx` | 已实现（阶段三最小姿态/表情/动画占位，PR #19） | 当前为白色小人 SVG 占位；阶段七替换为原创企鹅、组合表情与动作 |
+| `src/components/character/CharacterRenderer.tsx` | 已实现（临时姿态/表情/动画载体） | 已接入原创企鹅正面母版（PR #27）与九种组合表情（PR #28）；侧背、基础动作、特殊动作与正式场景尚未接入 |
 | `src/components/character/` 阶段七组件 | 规划，未创建 | 企鹅身体/面部、表情、动作与生活空间组件；具体文件与资源路径由任务卡确认，不得把规划路径当作已有文件 |
 | `src/components/character/OfflineLifePanel.tsx` | 阶段四已实现（PR #20） | 只读已落盘离线事件，区分本次与历史；不写日记/回忆/分数 |
 | `src/components/character/ReunionPanel.tsx` | 阶段五已实现（PR #22） | 只渲染应用层已提交的一次性问候；回答/跳过仅本地临时状态 |
 | `src/application/useBehaviorRuntime.ts` | 阶段三已实现（PR #19） | 行为调度、隐藏暂停、互动、保存后一次性反馈、低动态降级；不写存档 |
-| `src/application/lowMoodStreak.ts` | 阶段三已实现（PR #19，候选判定） | 连续低落日只读判定；正式 `specialBehaviorEnabled=false` 不接入触发 |
+| `src/application/lowMoodStreak.ts` | 阶段三已实现（PR #19，候选判定，待按定稿规则同步） | 连续低落日只读判定；当前为“截至昨日 3 天 + 语义 A”，与 COMPANION_SPEC §3.5 的连续四个自然日/语义 B 不一致；正式 `specialBehaviorEnabled=false` 不接入触发 |
 | `src/components/emotion/*`、`src/components/memories/*` | 已实现 | 记录、纠正、历史界面 |
 
 阶段二不要求一次性重命名所有文件；但新代码必须落在上表声明的目标位置，旧文件只做兼容或删除，不允许出现两份性格实现，也不允许把离线/重逢逻辑塞进 `personality.ts`。
@@ -256,14 +256,14 @@ interface BehaviorRuleConfig {
     durationMs: number;               // 自主行为持续时间；互动改用 interactionDurationMs 区间
   }>;
   ambientShare: number;               // 候选 0.15
-  specialBehaviorEnabled: boolean;    // 默认 false，待用户确认连续低落语义
-  specialProbability: number;         // 候选 0.15
+  specialBehaviorEnabled: boolean;    // 默认 false；规则已确认，但须完成特殊动作与触发实现并验收后才可启用
+  specialProbability: number;         // 已确认 0.15；每次具备资格判定命中概率
   special: {
     dominantId: "low_mood";
-    behaviors: Array<{ id: "drink" | "smoke"; baseWeight: number }>;
-    streakDaysRequired: number;       // 候选 3，待确认
-    lowMoodEmotionLabels: EmotionLabel[]; // 候选 ["sadness"]，待确认
-    dayFourSemantics: "A" | "B";      // 待确认；仅测试入口使用，正式不触发
+    behaviors: Array<{ id: "drink" | "smoke"; baseWeight: number }>; // 现有各 1，等权；调整须另行确认
+    streakDaysRequired: number;       // 目标语义：连续低落日总数（含判定当天）= 4；当前代码 3 表示“昨日及之前”，接入时须统一字段语义
+    lowMoodEmotionLabels: EmotionLabel[]; // 已确认 ["sadness"]
+    dayFourSemantics: "A" | "B";      // 已确认语义 B；当前代码仍为 A，兼容字段待实现任务移除或固定
   };
   minShare: number;                   // 候选 0.05；以权重下限实现长期份额下限
   maxConsecutive: number;             // 候选 2
@@ -276,7 +276,7 @@ interface BehaviorRuleConfig {
 }
 ```
 
-行为决策不写 `Snapshot`，不需要 `eventId` 幂等；互动反馈与保存后情绪表现只存在于运行时内存。特殊行为不是必然触发；只有 `specialEligible`、主导为 `low_mood`、配置开启且概率命中时才可能发生。`specialEligible` 的连续天数判定（含第 4 天 A/B 语义）属于待确认项，见 [COMPANION_SPEC](COMPANION_SPEC.md) 3.5。
+行为决策不写 `Snapshot`，不需要 `eventId` 幂等；互动反馈与保存后情绪表现只存在于运行时内存。特殊行为不是必然触发；只有 `specialEligible`、主导为 `low_mood`、配置开启且概率命中时才可能发生。特殊行为规则（`sadness` 唯一标签、连续四个自然日、第 4 天当天保存后具备资格即语义 B、`specialProbability = 0.15`、停止条件）已于 2026-11-14 定稿，详见 [COMPANION_SPEC](COMPANION_SPEC.md) §3.5。当前代码仍是候选实现且 `specialBehaviorEnabled=false`：`computeSpecialEligibility` 为“截至昨日连续 3 天 + 语义 A”，`src/config/behavior.ts` 的 `streakDaysRequired=3` / `dayFourSemantics="A"` 尚未同步；在独立实现与验收任务完成前不得启用或视为已实现。
 
 阶段三实现（本分支）：`selectBehavior` 按 interaction → special → ambient → dominant 固定顺序选择；抽样使用显式 `createBehaviorRng(seed, dayKey, sequence, rulesVersion)`，相同上下文同结果；`minShare` 以权重下限公式保证同池每个候选长期份额不低于配置值；结果与 `lastBehaviorId` 相同且 `consecutiveCount >= maxConsecutive` 时按配置顺序轮换同池下一个。`selectSaveFeedback(base, emotion, config)` 只生成运行时一次性反馈决策（reasonCode `save_feedback`），不写存档。应用层 `useBehaviorRuntime` 负责可见调度、隐藏暂停、恢复重读、三种互动打断与恢复、`lastConfirmedSave` 一次性消费（会话级去重）、`prefers-reduced-motion` 降级；`computeSpecialEligibility` 在应用层只读计算连续低落日，正式配置关闭时不参与触发。
 
@@ -507,7 +507,7 @@ AI 识别（阶段六复核）：
 
 ## 7. 角色渲染
 
-- 正式角色为**原创黑白企鹅**，使用 React + SVG 自行实现；当前 `CharacterRenderer` 仍是阶段三的白色小人占位，不是正式美术。阶段七的概念稿不是仓库已有资源。
+- 正式角色为**原创黑白企鹅**，使用 React + SVG 自行实现；正面母版（PR #27）与九种组合表情（PR #28）已合入，并已接入 `CharacterRenderer` 的临时场景。侧面/背面、基础动作、特殊行为 `smoke` / `drink` 的动作资源与临时道具、正式生活空间与 UI 尚未开发；当前页面仍是阶段七前的临时载体。阶段七的概念稿不是仓库已有资源。
 - 视觉基准（已确认）：圆润幼态、经典黑白配色、橘黄色嘴巴和小脚、不添加腮红、简洁柔和治愈；不复制第三方角色造型。
 - 表情系统参考 React Kawaii 的组件化结构自行实现：身体与面部职责分离，眼睛、嘴巴等部位独立控制，按当前状态组合表情，保持不同表情下的形象一致，并为后续过渡动画预留扩展点。React Kawaii 不是运行时依赖。
 - 动作表现参考 Penguin-Pet 的自主活动与状态切换思路，但不引入 Electron/桌面宠物框架；动作仍由现有行为引擎的 `BehaviorDecision` 决定，渲染层只做映射。
