@@ -47,7 +47,7 @@ async function main() {
   assert.equal(BEHAVIOR_V2.behaviors.filter((b) => b.category === "ambient").length, 2);
   assert.equal(BEHAVIOR_V2.behaviors.filter((b) => b.category === "interaction").length, 3);
   assert.equal(BEHAVIOR_V2.special.behaviors.length, 2);
-  assert.equal(BEHAVIOR_V2.specialBehaviorEnabled, false);
+  assert.equal(BEHAVIOR_V2.specialBehaviorEnabled, true);
   assert.ok(BEHAVIOR_V2.emotionExpressionDurationMs > 0);
 
   // 确定性：相同上下文同结果
@@ -129,34 +129,42 @@ async function main() {
     assert.ok(decision.durationMs >= 2500 && decision.durationMs <= 4000);
   }
 
-  // 特殊行为：默认关闭；开启后双条件+概率；缺一不触发
+  // 特殊行为：双条件+概率；关闭或缺一不触发
   const lowState = dominantState("low_mood");
   for (let seq = 1; seq <= 1000; seq++) {
-    assert.notEqual(selectBehavior(context(lowState, seq, { specialEligible: true })).category, "special");
+    assert.notEqual(selectBehavior(context(lowState, seq, { specialEligible: true }), { ...enabled, specialBehaviorEnabled: false }).category, "special");
   }
   let specialHits = 0;
   let normalHits = 0;
+  const specialIds = new Set<BehaviorId>();
   for (let seq = 1; seq <= 1000; seq++) {
     const decision = selectBehavior(context(lowState, seq, { specialEligible: true }), enabled);
-    if (decision.category === "special") { specialHits++; assert.ok(["drink", "smoke"].includes(decision.behaviorId)); } else normalHits++;
+    if (decision.category === "special") { specialHits++; specialIds.add(decision.behaviorId); assert.ok(["drink", "smoke"].includes(decision.behaviorId)); } else normalHits++;
   }
   assert.ok(specialHits > 0 && normalHits > 0);
+  assert.deepEqual([...specialIds].sort(), ["drink", "smoke"]);
   for (let seq = 1; seq <= 300; seq++) {
     assert.notEqual(selectBehavior(context(lowState, seq, { specialEligible: false }), enabled).category, "special");
     assert.notEqual(selectBehavior(context(dominantState("cheerfulness"), seq, { specialEligible: true }), enabled).category, "special");
   }
 
-  // 连续低落候选判定（A/B 语义、中断、纠正、同日多条）
-  const opts = { lowMoodEmotionLabels: ["sadness"] as const, streakDaysRequired: 3, dayFourSemantics: "A" as const };
+  // 已确认的四个自然日，包含当天；纠正读取当前有效标签。
+  const opts = BEHAVIOR_V2.special;
   const threeDays = [entry("a", "2026-11-10", "sadness"), entry("b", "2026-11-11", "sadness"), entry("c", "2026-11-12", "sadness")];
-  assert.equal(computeSpecialEligibility(threeDays, DAY, opts), true);
-  assert.equal(computeSpecialEligibility(threeDays, DAY, { ...opts, dayFourSemantics: "B" }), false);
-  assert.equal(computeSpecialEligibility([...threeDays, entry("d", DAY, "sadness")], DAY, { ...opts, dayFourSemantics: "B" }), true);
-  assert.equal(computeSpecialEligibility([entry("a", "2026-11-10", "sadness"), entry("b", "2026-11-11", "sadness"), entry("c", DAY, "sadness")], DAY, opts), false);
-  assert.equal(computeSpecialEligibility([entry("b", "2026-11-11", "sadness"), entry("c", "2026-11-12", "sadness")], DAY, opts), false);
-  assert.equal(computeSpecialEligibility([entry("a", "2026-11-10", "sadness"), entry("b", "2026-11-11", "sadness"), entry("c", "2026-11-12", "joy")], DAY, opts), false);
-  assert.equal(computeSpecialEligibility([...threeDays, entry("a2", "2026-11-10", "sadness")], DAY, opts), true);
+  const fourDays = [...threeDays, entry("d", DAY, "sadness")];
+  assert.equal(computeSpecialEligibility(threeDays, DAY, opts), false);
+  assert.equal(computeSpecialEligibility(fourDays, DAY, opts), true);
+  assert.equal(computeSpecialEligibility([...threeDays, entry("a2", "2026-11-10", "sadness")], DAY, opts), false);
+  assert.equal(computeSpecialEligibility([...fourDays, entry("a2", DAY, "sadness")], DAY, opts), true);
+  assert.equal(computeSpecialEligibility(fourDays.filter(e => e.dayKey !== "2026-11-11"), DAY, opts), false);
+  for (const label of ["joy", "tired", "anxiety", "mixed"] as const) {
+    assert.equal(computeSpecialEligibility(fourDays.map(e => e.id === "b" ? { ...e, effectiveEmotion: emotion(label) } : e), DAY, opts), false);
+  }
   assert.equal(computeSpecialEligibility([], DAY, opts), false);
+  assert.equal(computeSpecialEligibility(fourDays, "2026-11-14", opts), false);
+  assert.equal(BEHAVIOR_V2.specialProbability, .15);
+  assert.deepEqual(BEHAVIOR_V2.special.behaviors.map(b => b.baseWeight), [1, 1]);
+  assert.ok(BEHAVIOR_V2.behaviors.filter(b => b.category === "special").every(b => b.durationMs === 8000));
 
   // 纯函数不修改输入；性格派生不受行为选择影响
   const frozenContext = context(s0, 3);
