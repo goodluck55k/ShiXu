@@ -10,7 +10,7 @@ const actions = [
   ["走路", "walk", "walk"], ["坐下与起身", "sit", "none"],
   ["安静休息", "kneel", "none"], ["蜷缩", "curl", "none"],
   ["躲到角落", "corner", "none"], ["靠窗沉思", "window", "none"], ["挥翅", "stand", "wave"],
-  ["看向用户", "stand", "react"], ["轻微蹦跳", "stand", "bounce"],
+  ["看向用户", "stand", "react"], ["轻微蹦跳", "stand", "bounce"], ["开心晃动", "stand", "sway"],
 ] as const;
 const directions: [PenguinDirection, string][] = [["front", "正面"], ["left", "左侧"], ["right", "右侧"], ["back", "背面"]];
 const idle: CharacterView = { pose: "stand", expression: "neutral", animation: "none", visibleLayerIds: [], effects: [] };
@@ -28,7 +28,7 @@ export function ActionPreview() {
     return () => { window.clearTimeout(timer); document.removeEventListener("visibilitychange", hidden); };
   }, [running, run]);
   const selected = actions[choice];
-  const view = running ? { ...idle, pose: selected[1], animation: motionOff ? "none" : selected[2] } : idle;
+  const view = running ? { ...idle, pose: selected[1], animation: selected[2], behaviorId: selected[1] === "window" ? "window_gaze" : undefined } : idle;
   return <section>
     <h2>侧背面与动作 · 视觉待用户验收</h2>
     <p>原创延展，动作参数待验收。选择动作后播放四秒并回到待机；系统低动态设置也会生效。</p>

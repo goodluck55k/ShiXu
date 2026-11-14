@@ -9,10 +9,12 @@ export function PenguinPose({ direction = "front", seated = false, rest, express
   if (direction === "front" && !seated) return <PenguinFront expression={expression} />;
   if (direction === "front") return <svg viewBox="0 0 195 201" width="195" height="201" aria-label="坐着的企鹅" role="img">
     {!rest && <path d="M34 122 Q13 139 17 158 Q19 166 31 162 L52 143 M161 122 Q182 139 178 158 Q176 166 164 162 L143 143" fill={body} stroke={ink} strokeWidth="3.5" strokeLinejoin="round" />}
+    <g transform={rest === "curl" ? "translate(16 27) scale(.84 .85)" : rest === "kneel" ? "translate(0 10) scale(1 .94)" : undefined}>
     <path d="M97 28 C58 27 37 50 32 82 C28 104 19 133 24 153 C28 174 53 184 97 184 C141 184 167 174 171 153 C176 133 167 104 163 82 C158 50 137 27 97 28 Z" fill={body} stroke={ink} strokeWidth="3.5" />
     <path d="M96 66 C88 48 63 46 53 67 C48 78 47 92 39 111 C28 139 35 161 54 170 C76 180 120 180 141 170 C160 161 167 139 156 111 C148 92 147 78 142 67 C132 46 107 48 99 66 Z" fill={belly} stroke={ink} strokeWidth="2.4" />
-    <g transform={rest === "curl" ? "translate(0 20)" : "translate(0 14)"}><PenguinFace expression={expression} /></g>
-    {rest && <path d={rest === "kneel" ? "M34 130 Q38 148 58 156 Q72 160 77 153 Q77 147 66 143 L45 125 Z M161 130 Q157 148 137 156 Q123 160 118 153 Q118 147 129 143 L150 125 Z" : "M31 125 Q36 151 64 160 Q81 164 84 156 Q83 149 69 146 L43 120 Z M164 125 Q159 151 131 160 Q114 164 111 156 Q112 149 126 146 L152 120 Z"} fill={body} stroke={ink} strokeWidth="3.5" strokeLinejoin="round" />}
+    <g transform={rest === "curl" ? "translate(0 29)" : rest === "kneel" ? "rotate(-8 97 75) translate(0 13)" : "translate(0 14)"}><PenguinFace expression={rest === "kneel" && expression === "neutral" ? "soft" : expression} /></g>
+    {rest && <path d={rest === "kneel" ? "M34 119 Q21 141 29 157 Q34 165 44 160 Q49 155 44 143 L43 120 Z M161 119 Q174 141 166 157 Q161 165 151 160 Q146 155 151 143 L152 120 Z" : "M30 109 Q27 139 53 157 Q70 168 91 157 Q97 151 88 145 Q76 151 62 140 L45 112 Z M165 109 Q168 139 142 157 Q125 168 104 157 Q98 151 107 145 Q119 151 133 140 L150 112 Z"} fill={body} stroke={ink} strokeWidth="3.5" strokeLinejoin="round" />}
+    </g>
     <path d="M42 166 Q23 167 25 177 Q27 185 51 185 Q70 185 75 178 Q74 171 60 169 Z M153 166 Q172 167 170 177 Q168 185 144 185 Q125 185 120 178 Q121 171 135 169 Z" fill={foot} stroke={ink} strokeWidth="3.5" />
   </svg>;
   if (direction === "back") return <svg viewBox="0 0 195 201" width="195" height="201" role="img" aria-label="企鹅背面">
@@ -23,7 +25,7 @@ export function PenguinPose({ direction = "front", seated = false, rest, express
   </svg>;
   return <svg viewBox="0 0 195 201" width="195" height="201" role="img" aria-label={direction === "left" ? "企鹅左侧面" : "企鹅右侧面"}>
     <g transform={direction === "left" ? "translate(195 0) scale(-1 1)" : undefined}>
-      <path d="M69 174 Q51 173 48 181 Q49 188 73 189 Q86 189 91 184 Z" fill={foot} stroke={ink} strokeWidth="3.5" />
+      <g data-part="side-back-foot" style={{ transformOrigin: "72px 178px" }}><path d="M69 174 Q51 173 48 181 Q49 188 73 189 Q86 189 91 184 Z" fill={foot} stroke={ink} strokeWidth="3.5" /></g>
       <path d="M95 12 C60 11 41 30 36 62 C34 79 28 100 30 130 C31 162 47 180 78 184 C103 188 132 183 143 167 C154 151 154 128 149 108 C145 90 144 72 139 55 C132 27 117 12 95 12 Z" fill={body} stroke={ink} strokeWidth="3.5" />
       <path d="M121 38 C136 39 142 53 142 68 C142 82 147 96 151 110 C156 132 151 158 137 169 C126 178 110 180 96 178 C113 168 118 151 119 131 C121 106 112 91 111 72 C110 55 111 43 121 38 Z" fill={belly} stroke={ink} strokeWidth="2.4" />
       <path d="M69 82 C55 91 50 109 48 130 Q47 146 57 148 Q69 148 76 133 L88 100 Z" fill={body} stroke={ink} strokeWidth="3.5" strokeLinejoin="round" />

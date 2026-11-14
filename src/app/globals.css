@@ -23,8 +23,12 @@ button, textarea { font:inherit; } button { cursor:pointer; } button:disabled { 
 .action-wave [data-part="right-wing"] { animation: penguin-wave 1s ease-in-out 3; }
 .action-walk .penguin-body { animation: penguin-walk .7s ease-in-out infinite; }
 .action-walk [data-part="side-foot"] { animation: penguin-step .7s ease-in-out infinite; }
+.action-walk [data-part="side-back-foot"] { animation: penguin-step .7s ease-in-out infinite reverse; }
 .action-bounce .penguin-body { animation: penguin-bounce 1.1s ease-in-out 3; }
 .action-react .penguin-body { animation: penguin-look 1.4s ease-in-out 2; }
+.action-react [data-part="face"] { transform-box:fill-box; transform-origin:center; animation: penguin-face-look 1.4s ease-in-out 2; }
+.is-pondering [data-part="face"] { transform-box:fill-box; transform-origin:center; rotate:-12deg; translate:4px -4px; }
+.ponder-mark { animation: ponder-float 2.4s ease-in-out infinite; }
 .standing-pose,.sitting-pose { transition:opacity .45s ease, translate .45s ease; }
 .standing-pose.pose-hidden { opacity:0; translate:0 10px; }
 .sitting-pose.pose-hidden { opacity:0; translate:0 -10px; }
@@ -33,21 +37,24 @@ button, textarea { font:inherit; } button { cursor:pointer; } button:disabled { 
 .turn-right { animation: turn-right 2.8s steps(1,end) both; }
 .turn-back { animation: turn-back 2.8s steps(1,end) both; }
 .turn-left { animation: turn-left 2.8s steps(1,end) both; }
-@keyframes penguin-breathe { 50% { transform:translate(22px,111px) scale(1.012,1.018); } }
+@keyframes penguin-breathe { 50% { scale:calc(1 + .012 * var(--amp)) calc(1 + .025 * var(--amp)); } }
 @keyframes penguin-blink { 0%,45%,49%,100% { scale:1 1; } 47% { scale:1 .08; } }
-@keyframes penguin-sway { 25% { rotate:-2deg; } 75% { rotate:2deg; } }
-@keyframes penguin-wave { 0%,100% { rotate:0deg; } 50% { rotate:-25deg; } }
-@keyframes penguin-walk { 0%,100% { rotate:-3deg; translate:0 0; } 50% { rotate:3deg; translate:0 -3px; } }
-@keyframes penguin-step { 0%,100% { rotate:-12deg; } 50% { rotate:12deg; } }
-@keyframes penguin-bounce { 0%,100% { translate:0 0; scale:1 1; } 15% { scale:1.04 .96; } 45% { translate:0 -12px; scale:.98 1.02; } 75% { translate:0 0; scale:1.03 .97; } }
-@keyframes penguin-look { 25%,65% { rotate:-4deg; scale:1.025; } }
+@keyframes penguin-sway { 25% { rotate:calc(-5deg * var(--amp)); } 75% { rotate:calc(5deg * var(--amp)); } }
+@keyframes penguin-wave { 0%,100% { rotate:0deg; } 50% { rotate:calc(-55deg * var(--amp)); } }
+@keyframes penguin-walk { 0%,100% { rotate:calc(-3deg * var(--amp)); translate:0 0; } 50% { rotate:calc(3deg * var(--amp)); translate:0 calc(-5px * var(--amp)); } }
+@keyframes penguin-step { 0%,100% { rotate:calc(-20deg * var(--amp)); } 50% { rotate:calc(20deg * var(--amp)); } }
+@keyframes penguin-bounce { 0%,100% { translate:0 0; scale:1 1; } 15% { scale:calc(1 + .06 * var(--amp)) calc(1 - .07 * var(--amp)); } 45% { translate:0 calc(-18px * var(--amp)); scale:calc(1 - .03 * var(--amp)) calc(1 + .04 * var(--amp)); } 75% { translate:0 0; scale:calc(1 + .05 * var(--amp)) calc(1 - .05 * var(--amp)); } }
+@keyframes penguin-look { 25%,65% { rotate:calc(-4deg * var(--amp)); scale:calc(1 + .025 * var(--amp)); } }
+@keyframes penguin-face-look { 25%,65% { translate:calc(-5px * var(--amp)) calc(3px * var(--amp)); rotate:calc(-7deg * var(--amp)); } }
+@keyframes ponder-float { 50% { translate:0 -4px; opacity:.65; } }
 @keyframes penguin-sit { from { translate:0 -12px; } to { translate:0 0; } }
 /* All four layers share the same boundaries: exactly one is opaque at every step. */
 @keyframes turn-front { 0% { opacity:1; } 12% { opacity:0; } 88%,100% { opacity:1; } }
 @keyframes turn-right { 0% { opacity:0; } 12% { opacity:1; } 38%,100% { opacity:0; } }
 @keyframes turn-back { 0% { opacity:0; } 38% { opacity:1; } 62%,100% { opacity:0; } }
 @keyframes turn-left { 0% { opacity:0; } 62% { opacity:1; } 88%,100% { opacity:0; } }
-.scene-character.is-paused .penguin-action *, .motion-off * { animation-play-state:paused !important; }
+.scene-character.is-paused .penguin-action * { animation-play-state:paused !important; }
+.motion-off * { animation:none !important; transition:none !important; }
 .motion-off .turn-front,.motion-off .turn-right,.motion-off .turn-back,.motion-off .turn-left { animation:none !important; }
 .motion-off .turn-front { opacity:1; }
 @media (prefers-reduced-motion:reduce) { .penguin-action * { animation:none !important; } .turn-front { opacity:1; } }
