@@ -1,6 +1,6 @@
 import type { BehaviorRuleConfig } from "@/domain/behavior";
 
-// 候选参数，待验收。specialBehaviorEnabled 正式保持 false，直到「低落日」标签映射与第 4 天语义经用户确认。
+// 特殊行为规则已确认；默认开启，正式触发待用户验收。
 export const BEHAVIOR_V2: BehaviorRuleConfig = {
   rulesVersion: "behavior-v2",
   behaviors: [
@@ -26,14 +26,14 @@ export const BEHAVIOR_V2: BehaviorRuleConfig = {
     { id: "sit_alone", label: "独自坐着", category: "dominant", dominantId: "low_mood", baseWeight: 1, pose: "sit", expression: "blank", animation: "none", durationMs: 9000 },
     { id: "slow_walk", label: "缓慢走动", category: "dominant", dominantId: "low_mood", baseWeight: 1, pose: "walk", expression: "blank", animation: "walk", durationMs: 9000 },
     { id: "window_gaze", label: "靠窗沉思", category: "dominant", dominantId: "low_mood", baseWeight: 1, pose: "window", expression: "blank", animation: "none", durationMs: 9000 },
-    { id: "drink", label: "喝酒", category: "special", baseWeight: 1, pose: "sit", expression: "blank", animation: "none", durationMs: 6000 },
-    { id: "smoke", label: "抽烟", category: "special", baseWeight: 1, pose: "stand", expression: "blank", animation: "none", durationMs: 6000 },
+    { id: "drink", label: "喝酒", category: "special", baseWeight: 1, pose: "sit", expression: "blank", animation: "none", durationMs: 8000 },
+    { id: "smoke", label: "抽烟", category: "special", baseWeight: 1, pose: "stand", expression: "blank", animation: "none", durationMs: 8000 },
     { id: "respond_call", label: "回应呼唤", category: "interaction", interactionType: "call", baseWeight: 1, pose: "stand", expression: "neutral", animation: "wave", durationMs: 3000 },
     { id: "respond_pat", label: "回应抚摸", category: "interaction", interactionType: "pat", baseWeight: 1, pose: "sit", expression: "soft", animation: "react", durationMs: 3000 },
     { id: "respond_observe", label: "回应观察", category: "interaction", interactionType: "observe", baseWeight: 1, pose: "stand", expression: "neutral", animation: "react", durationMs: 3000 },
   ],
   ambientShare: 0.15,
-  specialBehaviorEnabled: false,
+  specialBehaviorEnabled: true,
   specialProbability: 0.15,
   special: {
     dominantId: "low_mood",
@@ -41,9 +41,9 @@ export const BEHAVIOR_V2: BehaviorRuleConfig = {
       { id: "drink", baseWeight: 1 },
       { id: "smoke", baseWeight: 1 },
     ],
-    streakDaysRequired: 3,
+    streakDaysRequired: 4,
     lowMoodEmotionLabels: ["sadness"],
-    dayFourSemantics: "A",
+    dayFourSemantics: "B",
   },
   minShare: 0.05,
   maxConsecutive: 2,

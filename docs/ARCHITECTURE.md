@@ -2,7 +2,7 @@
 
 > 状态：V1 架构基线。标注「已实现」的以 `main` 分支代码为准；「阶段 N 规划」表示尚未合入。产品范围见 [PRODUCT_SPEC](PRODUCT_SPEC.md)，性格与行为参数见 [COMPANION_SPEC](COMPANION_SPEC.md)。
 >
-> 存档 `schemaVersion` 为 3；本文档版本与存档版本无关。截至本版，`main` 已含 `schemaVersion` 3、五维 `personality-v2` 台账与迁移（PR #18）、主导行为引擎（PR #19）、离线自主生活（PR #20）、久别重逢（PR #22）与 AI 情绪识别复核（PR #23）；阶段七的原创企鹅正面母版（PR #27）与九种组合表情（PR #28）已合入，侧面/背面、基础动作、抽烟/喝酒特殊动作、生活空间与正式 UI 尚未开发，设计基线见 [STAGE7_DESIGN](STAGE7_DESIGN.md)。连续低落特殊行为规则已于 2026-11-14 定稿，但代码未同步且功能默认关闭，见 §4.3。
+> 存档 `schemaVersion` 为 3；本文档版本与存档版本无关。截至本版，`main` 已含 `schemaVersion` 3、五维 `personality-v2` 台账与迁移（PR #18）、主导行为引擎（PR #19）、离线自主生活（PR #20）、久别重逢（PR #22）与 AI 情绪识别复核（PR #23）；阶段七的原创企鹅正面母版（PR #27）与九种组合表情（PR #28）已合入，侧背面与基础动作（PR #30）、特殊动作视觉（PR #31）已合入。生活空间与正式 UI 尚未开发；本分支接入特殊行为并默认开启，正式触发待用户验收，见 §4.3。
 
 ## 1. 架构原则
 
@@ -90,12 +90,12 @@ graph TD
 | `src/config/reunion.ts` | 阶段五已实现（PR #22） | `ReunionRuleConfig` |
 | 阶段七角色/表情/场景配置 | 规划，未创建 | 表情与动作映射、生活空间配置；文件名、版本与参数待任务卡确认 |
 | `src/lib/storage/{port,localStorageAdapter}.ts` | 已实现 | 存储接口与浏览器实现 |
-| `src/components/character/CharacterRenderer.tsx` | 已实现（临时姿态/表情/动画载体） | 已接入原创企鹅正面母版（PR #27）与九种组合表情（PR #28）；侧背、基础动作、特殊动作与正式场景尚未接入 |
+| `src/components/character/CharacterRenderer.tsx` | 已实现（临时姿态/表情/动画载体） | 已接入原创企鹅正面母版（PR #27）与九种组合表情（PR #28）；侧背、基础动作与特殊动作已接入；正式场景尚未实现 |
 | `src/components/character/` 阶段七组件 | 规划，未创建 | 企鹅身体/面部、表情、动作与生活空间组件；具体文件与资源路径由任务卡确认，不得把规划路径当作已有文件 |
 | `src/components/character/OfflineLifePanel.tsx` | 阶段四已实现（PR #20） | 只读已落盘离线事件，区分本次与历史；不写日记/回忆/分数 |
 | `src/components/character/ReunionPanel.tsx` | 阶段五已实现（PR #22） | 只渲染应用层已提交的一次性问候；回答/跳过仅本地临时状态 |
 | `src/application/useBehaviorRuntime.ts` | 阶段三已实现（PR #19） | 行为调度、隐藏暂停、互动、保存后一次性反馈、低动态降级；不写存档 |
-| `src/application/lowMoodStreak.ts` | 阶段三已实现（PR #19，候选判定，待按定稿规则同步） | 连续低落日只读判定；当前为“截至昨日 3 天 + 语义 A”，与 COMPANION_SPEC §3.5 的连续四个自然日/语义 B 不一致；正式 `specialBehaviorEnabled=false` 不接入触发 |
+| `src/application/lowMoodStreak.ts` | 本分支同步定稿规则 | 只读有效情绪与冻结 dayKey，连续四天含当天；正式配置已开启，待用户验收 |
 | `src/components/emotion/*`、`src/components/memories/*` | 已实现 | 记录、纠正、历史界面 |
 
 阶段二不要求一次性重命名所有文件；但新代码必须落在上表声明的目标位置，旧文件只做兼容或删除，不允许出现两份性格实现，也不允许把离线/重逢逻辑塞进 `personality.ts`。
@@ -256,7 +256,7 @@ interface BehaviorRuleConfig {
     durationMs: number;               // 自主行为持续时间；互动改用 interactionDurationMs 区间
   }>;
   ambientShare: number;               // 候选 0.15
-  specialBehaviorEnabled: boolean;    // 默认 false；规则已确认，但须完成特殊动作与触发实现并验收后才可启用
+  specialBehaviorEnabled: boolean;    // 本分支默认 true；正式触发待用户验收
   specialProbability: number;         // 已确认 0.15；每次具备资格判定命中概率
   special: {
     dominantId: "low_mood";
@@ -276,7 +276,7 @@ interface BehaviorRuleConfig {
 }
 ```
 
-行为决策不写 `Snapshot`，不需要 `eventId` 幂等；互动反馈与保存后情绪表现只存在于运行时内存。特殊行为不是必然触发；只有 `specialEligible`、主导为 `low_mood`、配置开启且概率命中时才可能发生。特殊行为规则（`sadness` 唯一标签、连续四个自然日、第 4 天当天保存后具备资格即语义 B、`specialProbability = 0.15`、停止条件）已于 2026-11-14 定稿，详见 [COMPANION_SPEC](COMPANION_SPEC.md) §3.5。当前代码仍是候选实现且 `specialBehaviorEnabled=false`：`computeSpecialEligibility` 为“截至昨日连续 3 天 + 语义 A”，`src/config/behavior.ts` 的 `streakDaysRequired=3` / `dayFourSemantics="A"` 尚未同步；在独立实现与验收任务完成前不得启用或视为已实现。
+行为决策不写 `Snapshot`，不需要 `eventId` 幂等；互动反馈与保存后情绪表现只存在于运行时内存。特殊行为不是必然触发；只有 `specialEligible`、主导为 `low_mood`、配置开启且概率命中时才可能发生。特殊行为规则（`sadness` 唯一标签、连续四个自然日、第 4 天当天保存后具备资格即语义 B、`specialProbability = 0.15`、停止条件）已于 2026-11-14 定稿，详见 [COMPANION_SPEC](COMPANION_SPEC.md) §3.5。本分支使用 `streakDaysRequired=4` / `dayFourSemantics="B"`，运行时在 8 秒后恢复普通行为；默认开启，正式触发待用户验收。规则版本保持 `behavior-v2`，以免改变其他行为的确定性种子。
 
 阶段三实现（本分支）：`selectBehavior` 按 interaction → special → ambient → dominant 固定顺序选择；抽样使用显式 `createBehaviorRng(seed, dayKey, sequence, rulesVersion)`，相同上下文同结果；`minShare` 以权重下限公式保证同池每个候选长期份额不低于配置值；结果与 `lastBehaviorId` 相同且 `consecutiveCount >= maxConsecutive` 时按配置顺序轮换同池下一个。`selectSaveFeedback(base, emotion, config)` 只生成运行时一次性反馈决策（reasonCode `save_feedback`），不写存档。应用层 `useBehaviorRuntime` 负责可见调度、隐藏暂停、恢复重读、三种互动打断与恢复、`lastConfirmedSave` 一次性消费（会话级去重）、`prefers-reduced-motion` 降级；`computeSpecialEligibility` 在应用层只读计算连续低落日，正式配置关闭时不参与触发。
 

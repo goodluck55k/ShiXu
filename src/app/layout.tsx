@@ -1,8 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
-import { AppProvider } from "@/application/AppProvider";
-import { AppShell } from "@/components/AppShell";
+import { AppFrame } from "@/components/AppFrame";
 
 export const metadata: Metadata = {
   title: "拾绪 ShiXu · 情绪陪伴日记",
@@ -18,7 +17,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="zh-CN">
-      <body className="antialiased"><AppProvider><AppShell>{children}</AppShell></AppProvider></body>
+      <body className="antialiased"><AppFrame>{children}</AppFrame></body>
     </html>
   );
 }
