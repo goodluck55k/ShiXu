@@ -1,19 +1,18 @@
 import type { CSSProperties } from "react";
+import { PenguinFace } from "./PenguinFace";
 
 // Sampled from the supplied concept; kept together for visual iteration.
 const COLORS = {
   body: "#494139",
   outline: "#211a15",
   belly: "#fcf5eb",
-  eye: "#100e0c",
-  beak: "#ed9e25",
   foot: "#ef9e21",
 };
 
-type PenguinFrontProps = { size?: number; style?: CSSProperties };
+type PenguinFrontProps = { size?: number; style?: CSSProperties; expression?: string };
 
 /** Static, presentation-only front master. Coordinates follow the reference crop. */
-export function PenguinFront({ size = 195, style }: PenguinFrontProps) {
+export function PenguinFront({ size = 195, style, expression = "neutral" }: PenguinFrontProps) {
   return (
     <svg viewBox="0 0 195 201" width={size} height={size * 201 / 195} style={style} role="img" aria-label="正面的黑白企鹅">
       {/* The wing groups sit behind the continuous head/body silhouette. */}
@@ -32,9 +31,7 @@ export function PenguinFront({ size = 195, style }: PenguinFrontProps) {
       <g data-part="right-foot" style={{ transformOrigin: "130px 177px" }}>
         <path d="M117 179 C112 180 109 182 111 185 C114 188 122 190 131 189 C140 189 147 186 148 182 C149 178 146 174 142 175 C134 175 125 177 117 179 Z" fill={COLORS.foot} stroke={COLORS.outline} strokeWidth="3.5" />
       </g>
-      <circle data-part="left-eye" cx="68" cy="52" r="6.8" fill={COLORS.eye} />
-      <circle data-part="right-eye" cx="121" cy="52" r="6.8" fill={COLORS.eye} />
-      <ellipse data-part="beak" cx="94.5" cy="57" rx="9.6" ry="5.4" fill={COLORS.beak} stroke={COLORS.outline} strokeWidth="1.5" />
+      <PenguinFace expression={expression} />
     </svg>
   );
 }
