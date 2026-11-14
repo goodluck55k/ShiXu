@@ -53,6 +53,7 @@ export function useBehaviorRuntimeState(snapshot: Snapshot | null, lastConfirmed
   const [paused, setPaused] = useState(false);
 
   const sequenceRef = useRef(initialSequence);
+  const simulatedConsumedSaveEventId = useRef<string | null>(null);
   const lastRef = useRef<{ id: BehaviorId | null; count: number }>({ id: null, count: 0 });
   const autonomousRef = useRef<BehaviorDecision | null>(null);
   const modeRef = useRef<"auto" | "interaction" | "feedback">("auto");
@@ -227,8 +228,10 @@ export function useBehaviorRuntimeState(snapshot: Snapshot | null, lastConfirmed
 
   useEffect(() => {
     if (!lastConfirmedSave) return;
-    if (lastConfirmedSave.eventId !== consumedSaveEventId) {
-      consumedSaveEventId = lastConfirmedSave.eventId;
+    const consumedId = simulation ? simulatedConsumedSaveEventId.current : consumedSaveEventId;
+    if (lastConfirmedSave.eventId !== consumedId) {
+      if (simulation) simulatedConsumedSaveEventId.current = lastConfirmedSave.eventId;
+      else consumedSaveEventId = lastConfirmedSave.eventId;
       const previous = autonomousRef.current;
       const base = previous?.category === "special" ? selectNext(false) : previous ?? selectNext(false);
       if (!base) return;
@@ -244,7 +247,7 @@ export function useBehaviorRuntimeState(snapshot: Snapshot | null, lastConfirmed
       clearEnd();
       endTimerRef.current = window.setTimeout(resumeAuto, BEHAVIOR_V2.saveFeedbackDurationMs);
     }
-  }, [lastConfirmedSave, clearTick, clearEnd, clearAction, selectNext, resumeAuto]);
+  }, [lastConfirmedSave, simulation, clearTick, clearEnd, clearAction, selectNext, resumeAuto]);
 
   const view = useMemo(() => {
     if (!snapshot) return null;
