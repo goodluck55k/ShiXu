@@ -18,19 +18,19 @@ export function PenguinFront({ size = 195, style }: PenguinFrontProps) {
     <svg viewBox="0 0 195 201" width={size} height={size * 201 / 195} style={style} role="img" aria-label="正面的黑白企鹅">
       {/* The wing groups sit behind the continuous head/body silhouette. */}
       <g data-part="left-wing" style={{ transformOrigin: "39px 91px" }}>
-        <path d="M36 84 C27 92 21 104 13 116 C5 128 1 144 5 154 C7 161 13 166 22 166 C27 166 30 162 32 155 L48 103 Z" fill={COLORS.body} stroke={COLORS.outline} strokeWidth="3.5" strokeLinejoin="round" />
+        <path d="M37 76 C29 84 25 94 18 104 C11 114 5 124 5 132 C5 138 9 141 15 141 C21 142 25 139 27 134 C30 123 37 103 48 92 Z" fill={COLORS.body} stroke={COLORS.outline} strokeWidth="3.5" strokeLinejoin="round" />
       </g>
       <g data-part="right-wing" style={{ transformOrigin: "156px 91px" }}>
-        <path d="M159 84 C168 93 174 105 181 117 C189 130 193 145 189 155 C187 162 181 166 173 166 C167 166 164 161 162 154 L147 103 Z" fill={COLORS.body} stroke={COLORS.outline} strokeWidth="3.5" strokeLinejoin="round" />
+        <path d="M158 76 C166 84 170 94 177 104 C184 115 190 125 190 133 C190 139 186 142 180 141 C174 142 170 139 168 134 C164 122 158 103 147 92 Z" fill={COLORS.body} stroke={COLORS.outline} strokeWidth="3.5" strokeLinejoin="round" />
       </g>
-      <path data-part="body" d="M97 12 C59 11 39 30 31 60 C28 73 29 81 30 92 C26 108 21 127 20 143 C22 167 35 180 54 184 C76 189 117 189 140 184 C160 180 173 166 175 143 C174 126 169 108 165 92 C166 80 167 71 164 59 C157 30 137 11 97 12 Z" fill={COLORS.body} stroke={COLORS.outline} strokeWidth="3.5" strokeLinejoin="round" />
-      <path data-part="face-belly" d="M95 53 C92 39 82 33 71 35 C57 37 48 47 46 62 C44 77 40 88 34 101 C27 116 27 132 30 146 C34 168 48 177 65 180 C84 184 111 184 130 180 C149 177 162 167 165 146 C168 131 167 115 160 100 C154 87 151 75 149 61 C147 46 138 37 125 35 C112 33 101 39 99 53 Z" fill={COLORS.belly} stroke={COLORS.outline} strokeWidth="2.4" strokeLinejoin="round" />
+      <path data-part="body" d="M97 12 C59 11 39 30 31 60 C28 73 27 82 24 92 C19 106 19 126 21 142 C23 164 34 177 53 182 C76 188 116 188 138 182 C157 177 170 164 173 143 C175 126 173 108 169 93 C166 82 166 71 164 59 C157 30 137 11 97 12 Z" fill={COLORS.body} stroke={COLORS.outline} strokeWidth="3.5" strokeLinejoin="round" />
+      <path data-part="face-belly" d="M95 53 C92 39 82 33 71 35 C57 37 48 47 46 62 C44 77 40 88 34 101 C28 115 27 132 30 145 C33 165 46 175 64 179 C83 183 109 183 128 179 C147 175 159 165 163 145 C166 130 166 115 160 100 C154 87 151 75 149 61 C147 46 138 37 125 35 C112 33 101 39 99 53 Z" fill={COLORS.belly} stroke={COLORS.outline} strokeWidth="2.4" strokeLinejoin="round" />
       {/* Feet pivot near their attachment to the body. */}
       <g data-part="left-foot" style={{ transformOrigin: "61px 177px" }}>
-        <path d="M46 176 C40 177 39 183 45 186 C52 190 68 190 78 186 C81 185 81 182 77 180 Z" fill={COLORS.foot} stroke={COLORS.outline} strokeWidth="3.5" />
+        <path d="M47 175 C42 174 40 178 41 182 C42 187 50 189 59 189 C68 190 76 188 79 185 C81 182 77 180 72 179 C63 177 54 175 47 175 Z" fill={COLORS.foot} stroke={COLORS.outline} strokeWidth="3.5" />
       </g>
       <g data-part="right-foot" style={{ transformOrigin: "130px 177px" }}>
-        <path d="M112 180 C108 182 108 185 112 186 C122 190 137 190 144 186 C150 183 149 177 143 176 Z" fill={COLORS.foot} stroke={COLORS.outline} strokeWidth="3.5" />
+        <path d="M117 179 C112 180 109 182 111 185 C114 188 122 190 131 189 C140 189 147 186 148 182 C149 178 146 174 142 175 C134 175 125 177 117 179 Z" fill={COLORS.foot} stroke={COLORS.outline} strokeWidth="3.5" />
       </g>
       <circle data-part="left-eye" cx="68" cy="52" r="6.8" fill={COLORS.eye} />
       <circle data-part="right-eye" cx="121" cy="52" r="6.8" fill={COLORS.eye} />
