@@ -8,7 +8,7 @@ export type PenguinDirection = "front" | "left" | "right" | "back";
 export function PenguinPose({ direction = "front", seated = false, rest, expression = "neutral" }: { direction?: PenguinDirection; seated?: boolean; rest?: "kneel" | "curl"; expression?: string }) {
   if (direction === "front" && !seated) return <PenguinFront expression={expression} />;
   if (direction === "front") return <svg viewBox="0 0 195 201" width="195" height="201" aria-label="坐着的企鹅" role="img">
-    <path d="M34 122 Q13 139 17 158 Q19 166 31 162 L52 143 M161 122 Q182 139 178 158 Q176 166 164 162 L143 143" fill={body} stroke={ink} strokeWidth="3.5" strokeLinejoin="round" />
+    {!rest && <path d="M34 122 Q13 139 17 158 Q19 166 31 162 L52 143 M161 122 Q182 139 178 158 Q176 166 164 162 L143 143" fill={body} stroke={ink} strokeWidth="3.5" strokeLinejoin="round" />}
     <path d="M97 28 C58 27 37 50 32 82 C28 104 19 133 24 153 C28 174 53 184 97 184 C141 184 167 174 171 153 C176 133 167 104 163 82 C158 50 137 27 97 28 Z" fill={body} stroke={ink} strokeWidth="3.5" />
     <path d="M96 66 C88 48 63 46 53 67 C48 78 47 92 39 111 C28 139 35 161 54 170 C76 180 120 180 141 170 C160 161 167 139 156 111 C148 92 147 78 142 67 C132 46 107 48 99 66 Z" fill={belly} stroke={ink} strokeWidth="2.4" />
     <g transform={rest === "curl" ? "translate(0 20)" : "translate(0 14)"}><PenguinFace expression={expression} /></g>
