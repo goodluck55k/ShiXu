@@ -57,6 +57,27 @@ button, textarea { font:inherit; } button { cursor:pointer; } button:disabled { 
 .motion-off * { animation:none !important; transition:none !important; }
 .motion-off .turn-front,.motion-off .turn-right,.motion-off .turn-back,.motion-off .turn-left { animation:none !important; }
 .motion-off .turn-front { opacity:1; }
+/* Special sequences are presentation-only. Static fallback is a seated pose. */
+.special-standing { opacity:0; animation:special-standing var(--special-duration) ease both; }
+.special-seated { transform-box:fill-box; transform-origin:50% 95%; animation:special-sit var(--special-duration) ease both; }
+.special-wing { transform-box:view-box; animation:special-wing var(--special-duration) ease-in-out both; }
+.special-face { transform-box:fill-box; transform-origin:center; animation:special-face var(--special-duration) ease-in-out both; }
+.special-prop { animation:special-prop var(--special-duration) ease both; }
+.smoke-layer { opacity:0; animation:smoke-drift var(--special-duration) ease-in-out both; }
+.special-drink .special-seated { animation-name:drink-sit; }
+.special-drink .special-wing { animation-name:drink-wing; }
+.drink-bottle { transform-box:view-box; transform-origin:139px 145px; animation:drink-bottle var(--special-duration) ease-in-out both; }
+@keyframes special-standing { 0%,5% { opacity:1; } 13%,91% { opacity:0; } 100% { opacity:1; } }
+@keyframes special-sit { 0%,5% { opacity:0; } 15%,87% { opacity:1; } 96%,100% { opacity:0; } }
+@keyframes drink-sit { 0%,5% { opacity:0; rotate:0deg; } 15%,46% { opacity:1; rotate:0deg; } 58% { rotate:-2deg; } 70%,80% { rotate:4deg; } 90% { opacity:1; rotate:0deg; } 98%,100% { opacity:0; } }
+@keyframes special-wing { 0%,15%,80%,100% { rotate:0deg; } 30%,60% { rotate:-48deg; } }
+@keyframes drink-wing { 0%,20%,70%,100% { rotate:0deg; } 40%,50% { rotate:55deg; } }
+@keyframes drink-bottle { 0%,20%,70%,100% { rotate:0deg; } 40%,50% { rotate:-80deg; } }
+@keyframes special-face { 0%,15%,90%,100% { translate:0 0; rotate:0deg; } 35%,70% { translate:2px 6px; rotate:6deg; } }
+@keyframes special-prop { 0%,12%,90%,100% { opacity:0; } 20%,78% { opacity:1; } }
+@keyframes smoke-drift { 0%,30%,78%,100% { opacity:0; translate:0 0; } 43%,60% { opacity:.65; } 75% { opacity:0; translate:3px -12px; } }
+.motion-off .special-standing { opacity:0; }
+.motion-off .special-prop { opacity:1; }
 @media (prefers-reduced-motion:reduce) { .penguin-action * { animation:none !important; } .turn-front { opacity:1; } }
 .behavior-controls { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:14px 0 0; }
 .behavior-controls button { border:1px solid var(--line); background:#fffdfa; border-radius:999px; padding:7px 14px; font-size:13px; font-weight:600; color:var(--body); }
