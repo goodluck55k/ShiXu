@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { CharacterRenderer } from "@/components/character/CharacterRenderer";
 import { PenguinPose, type PenguinDirection } from "@/components/character/PenguinPoses";
 import type { CharacterView } from "@/domain/types";
+import { SPECIAL_MOTION_MS } from "@/components/character/specialMotion";
 
 const actions = [
   ["呼吸与眨眼", "stand", "breathe"], ["左右转身", "stand", "spin"],
@@ -43,6 +44,38 @@ export function ActionPreview() {
     <p aria-live="polite">{running ? `${selected[0]}：进行中` : "待机（动作已结束）"}</p>
     <div style={{ display: "flex", alignItems: "end", gap: 32 }} key={run}>
       {[180, 64].map(size => <div key={size} style={{ width: size, textAlign: "center" }}><CharacterRenderer view={view} motionOff={motionOff} /><p>{size === 180 ? "正常尺寸" : "小尺寸"}</p></div>)}
+    </div>
+  </section>;
+}
+
+export function SpecialPreview() {
+  const [choice, setChoice] = useState<"smoke" | "drink">("smoke");
+  const [active, setActive] = useState(false);
+  const [run, setRun] = useState(0);
+  const [motionOff, setMotionOff] = useState(false);
+  const [reduced, setReduced] = useState(false);
+  useEffect(() => {
+    if (!active) return;
+    const timer = window.setTimeout(() => setActive(false), SPECIAL_MOTION_MS);
+    const hidden = () => { if (document.hidden) setActive(false); };
+    document.addEventListener("visibilitychange", hidden);
+    return () => { window.clearTimeout(timer); document.removeEventListener("visibilitychange", hidden); };
+  }, [active, run]);
+  const play = (next: "smoke" | "drink") => { setChoice(next); setActive(true); setRun(n => n + 1); };
+  const view = active ? { ...idle, behaviorId: choice } : idle;
+  return <section>
+    <h2>特殊行为 · 视觉待用户验收</h2>
+    <p>仅供开发预览；播放结束或页面隐藏后回到待机，正式触发仍关闭。</p>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+      <button type="button" onClick={() => play("smoke")}>播放抽烟</button>
+      <button type="button" onClick={() => play("drink")}>播放喝酒</button>
+      <button type="button" onClick={() => play(choice)}>重新播放</button>
+      <label><input type="checkbox" checked={motionOff} onChange={e => setMotionOff(e.target.checked)} /> 关闭动画</label>
+      <label><input type="checkbox" checked={reduced} onChange={e => setReduced(e.target.checked)} /> 低动态模式</label>
+    </div>
+    <p aria-live="polite">{active ? `${choice === "smoke" ? "抽烟" : "喝酒"}：进行中` : "待机（动作已结束）"}</p>
+    <div key={run} style={{ display: "flex", alignItems: "end", gap: 32 }}>
+      {[180, 64].map(size => <div key={size} style={{ width: size, textAlign: "center" }}><CharacterRenderer view={view} motionOff={motionOff || reduced} /><p>{size === 180 ? "正常尺寸" : "64px"}</p></div>)}
     </div>
   </section>;
 }
