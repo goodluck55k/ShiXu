@@ -17,8 +17,12 @@ export function PenguinPose({ direction = "front", seated = false, rest, express
     {rest && <path d={rest === "kneel" ? "M34 119 Q21 141 29 157 Q34 165 44 160 Q49 155 44 143 L43 120 Z M161 119 Q174 141 166 157 Q161 165 151 160 Q146 155 151 143 L152 120 Z" : "M30 109 Q27 139 53 157 Q70 168 91 157 Q97 151 88 145 Q76 151 62 140 L45 112 Z M165 109 Q168 139 142 157 Q125 168 104 157 Q98 151 107 145 Q119 151 133 140 L150 112 Z"} fill={body} stroke={ink} strokeWidth="3.5" strokeLinejoin="round" />}
     </g>
     {special && <g className="special-wing" style={{ transformOrigin: "155px 122px" }}>
-      <path d="M155 119 Q176 126 175 145 Q173 158 160 156 Q149 153 145 141 Z" fill={body} stroke={ink} strokeWidth="3.5" strokeLinejoin="round" />
-      {special === "smoke" ? <g className="special-prop"><path d="M169 146 L187 140" stroke="#fcf5eb" strokeWidth="4" strokeLinecap="round" /><path d="M184 141 L188 139" stroke="#ba7755" strokeWidth="3" /></g> : <g className="special-prop"><path d="M165 141 L181 141 L178 154 Q173 158 168 154 Z" fill="#e8d5bf" stroke={ink} strokeWidth="2" /><path d="M168 146 L179 146" stroke="#a67c5c" strokeWidth="2" /></g>}
+      {special === "drink" && <g className="special-prop"><g className="drink-bottle">
+        <path d="M133 94 Q133 92 135 92 H142 Q144 92 144 94 V111 Q144 115 149 119 Q152 122 152 127 V155 Q152 160 148 160 H129 Q125 160 125 155 V127 Q125 122 128 119 Q133 115 133 111 Z" fill="#526c4d" stroke={ink} strokeWidth="2.5" strokeLinejoin="round" />
+        <path d="M132 130 H145 V146 H132 Z" fill="#eee2c8" /><path d="M135 95 H142" stroke="#d5d2ae" strokeWidth="2" strokeLinecap="round" />
+      </g></g>}
+      <path d={special === "drink" ? "M155 119 Q171 126 168 140 Q165 151 152 154 Q141 156 135 150 Q132 146 136 142 Q142 144 146 138 L145 125 Z" : "M155 119 Q176 126 175 145 Q173 158 160 156 Q149 153 145 141 Z"} fill={body} stroke={ink} strokeWidth="3.5" strokeLinejoin="round" />
+      {special === "smoke" && <g className="special-prop"><path d="M169 146 L187 140" stroke="#fcf5eb" strokeWidth="4" strokeLinecap="round" /><path d="M184 141 L188 139" stroke="#ba7755" strokeWidth="3" /></g>}
     </g>}
     <path d="M42 166 Q23 167 25 177 Q27 185 51 185 Q70 185 75 178 Q74 171 60 169 Z M153 166 Q172 167 170 177 Q168 185 144 185 Q125 185 120 178 Q121 171 135 169 Z" fill={foot} stroke={ink} strokeWidth="3.5" />
   </svg>;

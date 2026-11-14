@@ -20,7 +20,6 @@ export function CharacterRenderer({ view, direction, motionOff = false }: { view
     <g className="special-standing" transform="translate(22 111)"><PenguinPose expression="neutral" /></g>
     <g className="special-seated" transform="translate(22 111)"><PenguinPose seated special={special} expression={special === "drink" ? "tired" : "soft"} /></g>
     {special === "smoke" && <g className="smoke-layer" aria-hidden="true" fill="none" stroke="#a8a8a1" strokeWidth="3" strokeLinecap="round"><path d="M212 220 C204 210 218 205 212 195 C207 187 216 183 213 176" /><path d="M221 214 C216 207 225 202 221 195" opacity=".65" /></g>}
-    {special === "drink" && <g className="special-prop" aria-hidden="true"><path d="M172 267 H229 Q232 267 232 270 H172 Z" fill="#bd9d7d" stroke="#695447" strokeWidth="2" /><path d="M219 270 L223 296" stroke="#695447" strokeWidth="4" /></g>}
   </svg>;
   return <svg viewBox="0 0 240 320" role="img" aria-label="陪伴企鹅" className={`character-svg penguin-action action-${animation}${pondering ? " is-pondering" : ""}${motionOff ? " motion-off" : ""}`} style={{ "--amp": String(amplitude) } as CSSProperties}>
     <g transform={offset}>
