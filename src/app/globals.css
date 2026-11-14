@@ -14,6 +14,7 @@ button, textarea { font:inherit; } button { cursor:pointer; } button:disabled { 
 .companion-profile { margin-top:22px; background:var(--card); border:1px solid var(--line); border-radius:20px; box-shadow:0 8px 26px #8e766a0c; padding:22px 26px; }.companion-profile .section-heading>span { color:#d3dcbf; font-size:24px; }.companion-profile .section-heading h2 { margin:7px 0 0; font-size:17px; font-weight:650; }.profile-list { list-style:none; margin:16px 0 0; padding:0; display:grid; gap:10px; }.profile-list li { position:relative; padding:11px 15px 11px 30px; border-radius:12px; background:#f7f4ee; color:var(--body); font-size:14px; line-height:1.7; }.profile-list li::before { content:"✧"; position:absolute; left:12px; color:#a8bd86; }.profile-note { margin:14px 0 0; color:var(--muted); font-size:12px; }
 .reunion-panel { border-color:#dce8d4; background:#fbfcf7; }.reunion-message { margin:16px 0 0; color:var(--body); font-size:15px; line-height:1.8; }.reunion-question { margin:10px 0 0; color:var(--ink); font-size:17px; font-weight:650; }.reunion-answer-label { display:block; margin:16px 0 7px; color:var(--muted); font-size:12px; }.reunion-answer { width:100%; resize:vertical; border:1px solid #eee4dc; border-radius:13px; background:#fffdfa; padding:12px 14px; color:var(--ink); line-height:1.7; }.reunion-actions { display:flex; gap:8px; margin-top:10px; }.reunion-actions button { border:1px solid var(--line); background:#fffdfa; border-radius:999px; padding:7px 16px; font-size:13px; font-weight:600; color:var(--body); }.reunion-actions button:hover:not(:disabled) { border-color:var(--sage); background:#f4f8f3; }.reunion-actions button:disabled { color:#b9b0a8; }
 /* Character movement belongs to the presentation layer; behavior still selects the action. */
+.penguin-action { overflow:visible; }
 .penguin-body { transform-box:fill-box; transform-origin:50% 95%; }
 .penguin-body > svg { overflow:visible; }
 .action-breathe .penguin-body { animation: penguin-breathe 4s ease-in-out infinite; }
@@ -27,7 +28,7 @@ button, textarea { font:inherit; } button { cursor:pointer; } button:disabled { 
 .standing-pose,.sitting-pose { transition:opacity .45s ease, translate .45s ease; }
 .standing-pose.pose-hidden { opacity:0; translate:0 10px; }
 .sitting-pose.pose-hidden { opacity:0; translate:0 -10px; }
-.turn-front,.turn-right,.turn-back,.turn-left { visibility:hidden; }
+.turn-front,.turn-right,.turn-back,.turn-left { opacity:0; }
 .turn-front { animation: turn-front 2.8s steps(1,end) both; }
 .turn-right { animation: turn-right 2.8s steps(1,end) both; }
 .turn-back { animation: turn-back 2.8s steps(1,end) both; }
@@ -41,14 +42,15 @@ button, textarea { font:inherit; } button { cursor:pointer; } button:disabled { 
 @keyframes penguin-bounce { 0%,100% { translate:0 0; scale:1 1; } 15% { scale:1.04 .96; } 45% { translate:0 -12px; scale:.98 1.02; } 75% { translate:0 0; scale:1.03 .97; } }
 @keyframes penguin-look { 25%,65% { rotate:-4deg; scale:1.025; } }
 @keyframes penguin-sit { from { translate:0 -12px; } to { translate:0 0; } }
-@keyframes turn-front { 0%,100% { visibility:visible; } 12%,88% { visibility:hidden; } }
-@keyframes turn-right { 0%,38% { visibility:hidden; } 12%,25% { visibility:visible; } }
-@keyframes turn-back { 0%,62% { visibility:hidden; } 38%,50% { visibility:visible; } }
-@keyframes turn-left { 0%,88% { visibility:hidden; } 62%,75% { visibility:visible; } }
+/* All four layers share the same boundaries: exactly one is opaque at every step. */
+@keyframes turn-front { 0% { opacity:1; } 12% { opacity:0; } 88%,100% { opacity:1; } }
+@keyframes turn-right { 0% { opacity:0; } 12% { opacity:1; } 38%,100% { opacity:0; } }
+@keyframes turn-back { 0% { opacity:0; } 38% { opacity:1; } 62%,100% { opacity:0; } }
+@keyframes turn-left { 0% { opacity:0; } 62% { opacity:1; } 88%,100% { opacity:0; } }
 .scene-character.is-paused .penguin-action *, .motion-off * { animation-play-state:paused !important; }
-.motion-off .turn-front { visibility:visible; }
-.motion-off .turn-right,.motion-off .turn-back,.motion-off .turn-left { visibility:hidden; }
-@media (prefers-reduced-motion:reduce) { .penguin-action * { animation:none !important; } .turn-front { visibility:visible; } .turn-right,.turn-back,.turn-left { visibility:hidden; } }
+.motion-off .turn-front,.motion-off .turn-right,.motion-off .turn-back,.motion-off .turn-left { animation:none !important; }
+.motion-off .turn-front { opacity:1; }
+@media (prefers-reduced-motion:reduce) { .penguin-action * { animation:none !important; } .turn-front { opacity:1; } }
 .behavior-controls { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:14px 0 0; }
 .behavior-controls button { border:1px solid var(--line); background:#fffdfa; border-radius:999px; padding:7px 14px; font-size:13px; font-weight:600; color:var(--body); }
 .behavior-controls button:hover { border-color:var(--sage); background:#f4f8f3; }

@@ -8,7 +8,8 @@ import type { CharacterView } from "@/domain/types";
 const actions = [
   ["呼吸与眨眼", "stand", "breathe"], ["左右转身", "stand", "spin"],
   ["走路", "walk", "walk"], ["坐下与起身", "sit", "none"],
-  ["安静休息", "kneel", "none"], ["挥翅", "stand", "wave"],
+  ["安静休息", "kneel", "none"], ["蜷缩", "curl", "none"],
+  ["躲到角落", "corner", "none"], ["靠窗沉思", "window", "none"], ["挥翅", "stand", "wave"],
   ["看向用户", "stand", "react"], ["轻微蹦跳", "stand", "bounce"],
 ] as const;
 const directions: [PenguinDirection, string][] = [["front", "正面"], ["left", "左侧"], ["right", "右侧"], ["back", "背面"]];

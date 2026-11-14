@@ -5,13 +5,14 @@ const body = "#494139", ink = "#211a15", belly = "#fcf5eb", foot = "#ef9e21";
 export type PenguinDirection = "front" | "left" | "right" | "back";
 
 /** Original profiles derived from the proportions and palette of the front master. */
-export function PenguinPose({ direction = "front", seated = false, expression = "neutral" }: { direction?: PenguinDirection; seated?: boolean; expression?: string }) {
+export function PenguinPose({ direction = "front", seated = false, rest, expression = "neutral" }: { direction?: PenguinDirection; seated?: boolean; rest?: "kneel" | "curl"; expression?: string }) {
   if (direction === "front" && !seated) return <PenguinFront expression={expression} />;
   if (direction === "front") return <svg viewBox="0 0 195 201" width="195" height="201" aria-label="坐着的企鹅" role="img">
     <path d="M34 122 Q13 139 17 158 Q19 166 31 162 L52 143 M161 122 Q182 139 178 158 Q176 166 164 162 L143 143" fill={body} stroke={ink} strokeWidth="3.5" strokeLinejoin="round" />
     <path d="M97 28 C58 27 37 50 32 82 C28 104 19 133 24 153 C28 174 53 184 97 184 C141 184 167 174 171 153 C176 133 167 104 163 82 C158 50 137 27 97 28 Z" fill={body} stroke={ink} strokeWidth="3.5" />
     <path d="M96 66 C88 48 63 46 53 67 C48 78 47 92 39 111 C28 139 35 161 54 170 C76 180 120 180 141 170 C160 161 167 139 156 111 C148 92 147 78 142 67 C132 46 107 48 99 66 Z" fill={belly} stroke={ink} strokeWidth="2.4" />
-    <g transform="translate(0 14)"><PenguinFace expression={expression} /></g>
+    <g transform={rest === "curl" ? "translate(0 20)" : "translate(0 14)"}><PenguinFace expression={expression} /></g>
+    {rest && <path d={rest === "kneel" ? "M34 130 Q38 148 58 156 Q72 160 77 153 Q77 147 66 143 L45 125 Z M161 130 Q157 148 137 156 Q123 160 118 153 Q118 147 129 143 L150 125 Z" : "M31 125 Q36 151 64 160 Q81 164 84 156 Q83 149 69 146 L43 120 Z M164 125 Q159 151 131 160 Q114 164 111 156 Q112 149 126 146 L152 120 Z"} fill={body} stroke={ink} strokeWidth="3.5" strokeLinejoin="round" />}
     <path d="M42 166 Q23 167 25 177 Q27 185 51 185 Q70 185 75 178 Q74 171 60 169 Z M153 166 Q172 167 170 177 Q168 185 144 185 Q125 185 120 178 Q121 171 135 169 Z" fill={foot} stroke={ink} strokeWidth="3.5" />
   </svg>;
   if (direction === "back") return <svg viewBox="0 0 195 201" width="195" height="201" role="img" aria-label="企鹅背面">
