@@ -27,7 +27,7 @@ export function ReunionPanel() {
       <div className="section-heading">
         <div>
           <span className="section-kicker">A GENTLE HELLO</span>
-          <h2>小白人想和你说说话</h2>
+          <h2>企鹅想和你说说话</h2>
         </div>
         <span aria-hidden="true">✾</span>
       </div>
@@ -55,7 +55,7 @@ export function ReunionPanel() {
           跳过
         </button>
       </div>
-      <p className="profile-note">这句话不会写入日记，也不会改变小人的性格。</p>
+      <p className="profile-note">这句话不会写入日记，也不会改变企鹅的性格。</p>
       {error && (
         <p role="alert" className="profile-note">
           {error}

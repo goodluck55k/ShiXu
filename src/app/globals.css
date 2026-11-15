@@ -103,3 +103,32 @@ body { background:radial-gradient(circle at 80% 0,#fffaf0 0,transparent 38%),var
 @media (max-width:700px) { .room-art { background-position:50% center; }.scene-character { width:190px; bottom:3%; } }
 
 .scene-character { transition:none; }
+/* The room canvas keeps its artwork coordinates on every viewport. The camera follows it on narrow screens. */
+.scene { height:auto; aspect-ratio:2170 / 725; overflow:hidden; }
+.room-canvas { position:absolute; left:0; top:0; height:100%; aspect-ratio:2170 / 725; min-width:100%; will-change:transform; }
+.room-art { position:absolute; inset:0; background:url('/scene/penguin-room.webp') center / 100% 100% no-repeat; }
+.scene-character { position:absolute; z-index:1; width:15%; bottom:auto; transform:translate(-50%, -94%); transition:none; will-change:left,top; }
+.room-overlay { position:absolute; inset:0; width:100%; height:100%; z-index:2; pointer-events:none; }
+.diary-form { background:transparent; border:0; box-shadow:none; padding:0; }
+.diary-input { min-height:240px; padding:24px; border-radius:22px; box-shadow:var(--soft-shadow); font-size:16px; }
+.emotion-heading { align-items:center; margin:22px 0 14px; padding:20px 22px 0; border:1px solid var(--line); border-bottom:0; border-radius:22px 22px 0 0; background:#fffaf4cc; }
+.emotion-heading h2 { margin:0; font-size:20px; }
+.ai-suggestion-button { border:1px solid #cbd59f; border-radius:999px; padding:9px 18px; background:#f2f4d9; color:#586b2c; font-weight:650; }
+.ai-suggestion-button:disabled { opacity:.55; }
+.diary-form > .emotion-grid { padding:0 22px 20px; background:#fffaf4cc; border-left:1px solid var(--line); border-right:1px solid var(--line); }
+.diary-form > .dimensions { margin-top:0; border-radius:0 0 20px 20px; padding:16px 22px; }
+.diary-form > .save-button { border-radius:999px; }
+.memory-list-item { padding:17px; }.memory-detail { min-height:300px; }.memory-detail-heading time { font-size:19px; }.memory-full-text { color:#4e4036; font-size:16px; }
+@media (max-width:700px) {
+ .scene { height:250px; aspect-ratio:auto; }
+ .scene-character { width:15%; bottom:auto; }
+ .diary-form { padding:0; }.diary-input { min-height:200px; padding:18px; }
+ .emotion-heading { padding:16px 14px 0; gap:8px; }.emotion-heading h2 { font-size:17px; }.ai-suggestion-button { font-size:12px; padding:8px 10px; }
+ .diary-form > .emotion-grid { padding:0 14px 16px; }.diary-form > .dimensions { padding:14px; }
+}
+.scene-character .character-svg { animation:room-turn-in .22s ease-out; }
+@keyframes room-turn-in { from { opacity:.72; } to { opacity:1; } }
+@media (prefers-reduced-motion:reduce) { .scene-character .character-svg { animation:none; } }
+.scene-character { width:19%; }
+.emotion-heading { margin-bottom:0; padding-bottom:14px; }
+@media (max-width:700px) { .scene-character { width:19%; } }
