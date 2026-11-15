@@ -259,6 +259,10 @@ interface AppContextValue {
   exportRaw: () => void;
   // 明确回应或跳过：只有确认事件成功持久化后才清除待处理问候；失败保留并允许重试。
   dismissReunion: () => Promise<boolean>;
+  // 保存反馈的运行时投递标记：区分“待投递”与“已开始展示”。
+  // 仅由运行时在可见、未过期且未被重逢门控时写入；不进入正式快照。
+  hasSaveFeedbackStarted: (eventId: string) => boolean;
+  markSaveFeedbackStarted: (eventId: string) => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -321,6 +325,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const tabConflictRef = useRef(state.tabConflict);
   // 与 state.pending 同步镜像（而非 useEffect）：checkpoint 须在 SAVE_FAIL 提交的同一时刻看到 pending，避免渲染提交间隙竞态。
   const pendingRef = useRef<PendingOperation | null>(null);
+  // 保存反馈是否已真正开始展示。由 Provider 持有，跨企鹅页卸载/重挂载去重；
+  // 开发模拟使用独立实例，不共享此标记。
+  const saveFeedbackStartedRef = useRef<string | null>(null);
   useEffect(() => {
     snapshotRef.current = state.snapshot;
     temporaryRef.current = state.temporary;
@@ -329,6 +336,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const load = useCallback(async () => {
     sessionStartedRef.current = false;
+    saveFeedbackStartedRef.current = null;
     const result = await storage.load();
     pendingRef.current = null;
     sessionPendingRef.current = null;
@@ -704,7 +712,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const enableTemporary = useCallback(() => {
     pendingRef.current = null;
     sessionPendingRef.current = null;
+    saveFeedbackStartedRef.current = null;
     dispatch({ type: "ENABLE_TEMP" });
+  }, []);
+
+  const hasSaveFeedbackStarted = useCallback(
+    (eventId: string) => saveFeedbackStartedRef.current === eventId,
+    [],
+  );
+  const markSaveFeedbackStarted = useCallback((eventId: string) => {
+    saveFeedbackStartedRef.current = eventId;
   }, []);
 
   const resetStorage = useCallback(async () => {
@@ -712,6 +729,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (result.status === "saved") {
       pendingRef.current = null;
       sessionPendingRef.current = null;
+      saveFeedbackStartedRef.current = null;
       sessionStartedRef.current = true;
       clearActivityRescue();
       dispatch({ type: "RESET_OK", snapshot: result.snapshot });
@@ -779,6 +797,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     resetStorage,
     exportRaw,
     dismissReunion,
+    hasSaveFeedbackStarted,
+    markSaveFeedbackStarted,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

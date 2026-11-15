@@ -2,7 +2,7 @@
 
 > 状态：V1 架构基线。标注「已实现」的以 `main` 分支代码为准；「阶段 N 规划」表示尚未合入。产品范围见 [PRODUCT_SPEC](PRODUCT_SPEC.md)，性格与行为参数见 [COMPANION_SPEC](COMPANION_SPEC.md)。
 >
-> 存档目标结构为 `schemaVersion` 4（STO-05，PR #35 待合并；合并后 v1/v2/v3 读取时迁移）。`main` 当前仍为 `schemaVersion` 3；本文档版本与存档版本无关。截至本版，`main` 已含 `schemaVersion` 3、五维 `personality-v2` 台账与迁移（PR #18）、主导行为引擎（PR #19）、离线自主生活（PR #20）、久别重逢（PR #22）与 AI 情绪识别复核（PR #23）；`schemaVersion` 4 的待处理问候投递修复已在 PR #35 实现但尚未合入 `main`，下文的 v4 / `pending` / `REUNION_ACKNOWLEDGED` 内容为目标契约。阶段七的原创企鹅正面母版（PR #27）、九种组合表情（PR #28）、侧背面与基础动作（PR #30）、特殊动作视觉（PR #31）与特殊行为正式接入（PR #32）均已合入。特殊行为配置已开启，真实长期自然触发待进一步验收；生活空间与正式 UI 尚未开发。当前整体进度以 [ROADMAP](ROADMAP.md) §1.1 为准。
+> 存档结构为 `schemaVersion` 4（STO-05，PR #35 已合入）；v1/v2/v3 读取时迁移。本文档版本与存档版本无关。截至本版，`main` 已含 `schemaVersion` 4、五维 `personality-v2` 台账与迁移（PR #18）、主导行为引擎（PR #19）、离线自主生活（PR #20）、久别重逢（PR #22）、AI 情绪识别复核（PR #23）与待处理重逢问候持久化/确认（PR #35）。阶段七的原创企鹅正面母版（PR #27）、九种组合表情（PR #28）、侧背面与基础动作（PR #30）、特殊动作视觉（PR #31）与特殊行为正式接入（PR #32）均已合入。特殊行为配置已开启，真实长期自然触发待进一步验收；生活空间与正式 UI 尚未开发。当前整体进度以 [ROADMAP](ROADMAP.md) §1.1 为准。
 
 ## 1. 架构原则
 
@@ -71,19 +71,19 @@ graph TD
 | `src/app/{layout,page}.tsx`、`src/app/companion/page.tsx`、`src/app/memories/page.tsx` | 已实现（临时路由） | 当前 `/` 为日记、`/companion` 为陪伴、`/memories` 为回忆；正式 `/` 小屋、`/diary` 日记与 `/companion` 兼容尚未实施 |
 | `src/app/character-preview/*` | 已实现（仅开发预览） | 角色、表情、侧背面/动作与特殊行为模拟预览；不属于正式产品导航，不写正式存档 |
 | `src/app/api/emotion/route.ts` | 已实现 | 服务端情绪识别入口 |
-| `src/application/AppProvider.tsx` | 已实现，阶段二至五扩展 | 状态编排、保存、会话启动、恢复、跨标签页冲突、待处理问候投递与确认（投递修复见 PR #35，待合并）；问候本身持久化在快照中 |
+| `src/application/AppProvider.tsx` | 已实现，阶段二至五扩展 | 状态编排、保存、会话启动、恢复、跨标签页冲突、待处理问候投递与确认（PR #35 已合入）；问候本身持久化在快照中；保存反馈的“已开始展示”标记由 Provider 持有，不进入快照 |
 | `src/application/useEmotionAnalysis.ts` | 已实现，阶段六扩展 | AI 建议请求、会话失效、过期响应丢弃、客户端超时与降级 |
 | `src/lib/ai/client.ts` | 阶段六新增 | 浏览器侧识别会话、三元组关联、严格 analysis/analysisMeta 校验、HTTP 错误映射；不导入服务端 Provider |
 | `src/lib/ai/server/{config,provider,native,questions,protection}.ts` | 已实现，阶段六复核 | 配置读取、百炼 System One 调用与显式映射、固定错误分类、进程内频率/并发/预算保护 |
 | `src/domain/types.ts` | 已实现，阶段二扩展 | 公共类型与契约 |
 | `src/domain/emotions.ts` | 已实现 | 手选默认 VAD、规范化 |
 | `src/domain/rules.ts` | 已实现，阶段二至五扩展 | 领域事件、原子结算、会话启动入口 |
-| `src/domain/schema.ts` | 已实现，阶段二扩展；v4 校验见 PR #35 | 存档结构校验（v1/v2/v3 读取校验与 v4 目标校验） |
+| `src/domain/schema.ts` | 已实现，阶段二扩展；v4 校验已实现（PR #35） | 存档结构校验（v1/v2/v3 读取校验与 v4 校验） |
 | `src/domain/companion.ts` | 已实现（三维护账） | 阶段二拆分为 `personality.ts` + 配置，之后只作兼容/删除 |
 | `src/domain/personality.ts` | 已实现（PR #18） | 五维派生、主导判定、描述、只读查询 |
 | `src/domain/behavior.ts` | 阶段三已实现（PR #19） | 确定性主导行为/待机/特殊/互动选择 |
 | `src/domain/offlineLife.ts` | 阶段四已实现（PR #20） | 离线窗口规划、活动选择、幂等 ID |
-| `src/domain/reunion.ts` | 阶段五已实现（PR #22）；投递修复见 PR #35（待合并） | 长期未访问判断、问候模板选择、待处理问候类型；存在待处理问候时不再触发新问候 |
+| `src/domain/reunion.ts` | 阶段五已实现（PR #22）；可靠投递已合入（PR #35） | 长期未访问判断、问候模板选择、待处理问候类型；存在待处理问候时不再触发新问候 |
 | `src/domain/characterView.ts` | 已实现（阶段三最小接入，PR #19） | 由快照/行为推导视图 |
 | `src/config/personality.ts` | 已实现（PR #18） | `PersonalityRuleConfig` |
 | `src/config/behavior.ts` | 阶段三已实现（PR #19） | `BehaviorRuleConfig` |
@@ -95,7 +95,7 @@ graph TD
 | `src/components/character/{PenguinFront,PenguinFace,PenguinPoses}.tsx`、`specialMotion.ts` | 已实现（PR #27 / #28 / #30 / #31） | 正面母版、组合表情、侧背面与基础动作、特殊动作视觉；`drink` 使用啤酒瓶；`SPECIAL_MOTION_MS=8000` |
 | `src/components/character/` 正式场景组件 | 规划，未创建 | 企鹅小屋、生活空间与正式 UI 组件；具体文件与资源路径由后续任务卡确认，不得把规划路径当作已有文件 |
 | `src/components/character/OfflineLifePanel.tsx` | 阶段四已实现（PR #20） | 只读已落盘离线事件，区分本次与历史；不写日记/回忆/分数 |
-| `src/components/character/ReunionPanel.tsx` | 阶段五已实现（PR #22）；投递修复见 PR #35（待合并） | 只渲染快照中已提交且未处理的问候；回应/跳过走正式保存，成功后才清除，失败保留可重试 |
+| `src/components/character/ReunionPanel.tsx` | 阶段五已实现（PR #22）；可靠投递已合入（PR #35） | 只渲染快照中已提交且未处理的问候；回应/跳过走正式保存，成功后才清除，失败保留可重试 |
 | `src/application/useBehaviorRuntime.ts` | 阶段三已实现（PR #19） | 行为调度、隐藏暂停、互动、保存后一次性反馈、低动态降级；不写存档 |
 | `src/application/lowMoodStreak.ts` | PR #32 已合入 | 只读有效情绪与冻结 dayKey，连续四天含当天；正式配置已开启，长期自然触发待进一步验收 |
 | `src/components/emotion/*`、`src/components/memories/*` | 已实现 | 记录、纠正、历史界面 |
@@ -273,6 +273,7 @@ interface BehaviorRuleConfig {
   tickIntervalMs: [number, number];   // 候选 [20000, 40000]
   interactionDurationMs: [number, number]; // 候选 [2500, 4000]
   saveFeedbackDurationMs: number;     // 候选 3000；保存后一次性反馈时长
+  saveFeedbackTtlMs: number;          // 候选 300000（待产品验收）；跨页面反馈投递有效期
   emotionExpressionDurationMs: number; // 候选 3000；即时情绪表情/幅度的运行时有效期
   emotionExpression: Record<EmotionLabel, { expression: string; intensity: number }>;
   ambientTimeWeights: Record<TimeBand, Partial<Record<BehaviorId, number>>>;
@@ -281,9 +282,11 @@ interface BehaviorRuleConfig {
 
 行为决策不写 `Snapshot`，不需要 `eventId` 幂等；互动反馈与保存后情绪表现只存在于运行时内存。特殊行为不是必然触发；只有 `specialEligible`、主导为 `low_mood`、配置开启且概率命中时才可能发生。特殊行为规则（`sadness` 唯一标签、连续四个自然日、第 4 天当天保存后具备资格即语义 B、`specialProbability = 0.15`、停止条件）已于 2026-11-14 定稿，详见 [COMPANION_SPEC](COMPANION_SPEC.md) §3.5。PR #32 使用 `streakDaysRequired=4` / `dayFourSemantics="B"`，运行时在 8000ms 后恢复普通行为；`specialBehaviorEnabled=true`，真实长期自然触发待进一步验收。规则版本保持 `behavior-v2`，以免改变其他行为的确定性种子。
 
-阶段三实现（PR #19）：`selectBehavior` 按 interaction → special → ambient → dominant 固定顺序选择；抽样使用显式 `createBehaviorRng(seed, dayKey, sequence, rulesVersion)`，相同上下文同结果；`minShare` 以权重下限公式保证同池每个候选长期份额不低于配置值；结果与 `lastBehaviorId` 相同且 `consecutiveCount >= maxConsecutive` 时按配置顺序轮换同池下一个。`selectSaveFeedback(base, emotion, config)` 只生成运行时一次性反馈决策（reasonCode `save_feedback`），不写存档。应用层 `useBehaviorRuntime` 负责可见调度、隐藏暂停、恢复重读、三种互动打断与恢复、`lastConfirmedSave` 一次性消费（会话级去重）、`prefers-reduced-motion` 降级；`computeSpecialEligibility` 在应用层只读计算连续低落日，仅在正式配置开启或开发模拟时参与触发（当前正式配置已开启）。
+阶段三实现（PR #19）：`selectBehavior` 按 interaction → special → ambient → dominant 固定顺序选择；抽样使用显式 `createBehaviorRng(seed, dayKey, sequence, rulesVersion)`，相同上下文同结果；`minShare` 以权重下限公式保证同池每个候选长期份额不低于配置值；结果与 `lastBehaviorId` 相同且 `consecutiveCount >= maxConsecutive` 时按配置顺序轮换同池下一个。`selectSaveFeedback(base, emotion, config)` 只生成运行时一次性反馈决策（reasonCode `save_feedback`），不写存档。应用层 `useBehaviorRuntime` 负责可见调度、隐藏暂停、恢复重读、三种互动打断与恢复、`lastConfirmedSave` 的可见性/TTL/重逢门控投递（Provider 级“已开始展示”标记去重）、`prefers-reduced-motion` 降级；`computeSpecialEligibility` 在应用层只读计算连续低落日，仅在正式配置开启或开发模拟时参与触发（当前正式配置已开启）。
 
 运行时即时情绪有有效期：仅在保存成功后 `emotionExpressionDurationMs`（候选 3000 毫秒，待验收）内把 `currentEmotion` 传入表情/幅度；到期或刷新后回到主导行为配置的基础表情，不重新激活已结束的反馈，也不改变已保存情绪、日记与五维贡献。自主行为按行为条目 `durationMs` 结束动画（`animation` 置 `none`、保持姿态），等待下一次 tick 选择；`tickIntervalMs` 只决定下一次选择间隔，不是动作循环时长。页面隐藏时除暂停调度外，运行时 `paused` 状态经 `is-paused` 类显式暂停 CSS 动画；互动打断、恢复、隐藏、卸载与 StrictMode 清理均清除全部运行时计时器。
+
+保存反馈采用“待投递 → 已开始展示”两阶段，避免尚未展示就被消费：`lastConfirmedSave` 只表示有待投递反馈；只有页面可见、且 `reunion.pending = null` 时才允许启动。启动前按 `lastConfirmedSave.savedAt + saveFeedbackTtlMs`（候选 300000 毫秒，待产品验收）检查有效期，隐藏或重逢门控的等待时间同样计入，过期直接丢弃，不排队补播。真正开始展示时写入 Provider 持有的已展示事件标记（不进入快照），用于跨企鹅页卸载/重挂载去重；开发模拟使用独立实例标记。存在待处理重逢问候时反馈既不展示也不消费，只有 `REUNION_ACKNOWLEDGED` 成功落盘、`pending` 清除后才重新检查 TTL。连续成功保存只保留最新 `lastConfirmedSave`，不建立反馈队列。
 
 ### 4.4 离线生活与久别重逢（阶段四 PR #20；阶段五 PR #22）
 
@@ -378,9 +381,9 @@ interface ReunionEvaluation {
 - 直接关闭、浏览器崩溃或 checkpoint 写入失败时，只能使用最后一次成功的 `lastActiveAt`（或同标签页救援值）作为降级基准。该降级可能把未 checkpoint 的在线时长计入离线，但不得反向少算；保存失败时不得展示离线事件或重逢。
 - 离线/重逢都不得修改 `personality.contributions`、`scores` 或 `entries`。
 
-### 4.5 存档（schemaVersion 4；PR #35 目标实现，待合并）
+### 4.5 存档（schemaVersion 4；PR #35 已合入）
 
-> 本节描述 PR #35 合并后的目标结构；`main` 在合并前仍为 v3，合并后 v1/v2/v3 读取时按 §6 迁移链处理。
+> 本节描述当前 v4 结构；v1/v2/v3 读取时按 §6 迁移链处理。
 
 ```ts
 interface SnapshotV4 {
@@ -428,8 +431,8 @@ interface SnapshotV4 {
 | `applyGameEvent(snapshot, event, context)` | rules | 已实现，阶段二至五扩展 | 唯一正式状态变更入口 |
 | `migrateSnapshotV1toV2(v1)` | storage/rules | 已实现 | 保留 |
 | `migrateSnapshotV2toV3(v2)` | storage | 阶段二 | 新增；只做结构转换，不调用计分规则 |
-| `migrateSnapshotV3toV4(v3)` | storage | PR #35（待合并） | 补 `reunion.pending = null`；不猜造历史问候，不改日记与触发标记 |
-| `StoragePort.load/save/readRaw/reset` | storage | 已实现，保存结果扩展 `corrupt` / `unsupported-version` | 函数签名不变；PR #35 合并后 `Snapshot` 为 v4，v1/v2/v3 读取时内存迁移；保存前发现现有存档不可读时返回对应状态与原始 `raw` |
+| `migrateSnapshotV3toV4(v3)` | storage | 已实现（PR #35） | 补 `reunion.pending = null`；不猜造历史问候，不改日记与触发标记 |
+| `StoragePort.load/save/readRaw/reset` | storage | 已实现，保存结果扩展 `corrupt` / `unsupported-version` | 函数签名不变；`Snapshot` 为 v4，v1/v2/v3 读取时内存迁移；保存前发现现有存档不可读时返回对应状态与原始 `raw` |
 
 ### 5.1 V1 领域事件
 
@@ -535,7 +538,7 @@ AI 识别（阶段六复核）：
   7. 迁移只在内存完成；下次成功保存才落盘；失败不改变原存档。
   8. 不追溯旧日记、不静默改写不可识别字段、不删除用户历史。
   9. 迁移后旧条目没有 `PersonalityContribution`；之后对这些条目的纠正只更新 `effectiveEmotion`、`revision`、`corrections` 与回忆事件，不补建贡献、不改变性格分数。这是“不追溯”的一部分，不属于结算失败。
-- 迁移 v3→v4（STO-05，PR #35 待合并）：
+- 迁移 v3→v4（STO-05，PR #35 已合入）：
   1. `entries`、`memories`、`appliedEventIds`、`revision`、`personality`、`offlineLife`、`legacy` 原样保留；日记正文、情绪与纠正逐字不动。
   2. `reunion` 增加 `pending: null`；`lastTriggeredWindowStart` / `lastTriggeredAt` 原样保留。
   3. v3 只有“已触发”标记，无法判断用户是否看过问候，因此不生成待处理问候、不擅自重播。
@@ -560,8 +563,8 @@ AI 识别（阶段六复核）：
 - `CharacterRenderer` 只接收 `CharacterView` 与可选外观，不读取 `Snapshot`、不调用规则函数、不重新选择行为。
 - `CharacterView` 含可选 `behaviorId`、`category`、`amplitude`（阶段三已实现，便于调试与最小幅度反馈）；渲染层不得据此反推性格或重新选择行为。
 - 企鹅拥有相对独立的生活空间；场景元素（柔和自然光、少量植物/窗户等）只影响表现，不写存档、不读取完整快照、不改变离线或重逢判定。
-- 阶段七目标：日记保存后不强制跳转，用户主动回 `/` 时才展示仍有效的反馈；仅已确认并正式保存的 `joy` 可在该反馈中出现爱心，其他情绪、主导性格和普通互动不能独立触发爱心。跨页面一次性消费、有效期及冲突策略待设计，不改变存档契约。详见 [交互规格](STAGE7_UI_INTERACTION_SPEC.md)。
-- 保存日记成功后的一次性反馈由应用层已有的 `lastConfirmedSave` 门控触发，渲染层负责企鹅短暂中断、转身/看向用户、表情/动作与恢复；不得重复触发，不得在保存失败时播放。具体动作、时长、中断优先级与异常处理属于阶段七待确认设计，见 [STAGE7_DESIGN](STAGE7_DESIGN.md) §C。
+- 阶段七目标：日记保存后不强制跳转，用户主动回 `/` 时才展示仍有效的反馈；仅已确认并正式保存的 `joy` 可在该反馈中出现爱心，其他情绪、主导性格和普通互动不能独立触发爱心。跨页面反馈已按 `saveFeedbackTtlMs`（候选 300000 毫秒，待产品验收）过滤并按 `reunion.pending` 门控；仍不改变存档契约。详见 [交互规格](STAGE7_UI_INTERACTION_SPEC.md)。
+- 保存日记成功后的一次性反馈由应用层已有的 `lastConfirmedSave` 门控触发，渲染层负责企鹅短暂中断、转身/看向用户、表情/动作与恢复；不得重复触发，不得在保存失败时播放。可见性、TTL 与重逢优先门控已实现；具体动作、时长与正式视觉序列仍属阶段七待确认设计，见 [STAGE7_DESIGN](STAGE7_DESIGN.md) §C。
 - 尊重 `prefers-reduced-motion`；页面隐藏时暂停动画与行为调度。
 - 阶段七不得引入服装、饰品、家具、商店或货币系统；V2 饰品只能通过 `AppearanceConfig`/图层白名单扩展，渲染层不判定解锁。
 - 现有静态占位渲染与临时场景属于阶段七之前的临时载体，不得当作定稿视觉继续美化。

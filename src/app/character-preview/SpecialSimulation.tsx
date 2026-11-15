@@ -26,8 +26,8 @@ function scenario() {
   return { snapshot, today: localDayKey(now) };
 }
 
-function Playback({ snapshot, sequence, onFeedback }: { snapshot: Snapshot; sequence: number; onFeedback: string | null }) {
-  const feedback = useMemo<ConfirmedSaveContext | null>(() => onFeedback ? { eventId: onFeedback, entryId: "simulation", emotion: sad, savedAt: 0 } : null, [onFeedback]);
+function Playback({ snapshot, sequence, onFeedback }: { snapshot: Snapshot; sequence: number; onFeedback: { eventId: string; savedAt: number } | null }) {
+  const feedback = useMemo<ConfirmedSaveContext | null>(() => onFeedback ? { eventId: onFeedback.eventId, entryId: "simulation", emotion: sad, savedAt: onFeedback.savedAt } : null, [onFeedback]);
   // 开发模式 StrictMode 会在挂载时重新执行一次可见性 effect。
   const { decision, view, paused, interact } = useBehaviorRuntimeState(snapshot, feedback, true, sequence - 2);
   return <div>
@@ -39,7 +39,7 @@ function Playback({ snapshot, sequence, onFeedback }: { snapshot: Snapshot; sequ
 
 export function SpecialSimulation() {
   const [run, setRun] = useState<{ sequence: number; key: number; snapshot: Snapshot } | null>(null);
-  const [feedback, setFeedback] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<{ eventId: string; savedAt: number } | null>(null);
   const play = (id: "smoke" | "drink") => {
     const data = scenario();
     const eligible = computeSpecialEligibility(data.snapshot.entries, data.today, BEHAVIOR_V2.special);
@@ -54,7 +54,7 @@ export function SpecialSimulation() {
     <p>四天模拟日记与性格只存在于内存；通过正式判定和确定性选择查找命中种子，不读取或写入真实存档。</p>
     <button type="button" onClick={() => play("smoke")}>模拟命中抽烟</button>{" "}
     <button type="button" onClick={() => play("drink")}>模拟命中喝酒</button>{" "}
-    <button type="button" onClick={() => setFeedback(createId("simulation"))} disabled={!run}>模拟保存反馈</button>
+    <button type="button" onClick={() => setFeedback({ eventId: createId("simulation"), savedAt: Date.now() })} disabled={!run}>模拟保存反馈</button>
     {run && <Playback key={run.key} snapshot={run.snapshot} sequence={run.sequence} onFeedback={feedback} />}
   </section>;
 }
