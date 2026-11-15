@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useApp } from "@/application/AppProvider";
 import { useEmotionAnalysis } from "@/application/useEmotionAnalysis";
 import { createId } from "@/application/ids";
@@ -143,7 +144,7 @@ export function EmotionDraftForm() {
       {state.saveError && <div role="alert" className="save-error"><p>{state.saveError}</p><p>草稿已保留，本次未保存。</p>{state.pending && !state.tabConflict && <button type="button" onClick={() => void handleRetry()} disabled={state.saving} className="text-button">重试保存这一条</button>}</div>}
       <button type="button" disabled={!canConfirm} onClick={() => void handleConfirm()} className="save-button">{state.saving ? "保存中…" : "保存今天的心情"} <span aria-hidden="true">↗</span></button>
       {label === null && text.trim().length > 0 && <p className="form-hint">请先选择一个心情再保存。</p>}
-      {state.savedNotice && !state.saveError && <p role="status" className="form-hint">{state.savedNotice === "temporary" ? "已记录（仅本次会话，刷新后不保留）" : "已保存到本地"}</p>}
+      {state.savedNotice && !state.saveError && <p role="status" className="form-hint">{state.savedNotice === "temporary" ? "已记录（仅本次会话，刷新后不保留）" : "已保存到本地"}　<Link href="/">回小屋看看 →</Link></p>}
     </section>
   );
 }

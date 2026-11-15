@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { useApp } from "@/application/AppProvider";
 import { StorageRecoveryNotice } from "@/components/StorageRecoveryNotice";
 
-const links = [ { href: "/", label: "写下今天", icon: "✎" }, { href: "/companion", label: "我的小人", icon: "♧" }, { href: "/memories", label: "回忆碎片", icon: "▤" } ];
+const links = [ { href: "/", label: "企鹅小屋", icon: "⌂" }, { href: "/diary", label: "心情日记", icon: "✎" }, { href: "/memories", label: "回忆碎片", icon: "▤" } ];
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { state, reload } = useApp();
