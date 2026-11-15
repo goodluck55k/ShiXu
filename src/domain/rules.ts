@@ -12,6 +12,7 @@ import {
   type GameContext,
   type GameEvent,
   type MemoryEvent,
+  type ReunionAcknowledgedEvent,
   type RuleResult,
   type SessionStartedEvent,
   type Snapshot,
@@ -29,7 +30,7 @@ export function createInitialSnapshot(): Snapshot {
     appliedEventIds: [],
     personality: createEmptyPersonality(),
     offlineLife: { lastVisitAt: null, lastActiveAt: null, lastWindowStart: null, events: [] },
-    reunion: { lastTriggeredWindowStart: null, lastTriggeredAt: null },
+    reunion: { lastTriggeredWindowStart: null, lastTriggeredAt: null, pending: null },
   };
 }
 
@@ -228,15 +229,41 @@ function sessionStarted(
     events,
   };
   // 首次会话窗口（windowStart=null）不可能构成久别重逢；防御性拒绝空窗口触发。
+  // 已有未处理问候时保留旧问候与旧标记，不覆盖、不生成队列。
   const reunion =
-    event.reunionTriggered && event.windowStart !== null
-      ? { lastTriggeredWindowStart: event.windowStart, lastTriggeredAt: context.now }
+    event.reunionTriggered && event.windowStart !== null && snapshot.reunion.pending === null
+      ? {
+          lastTriggeredWindowStart: event.windowStart,
+          lastTriggeredAt: context.now,
+          pending:
+            event.reunionGreeting && event.reunionGreeting.windowStart === event.windowStart
+              ? event.reunionGreeting
+              : null,
+        }
       : snapshot.reunion;
   return {
     snapshot: {
       ...snapshot,
       offlineLife,
       reunion,
+      appliedEventIds: [...snapshot.appliedEventIds, event.eventId],
+    },
+    events: [],
+    changed: true,
+  };
+}
+
+// 只有明确回应或跳过且该事件成功持久化，才清除待处理问候；重复/过期确认无副作用。
+function reunionAcknowledged(
+  snapshot: Snapshot,
+  event: ReunionAcknowledgedEvent,
+): RuleResult {
+  const pending = snapshot.reunion.pending;
+  if (!pending || pending.windowStart !== event.windowStart) return unchanged(snapshot);
+  return {
+    snapshot: {
+      ...snapshot,
+      reunion: { ...snapshot.reunion, pending: null },
       appliedEventIds: [...snapshot.appliedEventIds, event.eventId],
     },
     events: [],
@@ -261,6 +288,8 @@ export function applyGameEvent(
       return editEntryText(snapshot, event, context);
     case "SESSION_STARTED":
       return sessionStarted(snapshot, event, context);
+    case "REUNION_ACKNOWLEDGED":
+      return reunionAcknowledged(snapshot, event);
     default:
       throw new Error(`事件 ${event.type} 在后续阶段实现`);
   }

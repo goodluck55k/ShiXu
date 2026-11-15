@@ -2,11 +2,11 @@
 
 > 状态标记：**已确认** = 用户已确定，不得擅自改变；**候选** = 讨论形成的建议值/建议规则，实施前需用户确认，或按 [AGENTS](../AGENTS.md) 的授权在 PR 标注「参数待验收」；**待确认** = 尚未形成产品决定，不得自行补成既定规则。
 >
-> 本文件是性格、主导性格、行为、离线生活与久别重逢的**唯一详细设计来源**。文档版本为 v6（2026-11-14 定稿连续低落特殊行为规则）；存档 `schemaVersion` 仍为 3。文档版本与存档版本不是同一概念，不得因为本文档升版而改写存档版本。
+> 本文件是性格、主导性格、行为、离线生活与久别重逢的**唯一详细设计来源**。文档版本为 v6（2026-11-14 定稿连续低落特殊行为规则）；存档 `schemaVersion` 为 4（STO-05 起；v1/v2/v3 读取时迁移）。文档版本与存档版本不是同一概念，不得因为本文档升版而改写存档版本。
 >
 > 连续低落特殊行为的触发条件、低落日标签、连续天数、第 4 天语义与触发概率已于 2026-11-14 由用户确认并定稿，见 §3.5。PR #32 已同步规则与 8000ms 动作生命周期并合入 `main`，正式配置开启；真实长期存档自然触发待进一步验收。
 >
-> 截至本版，`main` 上已实现五维 `personality-v2` 台账与纠正替换（PR #18）、主导性格行为引擎与互动（PR #19）、离线自主生活（PR #20）、久别重逢（PR #22）、AI 情绪识别复核（PR #23）与 v3 存档及迁移；旧 `companion-v1` 三维账本（`exploration` / `serenity` / `affinity`）只作 `legacy` 兼容保留，不参与结算。阶段七的原创企鹅正面母版（PR #27）、九种组合表情（PR #28）、侧面/背面与基础动作（PR #30）、特殊动作视觉（PR #31）与特殊行为正式接入（PR #32）均已合入；生活空间与正式 UI 尚未开发，详见 [STAGE7_DESIGN](STAGE7_DESIGN.md) 与 [ROADMAP](ROADMAP.md) §1.1。本文档描述正式目标与候选参数，候选项不代表已验收。
+> 截至本版，`main` 上已实现五维 `personality-v2` 台账与纠正替换（PR #18）、主导性格行为引擎与互动（PR #19）、离线自主生活（PR #20）、久别重逢（PR #22）、AI 情绪识别复核（PR #23）、v3 存档及迁移与 STO-05 的 v4 待处理问候持久化；旧 `companion-v1` 三维账本（`exploration` / `serenity` / `affinity`）只作 `legacy` 兼容保留，不参与结算。阶段七的原创企鹅正面母版（PR #27）、九种组合表情（PR #28）、侧面/背面与基础动作（PR #30）、特殊动作视觉（PR #31）与特殊行为正式接入（PR #32）均已合入；生活空间与正式 UI 尚未开发，详见 [STAGE7_DESIGN](STAGE7_DESIGN.md) 与 [ROADMAP](ROADMAP.md) §1.1。本文档描述正式目标与候选参数，候选项不代表已验收。
 
 ## 1. 职责与原则
 
@@ -504,7 +504,10 @@ OfflineLifeEvent {
 - `absence = now - (lastActiveAt ?? lastVisitAt)`；用户重新打开 ShiXu 时，在更新 `lastVisitAt` / `lastActiveAt` 之前判断。
 - 同标签页刷新可用 `sessionStorage` 救援时间戳抬高判定基准（`max(baseline, rescue)`），只影响是否缺席、不改变离线窗口起点，避免刷新被误判为长期离线。
 - 同一次离线窗口只触发一次：`reunion.lastTriggeredWindowStart` 记录已触发的窗口起点（即 `baseline`）。
-- 触发后必须**先成功保存** `SESSION_STARTED`（含 `reunionTriggered: true`），再展示问候；保存失败不展示，避免刷新重复。
+- 触发后必须**先成功保存** `SESSION_STARTED`（含 `reunionTriggered: true` 与 `reunionGreeting`），待处理问候随正式快照持久化；保存失败不产生问候，避免刷新重复或“显示过但没记住”。
+- 触发、待处理与已处理分离：`reunion.lastTriggeredWindowStart` 记录已触发窗口，`reunion.pending` 记录尚未回应/跳过的问候，`pending=null` 表示已处理。待处理问候不依赖 React state、模块全局变量或 `sessionStorage`。
+- 日记页或其他页面启动会话也会持久化待处理问候，但不会自动展示或消费；只有用户进入企鹅页并明确回应或跳过，且处理事件成功保存后才清除。
+- 存在待处理问候时不得触发、覆盖或排队新问候；旧问候处理完成后的新离线窗口仍可正常触发。
 
 ### 5.2 问候内容
 
@@ -535,22 +538,26 @@ OfflineLifeEvent {
 - 回答默认只存在于当前会话/界面，不写入正式情绪日记；只有用户后续正式保存情绪日记才产生贡献。
 - 跳过不得被视为负面行为，不扣分、不触发特殊行为、不改变主导性格。
 - 是否持久化“已回答/已跳过”属于待确认；V1 默认不持久化回答内容，只持久化“本次重逢已触发”。
+- STO-05 起：“已处理”状态持久化在 `reunion.pending`：用户明确回应或跳过时生成 `REUNION_ACKNOWLEDGED`，事件成功保存后才清除待处理；回答正文仍只存在于当前界面，不写入日记或存档。保存失败、空间不足或冲突时保留问候并允许重试。
 
 ### 5.4 验收要点
 
 1. 超过阈值才触发；未超过不触发。
 2. 同一窗口只触发一次；页面刷新不重复。
 3. 保存失败不展示；保存成功后刷新不重复。
-4. 回答/跳过不改分数、不写日记、不发奖励。
-5. 文案不含责备/负罪感；不调用实时大模型。
-6. 问候语气随主导性格变化，但基础问句保持“最近过得还好吗？”。
+4. 待处理问候跨日记页启动、刷新、关闭网页与重新进入网站不丢失、不被自动消费；进入企鹅页可见。
+5. 回应/跳过成功持久化后才清除；失败保留并可重试，不假装已处理。
+6. 回答/跳过不改分数、不写日记、不发奖励；不覆盖尚未处理的旧问候。
+7. 文案不含责备/负罪感；不调用实时大模型。
+8. 问候语气随主导性格变化，但基础问句保持“最近过得还好吗？”。
 
-### 5.5 实现状态（阶段五分支）
+### 5.5 实现状态（阶段五分支；STO-05 修复投递）
 
 - `src/config/reunion.ts` 提供 `REUNION_V1`：候选 `thresholdMs = 72 小时`、固定 `baseQuestion`、五主导候选 `generic` 问候与按离线 `activityId` 的具体文案。阈值与文案均待用户验收。
-- `src/domain/reunion.ts` 的 `evaluateReunion` 是纯函数：基准 `lastActiveAt ?? lastVisitAt`；基准为 null、未严格超过阈值、或 `lastTriggeredWindowStart >= baseline` 时不触发；相同输入同结果；不写存档、不调用时间/随机/网络/AI。
-- 触发结果只以 `SESSION_STARTED.reunionTriggered` 进入正式状态；`applyGameEvent` 仅在 `windowStart !== null` 时写 `reunion.lastTriggeredWindowStart / lastTriggeredAt`，未触发时保留原标记。
-- 问候对象不进入快照；应用层仅在包含该会话事件的正式快照保存成功后，把问候放入本次运行会话的一次性展示状态。会话保存失败时问候随未提交窗口冻结，由 checkpoint 或日记保存补交成功后展示一次；回答或跳过只清运行时状态并记录已处理窗口。
+- `src/domain/reunion.ts` 的 `evaluateReunion` 是纯函数：基准 `lastActiveAt ?? lastVisitAt`；基准为 null、未严格超过阈值、`lastTriggeredWindowStart >= baseline` 或存在待处理问候时不触发；相同输入同结果；不写存档、不调用时间/随机/网络/AI。
+- 触发结果以 `SESSION_STARTED.reunionTriggered` 与 `reunionGreeting` 进入正式状态；`applyGameEvent` 仅在 `windowStart !== null`、当前无待处理问候且问候窗口匹配时写 `reunion.lastTriggeredWindowStart / lastTriggeredAt / pending`，否则保留原状态。
+- 待处理问候随 `SESSION_STARTED` 原子写入快照；会话保存失败时问候随未提交窗口冻结，由 checkpoint 或日记保存补交成功后生效。它不依赖应用层内存，因此日记页启动、刷新、关闭网页与重新进入网站都不会丢失或被自动消费。
+- `ReunionAcknowledgedEvent`（`REUNION_ACKNOWLEDGED`）在用户明确回应或跳过时清除 `reunion.pending`；只有事件成功保存后才生效，失败/空间不足/冲突保留并允许重试。已触发标记不回退。
 - 具体生活描述只引用本次窗口真实生成并随同一事件提交的离线事件；无对应事件时回落到通用问候；不虚构经历、不要求角色依赖用户生活。
 
 ## 6. 角色展示
@@ -602,7 +609,7 @@ OfflineLifeEvent {
 | 重逢基础问句 | 已确认 | “最近过得还好吗？” |
 | 重逢语气/文案 | 候选 | 配置化；禁止负罪感文案 |
 | 重逢回答不改分 | 已确认 | 只有正式日记产生贡献 |
-| 重逢展示时机 | 已确认 | 包含 `SESSION_STARTED` 的快照保存成功后才展示；同窗口仅一次 |
+| 重逢展示时机 | 已确认 | 包含 `SESSION_STARTED` 的快照保存成功后才持久化待处理问候；进入企鹅页可见；同窗口仅一次 |
 | 回答/跳过是否持久化 | 待确认 | V1 不持久化；只保存“已触发窗口” |
 | 角色正式方向 | 已确认 | 原创黑白企鹅；阶段七部分实现，已有正面母版与九种组合表情 |
 | 表情系统原则 | 已确认 | 身体/面部分离、部位独立控制、状态组合；React Kawaii 仅作结构参考 |

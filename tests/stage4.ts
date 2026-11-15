@@ -4,7 +4,7 @@ import { PERSONALITY_V2 } from "../src/config/personality";
 import { planOfflineLife, type OfflineLifeEvent } from "../src/domain/offlineLife";
 import { derivePersonality, type DimensionId, type DimensionScores } from "../src/domain/personality";
 import { applyGameEvent, createInitialSnapshot } from "../src/domain/rules";
-import { migrateSnapshotV2toV3 } from "../src/domain/migrations";
+import { migrateSnapshotV2toV3, migrateSnapshotV3toV4 } from "../src/domain/migrations";
 import { createEmptyCompanion } from "../src/domain/companion";
 import { validateSnapshot } from "../src/domain/schema";
 import { createLocalStorageAdapter } from "../src/lib/storage/localStorageAdapter";
@@ -33,7 +33,7 @@ function offlineSnapshot(d: DimensionId, baseline: number | null): Snapshot {
   return { ...snapshotWithDominant(d), offlineLife: { lastVisitAt: baseline, lastActiveAt: baseline, lastWindowStart: null, events: [] } };
 }
 function sessionEvent(windowStart: number | null, events: OfflineLifeEvent[], eventId?: string): SessionStartedEvent {
-  return { type: "SESSION_STARTED", eventId: eventId ?? `session:${windowStart ?? "first"}`, windowStart, offlineEvents: events, reunionTriggered: false };
+  return { type: "SESSION_STARTED", eventId: eventId ?? `session:${windowStart ?? "first"}`, windowStart, offlineEvents: events, reunionTriggered: false, reunionGreeting: null };
 }
 const poolIds = (d: DimensionId) => cfg.activities[d].map((a) => a.id);
 
@@ -161,7 +161,7 @@ async function main() {
 
   // 11. 迁移：v2→v3 离线时间为空，首次会话不生成过去的生活。
   const v2: SnapshotV2 = { schemaVersion: 2, revision: 4, character: { totalXp: 12, stage: 2, latestEntryId: null, currentEmotion: null }, entries: [], memories: [], appliedEventIds: [], decorations: { ownedIds: [], equippedBySlot: {}, hiddenById: {} }, companion: createEmptyCompanion() };
-  const migrated = migrateSnapshotV2toV3(v2);
+  const migrated = migrateSnapshotV3toV4(migrateSnapshotV2toV3(v2));
   assert.deepEqual(migrated.offlineLife, { lastVisitAt: null, lastActiveAt: null, lastWindowStart: null, events: [] });
   const migratedSession = applyGameEvent(migrated, sessionEvent(null, []), ctx(NOW));
   assert.equal(migratedSession.changed, true);

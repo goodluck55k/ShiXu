@@ -157,7 +157,7 @@ export interface CompanionState {
   companionRulesVersion: string;
 }
 
-export const SNAPSHOT_SCHEMA_VERSION = 3;
+export const SNAPSHOT_SCHEMA_VERSION = 4;
 
 export interface SnapshotV1 {
   schemaVersion: 1;
@@ -180,6 +180,19 @@ export interface SnapshotV2 {
   companion: CompanionState;
 }
 
+
+export interface SnapshotV3 {
+  schemaVersion: 3;
+  revision: number;
+  character: Pick<CharacterState, "latestEntryId" | "currentEmotion">;
+  entries: Entry[];
+  memories: MemoryEvent[];
+  appliedEventIds: string[];
+  personality: import("./personality").PersonalityState;
+  offlineLife: import("./offlineLife").OfflineLifeState;
+  reunion: import("./reunion").ReunionStateV3;
+  legacy?: { character?: Pick<CharacterState, "totalXp" | "stage">; decorations?: unknown; companion?: unknown };
+}
 
 export interface Snapshot {
   schemaVersion: typeof SNAPSHOT_SCHEMA_VERSION;
@@ -249,6 +262,13 @@ export interface SessionStartedEvent extends GameEventBase {
   windowStart: number | null;
   offlineEvents: import("./offlineLife").OfflineLifeEvent[];
   reunionTriggered: boolean;
+  // 与触发标记同一次原子提交的待处理问候；未触发或应用层未提供时为 null。
+  reunionGreeting: import("./reunion").ReunionGreeting | null;
+}
+
+export interface ReunionAcknowledgedEvent extends GameEventBase {
+  type: "REUNION_ACKNOWLEDGED";
+  windowStart: number;
 }
 
 export type GameEvent =
@@ -257,6 +277,7 @@ export type GameEvent =
   | CorrectEmotionEvent
   | ActivityCheckpointEvent
   | SessionStartedEvent
+  | ReunionAcknowledgedEvent
   | RestoreDecorationEvent
   | EquipDecorationEvent
   | UnequipDecorationEvent;

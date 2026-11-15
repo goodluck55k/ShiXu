@@ -1,5 +1,7 @@
 # 阶段五任务卡：久别重逢
 
+> 注：本卡记录阶段五当时的实现；其中“schema 仍 v3 / 问候仅存运行时”的表述已被文末「STO-05 久别重逢问候可靠投递修复」覆盖。
+
 ## 任务卡：reunion / application / companion（分支 feature/reunion）
 
 ### 归属与目标
@@ -56,3 +58,38 @@
 - `thresholdMs = 72 小时` 为候选参数；五种问候与按离线活动的具体文案为候选文案，均需用户验收。
 - 回答内容不持久化；若未来需要“已回答/已跳过”持久化，属于新的产品决定与契约变更，不在本阶段实现。
 - 真实浏览器关闭时序无法稳定验证，按阶段四救援值与最后成功 checkpoint 降级处理，不宣称精确。
+
+## 修复任务卡：STO-05 久别重逢问候可靠投递
+
+> 本节记录后续修复，覆盖上文“问候仅存在运行时 / schema 不变”的旧描述；阈值、文案、五维评分、离线生活规则均不变。
+
+### 归属与目标
+- 模块：reunion（`pending` 与触发抑制）；rules（`SESSION_STARTED` 持久化问候、`REUNION_ACKNOWLEDGED`）；storage/schema（v4 校验与 v3→v4 迁移）；application（保存与重试编排）；companion（只读展示与确认入口）。
+- 目标：问候触发、待处理、已处理三态分离；待处理问候写入正式快照，跨页面启动、刷新、关闭网页与重新进入网站不丢失、不被自动消费；明确回应/跳过且成功持久化后才清除。
+
+### 输入与输出
+- 输入：`evaluateReunion` 新增 `pendingWindowStart`；用户明确回应/跳过。
+- 输出：`SnapshotV4.reunion.pending`、`SessionStartedEvent.reunionGreeting`、`ReunionAcknowledgedEvent`。
+- 状态所有权：reunion 拥有 `lastTriggeredWindowStart / lastTriggeredAt / pending`；应用层只编排保存、不持有唯一问候副本。
+
+### 契约变更
+- `ReunionState` 新增 `pending: ReunionGreeting | null`；`ReunionStateV3` 保留旧结构用于迁移。
+- `SessionStartedEvent` 新增 `reunionGreeting`；新增 `REUNION_ACKNOWLEDGED` 事件。
+- `evaluateReunion` 新增 `pendingWindowStart` 与 `pending-unhandled`；存在待处理问候时不触发新问候。
+- 存档 `schemaVersion` 3→4；`migrateSnapshotV3toV4` 只补 `pending: null`。
+- `ReunionPanel` 改为读取快照中的 `pending`，回应/跳转为异步保存，失败保留提示并允许重试。
+
+### 明确不做
+- 不改变 72 小时候选阈值、五维评分、离线生活规则与现有问候文案。
+- 不保存回答正文、不新增问候队列/多问候玩法、不重播旧存档中无待处理信息的问候。
+- 不开发正式小屋、不重构企鹅行为运行时、不处理其他存档 Issue。
+
+### 最小验收
+- [x] 长期离线后从日记页进入：问候持久化但不展示、不消费；进入企鹅页可见。
+- [x] 展示前刷新、关闭后重新打开：待处理仍在，不重复触发、不覆盖。
+- [x] 回应/跳过成功保存后清除；刷新/重开不再出现。
+- [x] 保存失败、空间不足、跨标签页冲突：保留问候并可重试，不假装处理成功。
+- [x] StrictMode、页面隐藏恢复、多标签页冲突不重复消费。
+- [x] 问候操作不新增日记、不修改五维贡献与回忆。
+- [x] v1/v2/v3 存档可读取；v3 已触发但无待处理信息的存档不重播。
+- 验证方式：`npx --yes tsx tests/stage5.ts`、`npx --yes tsx tests/stage5-session.ts`、阶段二至六回归、typecheck/lint/build、浏览器最小冒烟。

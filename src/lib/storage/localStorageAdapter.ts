@@ -1,4 +1,4 @@
-import { migrateSnapshotV2toV3 } from "@/domain/migrations";
+import { migrateSnapshotV2toV3, migrateSnapshotV3toV4 } from "@/domain/migrations";
 import { migrateSnapshotV1toV2 } from "@/domain/companion";
 import { createInitialSnapshot } from "@/domain/rules";
 import { serializeSnapshot, validateSnapshot, validateSnapshotJson } from "@/domain/schema";
@@ -81,8 +81,12 @@ export function createLocalStorageAdapter(): StoragePort {
       if (validation.ok) {
         // 迁移只在内存进行，原始数据直到成功保存才替换。
         const snapshot = validation.schemaVersion === 1
-          ? migrateSnapshotV2toV3(migrateSnapshotV1toV2(validation.snapshot))
-          : validation.schemaVersion === 2 ? migrateSnapshotV2toV3(validation.snapshot) : validation.snapshot;
+          ? migrateSnapshotV3toV4(migrateSnapshotV2toV3(migrateSnapshotV1toV2(validation.snapshot)))
+          : validation.schemaVersion === 2
+            ? migrateSnapshotV3toV4(migrateSnapshotV2toV3(validation.snapshot))
+            : validation.schemaVersion === 3
+              ? migrateSnapshotV3toV4(validation.snapshot)
+              : validation.snapshot;
         return { status: "ready", snapshot };
       }
       return { status: validation.kind, raw, reason: validation.reason };

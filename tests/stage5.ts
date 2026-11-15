@@ -33,16 +33,21 @@ function snapshotWithDominant(dominant: DimensionId): Snapshot {
       rulesVersion: PERSONALITY_V2.rulesVersion,
     },
     offlineLife: { lastVisitAt: NOW - 4 * DAY, lastActiveAt: NOW - 4 * DAY, lastWindowStart: null, events: [] },
-    reunion: { lastTriggeredWindowStart: null, lastTriggeredAt: null },
+    reunion: { lastTriggeredWindowStart: null, lastTriggeredAt: null, pending: null },
   };
 }
 
-function evaluate(dominant: DimensionId, baseline: number | null, patch: Partial<Parameters<typeof evaluateReunion>[0]> = {}) {
+function evaluate(
+  dominant: DimensionId,
+  baseline: number | null,
+  patch: Partial<Omit<Parameters<typeof evaluateReunion>[0], "pendingWindowStart">> = {},
+) {
   return evaluateReunion({
     now: NOW,
     lastActiveAt: baseline,
     lastVisitAt: baseline,
     lastTriggeredWindowStart: null,
+    pendingWindowStart: null,
     dominantId: dominant,
     ...patch,
   }, REUNION_V1);
@@ -87,6 +92,7 @@ function main() {
     lastActiveAt: NOW - HOUR,
     lastVisitAt: NOW - 10 * DAY,
     lastTriggeredWindowStart: null,
+    pendingWindowStart: null,
     dominantId: "gentleness",
   }, REUNION_V1);
   assert.equal(activeNewer.triggered, false, "lastActiveAt 优先");
@@ -95,6 +101,7 @@ function main() {
     lastActiveAt: NOW - 10 * DAY,
     lastVisitAt: NOW - HOUR,
     lastTriggeredWindowStart: null,
+    pendingWindowStart: null,
     dominantId: "gentleness",
   }, REUNION_V1);
   assert.equal(activeOlder.triggered, true, "lastActiveAt 较旧时应触发");
@@ -156,6 +163,7 @@ function main() {
     lastActiveAt: baseline,
     lastVisitAt: baseline,
     lastTriggeredWindowStart: null,
+    pendingWindowStart: null,
     dominantId: "curiosity" as DimensionId,
     offlineEvents: planOfflineLife({ lastActiveAt: baseline, lastVisitAt: baseline, now: NOW, dominantId: "curiosity" }, OFFLINE_LIFE_V1).events,
   };
@@ -167,7 +175,7 @@ function main() {
 
   // 11. 阈值可配置。
   const custom: ReunionRuleConfig = { ...REUNION_V1, thresholdMs: HOUR };
-  const customEval = evaluateReunion({ now: NOW, lastActiveAt: NOW - 2 * HOUR, lastVisitAt: null, lastTriggeredWindowStart: null, dominantId: "gentleness" }, custom);
+  const customEval = evaluateReunion({ now: NOW, lastActiveAt: NOW - 2 * HOUR, lastVisitAt: null, lastTriggeredWindowStart: null, pendingWindowStart: null, dominantId: "gentleness" }, custom);
   assert.equal(customEval.triggered, true, "阈值应可配置");
 
   // 12. SESSION_STARTED 只在成功事件中写重逢标记；未触发时保留原标记；空窗口防御性拒绝。
@@ -175,23 +183,30 @@ function main() {
     ...snapshotWithDominant("low_mood"),
     offlineLife: { lastVisitAt: baseline, lastActiveAt: baseline, lastWindowStart: null, events: [] },
   };
-  const sessionEvent = (windowStart: number | null, reunionTriggered: boolean): SessionStartedEvent => ({
+  const sessionEvent = (
+    windowStart: number | null,
+    reunionTriggered: boolean,
+    reunionGreeting: SessionStartedEvent["reunionGreeting"] = null,
+  ): SessionStartedEvent => ({
     type: "SESSION_STARTED",
     eventId: `session:${windowStart ?? "first"}`,
     windowStart,
     offlineEvents: [],
     reunionTriggered,
+    reunionGreeting,
   });
+  const greeting = evaluate("low_mood", baseline).greeting!;
   const scoresBefore = derivePersonality(seed.personality).scores;
-  const committed = applyGameEvent(seed, sessionEvent(baseline, true), { now: NOW, dayKey: "2026-11-13" });
+  const committed = applyGameEvent(seed, sessionEvent(baseline, true, greeting), { now: NOW, dayKey: "2026-11-13" });
   assert.equal(committed.changed, true);
-  assert.deepEqual(committed.snapshot.reunion, { lastTriggeredWindowStart: baseline, lastTriggeredAt: NOW });
+  assert.deepEqual(committed.snapshot.reunion, { lastTriggeredWindowStart: baseline, lastTriggeredAt: NOW, pending: greeting });
+  assert.equal(committed.snapshot.reunion.pending!.windowStart, baseline, "待处理问候随会话事件原子提交");
   assert.deepEqual(committed.snapshot.entries, seed.entries, "重逢不写日记");
   assert.deepEqual(committed.snapshot.personality, seed.personality, "重逢不改性格台账");
   assert.deepEqual(derivePersonality(committed.snapshot.personality).scores, scoresBefore, "重逢不改五维分数");
   assert.deepEqual(committed.snapshot.memories, seed.memories, "重逢不写回忆");
 
-  const history = { lastTriggeredWindowStart: baseline - DAY, lastTriggeredAt: NOW - DAY };
+  const history = { lastTriggeredWindowStart: baseline - DAY, lastTriggeredAt: NOW - DAY, pending: null };
   const kept: Snapshot = { ...seed, reunion: history };
   const noTrigger = applyGameEvent(kept, sessionEvent(baseline, false), { now: NOW, dayKey: "2026-11-13" });
   assert.deepEqual(noTrigger.snapshot.reunion, history, "未触发时保留原重逢标记");
@@ -204,6 +219,45 @@ function main() {
   // 13. 已提交的窗口不会被不同 eventId 重复触发（基准已推进）。
   const replay = applyGameEvent(committed.snapshot, { ...sessionEvent(baseline, true), eventId: "other" }, { now: NOW, dayKey: "2026-11-13" });
   assert.equal(replay.changed, false, "基准推进后旧窗口拒绝");
+
+  // 14. 待处理问候阻断新触发；新会话不得覆盖旧问候；明确确认后才清除。
+  const pendingEval = evaluateReunion({
+    now: NOW,
+    lastActiveAt: baseline,
+    lastVisitAt: baseline,
+    lastTriggeredWindowStart: baseline,
+    pendingWindowStart: baseline,
+    dominantId: "low_mood",
+  }, REUNION_V1);
+  assert.equal(pendingEval.triggered, false);
+  assert.equal(pendingEval.reasonCode, "pending-unhandled");
+
+  const oldGreeting = evaluate("low_mood", baseline - DAY).greeting!;
+  const withPending: Snapshot = {
+    ...seed,
+    offlineLife: { ...seed.offlineLife },
+    reunion: { lastTriggeredWindowStart: baseline - DAY, lastTriggeredAt: NOW - DAY, pending: oldGreeting },
+  };
+  const suppressed = applyGameEvent(withPending, sessionEvent(baseline, true, greeting), { now: NOW, dayKey: "2026-11-13" });
+  assert.equal(suppressed.changed, true);
+  assert.deepEqual(suppressed.snapshot.reunion, withPending.reunion, "已有待处理问候时不得覆盖或改记新窗口");
+
+  const acked = applyGameEvent(committed.snapshot, {
+    type: "REUNION_ACKNOWLEDGED",
+    eventId: "ack-1",
+    windowStart: baseline,
+  }, { now: NOW + 1, dayKey: "2026-11-13" });
+  assert.equal(acked.changed, true);
+  assert.equal(acked.snapshot.reunion.pending, null, "确认成功后清除待处理");
+  assert.equal(acked.snapshot.reunion.lastTriggeredWindowStart, baseline, "已处理仍保留触发标记");
+  assert.deepEqual(acked.snapshot.entries, seed.entries, "确认不新增日记");
+  assert.deepEqual(acked.snapshot.personality, seed.personality, "确认不修改五维贡献");
+  const staleAck = applyGameEvent(acked.snapshot, {
+    type: "REUNION_ACKNOWLEDGED",
+    eventId: "ack-2",
+    windowStart: baseline,
+  }, { now: NOW + 2, dayKey: "2026-11-13" });
+  assert.equal(staleAck.changed, false, "重复确认无副作用");
 
   console.log("阶段五久别重逢领域、阈值、文案与零结算验证通过");
 }

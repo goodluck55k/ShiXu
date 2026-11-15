@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { PERSONALITY_RULES, PERSONALITY_V2 as cfg } from "../src/config/personality";
 import { buildContribution, derivePersonality, resolveDominant, reviseContribution, type PersonalityState } from "../src/domain/personality";
-import { migrateSnapshotV2toV3 } from "../src/domain/migrations";
+import { migrateSnapshotV2toV3, migrateSnapshotV3toV4 } from "../src/domain/migrations";
 import { createInitialSnapshot, applyGameEvent } from "../src/domain/rules";
 import { createEmptyCompanion } from "../src/domain/companion";
 import { validateSnapshot, validateSnapshotJson } from "../src/domain/schema";
@@ -55,7 +55,7 @@ assert.equal(applyGameEvent(missingSnapshot, { ...correct, eventId: "missing-rul
 const oldSnapshot = { ...s, personality: legacyState };
 assert.equal(validateSnapshot(oldSnapshot).ok, true);
 const v2: SnapshotV2 = { schemaVersion: 2, revision: 4, character: { totalXp: 12, stage: 2, latestEntryId: s.entries[0].id, currentEmotion: s.entries[0].effectiveEmotion }, entries: s.entries, memories: s.memories, appliedEventIds: s.appliedEventIds, decorations: { ownedIds: [], equippedBySlot: {}, hiddenById: {} }, companion: createEmptyCompanion() };
-const migrated = migrateSnapshotV2toV3(v2);
+const migrated = migrateSnapshotV3toV4(migrateSnapshotV2toV3(v2));
 assert.deepEqual(migrated.entries, v2.entries); assert.deepEqual(migrated.memories, v2.memories); assert.deepEqual(migrated.legacy?.companion, v2.companion); assert.equal(migrated.legacy?.character?.totalXp, 12);
 const oldCorrect = applyGameEvent(migrated, { ...correct, eventId: "old-correct", expectedEntryRevision: 2 }, ctx);
 assert.equal(oldCorrect.changed, true); assert.deepEqual(oldCorrect.snapshot.personality, migrated.personality);

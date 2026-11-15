@@ -2,15 +2,25 @@
 import { useState } from "react";
 import { useApp } from "@/application/AppProvider";
 
-// 功能性占位展示：只渲染应用层已成功提交的一次性问候；回答/跳过均为本地临时状态，不写日记/分数/存档。
+// 功能性占位展示：只渲染正式存档中待处理的问候；回应/跳过必须成功持久化后才清除，失败保留并允许重试。
 export function ReunionPanel() {
   const { state, dismissReunion } = useApp();
   const [answer, setAnswer] = useState("");
-  const prompt = state.reunionPrompt;
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const prompt = state.snapshot?.reunion.pending ?? null;
   if (!prompt) return null;
-  const close = () => {
+  const close = async () => {
+    if (submitting) return;
+    setSubmitting(true);
+    setError(null);
+    const ok = await dismissReunion();
+    setSubmitting(false);
+    if (!ok) {
+      setError("处理结果还没有保存成功，问候会保留在这里，请稍后再试。");
+      return;
+    }
     setAnswer("");
-    dismissReunion();
   };
   return (
     <section className="companion-profile reunion-panel" aria-label="久别重逢">
@@ -34,14 +44,23 @@ export function ReunionPanel() {
         rows={2}
       />
       <div className="reunion-actions">
-        <button type="button" onClick={close} disabled={answer.trim().length === 0}>
+        <button
+          type="button"
+          onClick={() => void close()}
+          disabled={submitting || answer.trim().length === 0}
+        >
           回应
         </button>
-        <button type="button" onClick={close}>
+        <button type="button" onClick={() => void close()} disabled={submitting}>
           跳过
         </button>
       </div>
       <p className="profile-note">这句话不会写入日记，也不会改变小人的性格。</p>
+      {error && (
+        <p role="alert" className="profile-note">
+          {error}
+        </p>
+      )}
     </section>
   );
 }
