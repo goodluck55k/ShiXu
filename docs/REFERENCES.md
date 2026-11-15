@@ -44,7 +44,7 @@
 | [src/utils.ts](https://github.com/dapi-labs/react-nice-avatar/blob/main/src/utils.ts) | 支持种子配置和补齐缺省值；非种子分支也使用随机选择 | 拾绪用固定初始配置与显式确定性规则，禁止每次渲染随机重抽外观 |
 | [LICENSE](https://github.com/dapi-labs/react-nice-avatar/blob/main/LICENSE) | MIT；Copyright (c) 2021 Chill Lab | 若未来复制实质代码，保留版权和完整 MIT 许可 |
 
-README 另提到 Figma 的 Avatar Illustration System 与设计作者 Micah；代码仓库 MIT 不自动证明外部 Figma 文件、商标或其他素材都适用同一授权。拾绪本次不复用这些素材；阶段七最终角色为自行开发的原创黑白企鹅，当前白色小人是历史占位。
+README 另提到 Figma 的 Avatar Illustration System 与设计作者 Micah；代码仓库 MIT 不自动证明外部 Figma 文件、商标或其他素材都适用同一授权。拾绪本次不复用这些素材；阶段七最终角色为自行开发的原创黑白企鹅，早期白色小人是历史占位。
 
 ## 4. React Kawaii（阶段七表情系统结构参考）
 

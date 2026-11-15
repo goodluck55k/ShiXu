@@ -64,8 +64,8 @@ export function SpecialPreview() {
   const play = (next: "smoke" | "drink") => { setChoice(next); setActive(true); setRun(n => n + 1); };
   const view = active ? { ...idle, behaviorId: choice } : idle;
   return <section>
-    <h2>特殊行为 · 视觉待用户验收</h2>
-    <p>仅供开发预览；播放结束或页面隐藏后回到待机，正式触发仍关闭。</p>
+    <h2>特殊行为 · 视觉已获用户确认</h2>
+    <p>仅供开发预览；播放结束或页面隐藏后回到待机。正式触发已开启，真实长期自然触发待进一步验收。</p>
     <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
       <button type="button" onClick={() => play("smoke")}>播放抽烟</button>
       <button type="button" onClick={() => play("drink")}>播放喝酒</button>
