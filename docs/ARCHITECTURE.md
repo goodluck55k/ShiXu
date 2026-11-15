@@ -409,7 +409,7 @@ interface SnapshotV3 {
 | `applyGameEvent(snapshot, event, context)` | rules | 已实现，阶段二至五扩展 | 唯一正式状态变更入口 |
 | `migrateSnapshotV1toV2(v1)` | storage/rules | 已实现 | 保留 |
 | `migrateSnapshotV2toV3(v2)` | storage | 阶段二 | 新增；只做结构转换，不调用计分规则 |
-| `StoragePort.load/save/readRaw/reset` | storage | 已实现 | 签名不变，`Snapshot` 升为 v3 |
+| `StoragePort.load/save/readRaw/reset` | storage | 已实现，保存结果扩展 `corrupt` / `unsupported-version` | 函数签名不变，`Snapshot` 升为 v3；保存前发现现有存档不可读时返回对应状态与原始 `raw` |
 
 ### 5.1 V1 领域事件
 
@@ -457,7 +457,9 @@ interface ActivityCheckpointEvent {
 3. 调用 `applyGameEvent` 得到候选 `Snapshot`；`changed=false` 直接结束。
 4. 调用 `storage.save(candidate, expectedRevision)`。
 5. 只有 `saved` 才更新 React 正式状态与 `lastConfirmedSave`；失败保留草稿与旧状态，不提前结算。
-6. `confirmedSave` 只作为运行时上下文，供陪伴页一次性情绪反馈：`lastConfirmedSave` 仅在 `CONFIRM_ENTRY` 保存成功（`SAVE_OK`）时更新；`useBehaviorRuntime` 用当前标签页模块级 `consumedSaveEventId` 保证同一 `eventId` 只消费一次（开发模拟使用独立 ref）。该去重只存在于运行时，刷新即失、不跨标签页同步，也不写入存档。
+6. 日记保存成功提示由应用层 `savedNotice`（`persisted` / `temporary`）驱动，只在 `CONFIRM_ENTRY` 保存成功时设置；草稿实质变化（`invalidatePending`）、保存失败、重新加载、存档重置、临时模式切换与跨标签页冲突都会清除。不得用累计保存次数（旧 `savedTick`）表示当前草稿已保存。
+7. 保存前若发现现有存档损坏或版本不支持，`storage.save` 返回 `corrupt` / `unsupported-version` 并携带原始 `raw`；应用层进入对应恢复状态，保留草稿与原始内容供导出，清空未提交候选，不得报告为跨标签页冲突、不得自动覆盖。
+8. `confirmedSave` 只作为运行时上下文，供陪伴页一次性情绪反馈：`lastConfirmedSave` 仅在 `CONFIRM_ENTRY` 保存成功（`SAVE_OK`）时更新；`useBehaviorRuntime` 用当前标签页模块级 `consumedSaveEventId` 保证同一 `eventId` 只消费一次（开发模拟使用独立 ref）。该去重只存在于运行时，刷新即失、不跨标签页同步，也不写入存档。
 
 会话启动（阶段四/五）：
 
@@ -489,7 +491,9 @@ AI 识别（阶段六复核）：
 - `appliedEventIds` 当前不裁剪，随正式事件与会话次数增长；这是已知快照增长问题，尚未修复。
 - 加载结果：`missing`、`ready`、`unsupported-version`、`corrupt`、`unavailable`；同一套 schema 校验用于读取与写入前检查。
 - 保存：一次写完整快照；检查 `expectedRevision`；跨标签页冲突时暂停提交并提示；空间不足保留旧状态与草稿；临时体验模式只改内存，不覆盖正式存档。
+- 保存前检查发现现有存档不可读时，`SaveResult` 分别返回 `corrupt` 或 `unsupported-version`（含原始 `raw`），不得归为 `conflict`；应用层进入对应恢复状态，保留草稿与原始内容，用户导出并明确确认后才能重置。
 - 损坏/版本过新：保留 `raw`，提供导出与重置，不静默覆盖。
+- 重置：只有成功写回初始存档后才清除 `tabConflict`、恢复 `ready` 并允许立即保存；重置失败不得清除冲突或伪装已恢复。成功重置仍需保留原有导出入口与二次确认流程；真实外部标签页修订冲突不得被绕过。
 - 迁移 v1→v2：已实现（补 `companion` 默认值，保留日记/情绪/历史）。
 - 迁移 v2→v3（阶段二）：
   1. `entries`、`memories`、`appliedEventIds`、`revision` 原样保留；`Entry.text`、`effectiveEmotion`、`corrections` 逐字不动。

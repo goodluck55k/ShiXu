@@ -71,7 +71,9 @@ export interface AppState {
   temporary: boolean;
   saving: boolean;
   saveError: string | null;
-  savedTick: number;
+  // 本次已成功提交日记的展示标记：只在 CONFIRM_ENTRY 保存成功后设置，
+  // 草稿实质变化、重载/重置/临时切换、保存失败或冲突时清除。
+  savedNotice: "persisted" | "temporary" | null;
   pending: PendingOperation | null;
   tabConflict: boolean;
   lastConfirmedSave: ConfirmedSaveContext | null;
@@ -89,7 +91,7 @@ const initialState: AppState = {
   temporary: false,
   saving: false,
   saveError: null,
-  savedTick: 0,
+  savedNotice: null,
   pending: null,
   tabConflict: false,
   lastConfirmedSave: null,
@@ -101,15 +103,17 @@ const initialState: AppState = {
 type Action =
   | { type: "LOAD_DONE"; result: LoadResult }
   | { type: "SAVE_START"; pending: PendingOperation }
-  | { type: "SAVE_OK"; snapshot: Snapshot }
+  | { type: "SAVE_OK"; snapshot: Snapshot; temporary: boolean }
   | { type: "SAVE_FAIL"; message: string; conflict: boolean }
+  | { type: "STORAGE_RECOVERY"; status: "corrupt" | "unsupported-version"; raw: string; reason: string }
+  | { type: "RESET_OK"; snapshot: Snapshot }
+  | { type: "RESET_FAIL"; message: string }
   | { type: "COMMIT_SNAPSHOT"; snapshot: Snapshot }
   | { type: "INVALIDATE_PENDING" }
   | { type: "ENABLE_TEMP" }
   | { type: "TAB_CONFLICT" }
   | { type: "REUNION_SHOW"; prompt: ReunionGreeting }
-  | { type: "REUNION_DISMISS" }
-  | { type: "REUNION_RESET" };
+  | { type: "REUNION_DISMISS" };
 
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
@@ -120,6 +124,7 @@ function reducer(state: AppState, action: Action): AppState {
         pending: null,
         tabConflict: false,
         saveError: null,
+        savedNotice: null,
         lastConfirmedSave: null,
         reunionPrompt: null,
         reunionHandledWindow: null,
@@ -149,7 +154,7 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, saving: true, saveError: null, pending: action.pending };
     case "SAVE_OK": {
       const pending = state.pending;
-      const lastConfirmedSave =
+      const confirmedSave =
         pending && pending.event.type === "CONFIRM_ENTRY"
           ? {
               eventId: pending.event.eventId,
@@ -157,7 +162,7 @@ function reducer(state: AppState, action: Action): AppState {
               emotion: pending.event.emotion,
               savedAt: pending.now,
             }
-          : state.lastConfirmedSave;
+          : null;
       return {
         ...state,
         phase: "ready",
@@ -166,15 +171,58 @@ function reducer(state: AppState, action: Action): AppState {
         saveError: null,
         snapshot: action.snapshot,
         pending: null,
-        savedTick: state.savedTick + 1,
-        lastConfirmedSave,
+        savedNotice: confirmedSave ? (action.temporary ? "temporary" : "persisted") : state.savedNotice,
+        lastConfirmedSave: confirmedSave ?? state.lastConfirmedSave,
       };
     }
     case "SAVE_FAIL":
-      return { ...state, saving: false, saveError: action.message, tabConflict: action.conflict };
+      return {
+        ...state,
+        saving: false,
+        saveError: action.message,
+        tabConflict: action.conflict,
+        savedNotice: null,
+      };
+    case "STORAGE_RECOVERY":
+      // 现有存档不可读：进入恢复状态并保留原始内容；未提交候选与草稿不得写入新存档。
+      return {
+        ...state,
+        phase: action.status,
+        snapshot: null,
+        problem: { raw: action.raw, reason: action.reason },
+        temporary: false,
+        saving: false,
+        saveError: "本次保存未完成，草稿仍保留。请先导出原始数据，确认后再重置存档。",
+        pending: null,
+        tabConflict: false,
+        savedNotice: null,
+        lastConfirmedSave: null,
+        reunionPrompt: null,
+        reunionHandledWindow: null,
+      };
+    case "RESET_OK":
+      // 只有真正成功重置才清除冲突与恢复状态，允许立即保存。
+      return {
+        ...state,
+        phase: "ready",
+        snapshot: action.snapshot,
+        problem: null,
+        temporary: false,
+        saving: false,
+        saveError: null,
+        savedNotice: null,
+        pending: null,
+        tabConflict: false,
+        lastConfirmedSave: null,
+        reunionPrompt: null,
+        reunionHandledWindow: null,
+      };
+    case "RESET_FAIL":
+      // 重置失败不改变原有 phase/problem/tabConflict：冲突是否解除只能由成功重置证明。
+      return { ...state, saving: false, saveError: action.message };
     case "INVALIDATE_PENDING":
-      return state.pending || state.saveError
-        ? { ...state, pending: null, saveError: null }
+      return state.pending || state.saveError || state.savedNotice
+        ? { ...state, pending: null, saveError: null, savedNotice: null }
         : state;
     case "ENABLE_TEMP":
       return {
@@ -185,6 +233,7 @@ function reducer(state: AppState, action: Action): AppState {
         problem: null,
         pending: null,
         saveError: null,
+        savedNotice: null,
         lastConfirmedSave: null,
         reunionPrompt: null,
         reunionHandledWindow: null,
@@ -192,7 +241,7 @@ function reducer(state: AppState, action: Action): AppState {
     case "COMMIT_SNAPSHOT":
       return { ...state, phase: "ready", problem: null, snapshot: action.snapshot };
     case "TAB_CONFLICT":
-      return { ...state, tabConflict: true };
+      return { ...state, tabConflict: true, savedNotice: null };
     case "REUNION_SHOW":
       if (state.reunionHandledWindow === action.prompt.windowStart) return state;
       if (state.reunionPrompt?.windowStart === action.prompt.windowStart) return state;
@@ -201,8 +250,6 @@ function reducer(state: AppState, action: Action): AppState {
       return state.reunionPrompt
         ? { ...state, reunionPrompt: null, reunionHandledWindow: state.reunionPrompt.windowStart }
         : state;
-    case "REUNION_RESET":
-      return { ...state, reunionPrompt: null, reunionHandledWindow: null };
   }
 }
 
@@ -421,6 +468,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         } else if (saved.status === "conflict") {
           sessionPendingRef.current = null;
           dispatch({ type: "TAB_CONFLICT" });
+        } else if (saved.status === "corrupt" || saved.status === "unsupported-version") {
+          sessionPendingRef.current = null;
+          dispatch({ type: "STORAGE_RECOVERY", status: saved.status, raw: saved.raw, reason: saved.reason });
         }
         // 其他失败静默降级：保留冻结事件与最后成功的基准，后续写入合并重试。
       } finally {
@@ -459,8 +509,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (saved.status === "saved") {
         settlePendingSession(saved.snapshot);
         dispatch({ type: "COMMIT_SNAPSHOT", snapshot: saved.snapshot });
+      } else if (saved.status === "corrupt" || saved.status === "unsupported-version") {
+        sessionPendingRef.current = null;
+        dispatch({ type: "STORAGE_RECOVERY", status: saved.status, raw: saved.raw, reason: saved.reason });
       }
-      // 冲突/失败静默跳过：跨标签页冲突由 storage 事件与日记保存的 expectedRevision 兜底。
+      // 其他失败静默跳过：跨标签页冲突由 storage 事件与日记保存的 expectedRevision 兜底。
     } finally {
       savingRef.current = false;
     }
@@ -506,6 +559,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           dispatch({
             type: "SAVE_OK",
             snapshot: { ...pending.candidate, revision: pending.expectedRevision + 1 },
+            temporary: true,
           });
           return true;
         }
@@ -513,8 +567,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (result.status === "saved") {
           pendingRef.current = null;
           settlePendingSession(result.snapshot);
-          dispatch({ type: "SAVE_OK", snapshot: result.snapshot });
+          dispatch({ type: "SAVE_OK", snapshot: result.snapshot, temporary: false });
           return true;
+        }
+        if (result.status === "corrupt" || result.status === "unsupported-version") {
+          pendingRef.current = null;
+          sessionPendingRef.current = null;
+          dispatch({ type: "STORAGE_RECOVERY", status: result.status, raw: result.raw, reason: result.reason });
+          return false;
         }
         const conflict = result.status === "conflict";
         const message = conflict ? `${result.reason}（提交已暂停）` : result.reason;
@@ -680,11 +740,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       sessionPendingRef.current = null;
       sessionStartedRef.current = true;
       clearActivityRescue();
-      dispatch({ type: "REUNION_RESET" });
-      dispatch({ type: "SAVE_OK", snapshot: result.snapshot });
+      dispatch({ type: "RESET_OK", snapshot: result.snapshot });
       return;
     }
-    dispatch({ type: "SAVE_FAIL", message: result.reason, conflict: false });
+    dispatch({ type: "RESET_FAIL", message: result.reason });
   }, [storage]);
 
   const dismissReunion = useCallback(() => {

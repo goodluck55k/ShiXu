@@ -47,7 +47,8 @@ export function createLocalStorageAdapter(): StoragePort {
     if (raw !== null) {
       const existing = validateSnapshotJson(raw);
       if (!existing.ok) {
-        return { status: "conflict", reason: "现有存档损坏或版本不支持，请先导出并重置" };
+        // 不可读的现有存档既不是跨标签页修订冲突，也不能被自动覆盖；原样返回供导出与重置。
+        return { status: existing.kind, raw, reason: existing.reason };
       }
       if (existing.snapshot.revision !== expectedRevision) {
         return { status: "conflict", reason: "存档已在其他位置更新，请重新加载" };

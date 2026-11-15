@@ -70,8 +70,10 @@ const candidate = applyGameEvent(loaded.snapshot, confirm("new", "joy"), ctx).sn
 fail = true; assert.notEqual((await storage.save(candidate, 4)).status, "saved"); assert.equal(JSON.parse(raw!).schemaVersion, 2); assert.equal(loaded.snapshot.personality.contributions.new, undefined);
 fail = false; assert.equal((await storage.save(candidate, 4)).status, "saved"); const reloaded = await storage.load();
 assert.equal(reloaded.status, "ready"); if (reloaded.status === "ready") assert.deepEqual(reloaded.snapshot.personality, candidate.personality);
-raw = '{"schemaVersion":99}'; assert.equal((await storage.load()).status, "unsupported-version"); assert.equal((await storage.save(candidate, 4)).status, "conflict"); assert.equal(raw, '{"schemaVersion":99}');
-raw = "broken"; assert.equal((await storage.load()).status, "corrupt"); assert.equal(raw, "broken");
+raw = '{"schemaVersion":99}'; assert.equal((await storage.load()).status, "unsupported-version"); const unsupported = await storage.save(candidate, 4); assert.equal(unsupported.status, "unsupported-version"); if (unsupported.status === "unsupported-version") assert.equal(unsupported.raw, '{"schemaVersion":99}'); assert.equal(raw, '{"schemaVersion":99}', "版本不支持不得被当作跨标签页冲突或覆盖");
+raw = "broken"; assert.equal((await storage.load()).status, "corrupt"); const corruptSave = await storage.save(candidate, 4); assert.equal(corruptSave.status, "corrupt"); if (corruptSave.status === "corrupt") assert.equal(corruptSave.raw, "broken"); assert.equal(raw, "broken", "损坏存档保留原文");
+raw = JSON.stringify({ ...candidate, revision: 99 }); assert.equal((await storage.save(candidate, 4)).status, "conflict", "真实修订冲突仍为 conflict");
+assert.equal(raw, JSON.stringify({ ...candidate, revision: 99 }), "冲突不得覆盖存档");
 assert.equal(validateSnapshotJson(JSON.stringify(v2)).ok, true);
 void SNAPSHOT_STORAGE_KEY;
 console.log("阶段二领域、迁移和存储验证通过");
