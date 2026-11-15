@@ -10,6 +10,9 @@ export type LoadResult =
 export type SaveResult =
   | { status: "saved"; snapshot: Snapshot }
   | { status: "conflict"; reason: string }
+  // 保存前发现现有存档不可读：返回原始内容供导出，调用方进入恢复状态且不得覆盖。
+  | { status: "corrupt"; raw: string; reason: string }
+  | { status: "unsupported-version"; raw: string; reason: string }
   | { status: "unavailable"; reason: string }
   | { status: "quota-exceeded"; reason: string }
   | { status: "invalid"; reason: string };
