@@ -17,6 +17,7 @@ button, textarea { font:inherit; } button { cursor:pointer; } button:disabled { 
 .penguin-action { overflow:visible; }
 .penguin-body { transform-box:fill-box; transform-origin:50% 95%; }
 .penguin-body > svg { overflow:visible; }
+.penguin-body svg, .special-standing svg, .special-seated svg { overflow:visible; }
 .action-breathe .penguin-body { animation: penguin-breathe 4s ease-in-out infinite; }
 .action-breathe [data-eye] { transform-box:fill-box; transform-origin:center; animation: penguin-blink 4s infinite; }
 .action-sway .penguin-body { animation: penguin-sway 2.4s ease-in-out infinite; }
@@ -139,3 +140,43 @@ body { background:radial-gradient(circle at 80% 0,#fffaf0 0,transparent 38%),var
   .app-shell { padding-bottom:calc(var(--mobile-nav-height) + 24px); }
   .sidebar { height:var(--mobile-nav-height); padding-bottom:calc(5px + env(safe-area-inset-bottom, 0px)); }
 }
+
+/* The home viewport is a camera onto the original, uniformly scaled room. */
+.home-shell .main-content { padding:0; }
+.home-shell .content-wrap, .home-shell .companion-page { max-width:none; }
+.home-shell .room-layout { position:relative; display:block; }
+.home-shell .scene { height:100svh; border:0; border-radius:0; box-shadow:none; }
+.home-shell .room-canvas { width:auto; min-width:100%; }
+.home-shell .scene-character { width:11%; }
+.home-shell .home-side { position:absolute; inset:24px 24px auto auto; z-index:3; width:min(230px, 22%); }
+.home-shell .home-status { padding:16px 18px; background:#fffaf2e8; }
+.home-shell .home-status h2 { font-size:18px; margin:5px 0; }
+.home-shell .home-status p { font-size:13px; margin:5px 0; }
+.home-shell .behavior-controls { display:grid; grid-template-columns:repeat(3,1fr); }
+.home-shell .behavior-controls button { padding:10px 3px; background:#fffaf2ed; }
+.home-shell .behavior-status { background:#fffaf2e8; border-radius:12px; padding:4px 8px; }
+.home-shell .companion-profile { margin:20px; }
+@media (min-width:701px) {
+  .home-shell .sidebar { width:150px; padding:24px 12px; }
+  .home-shell .brand { font-size:18px; gap:5px; }
+  .home-shell .brand-mark { font-size:27px; }
+  .home-shell .brand-caption { margin:8px 0 24px 30px; letter-spacing:0; }
+  .home-shell .nav-link { padding:12px 8px; gap:8px; font-size:13px; }
+  .home-shell .sidebar-note { padding:12px 6px; }
+  .home-shell .main-content { margin-left:150px; width:calc(100% - 150px); }
+}
+@media (max-width:700px) {
+  .home-shell { padding-bottom:var(--mobile-nav-height); }
+  .home-shell .main-content { width:100%; }
+  .home-shell .scene { height:calc(100svh - var(--mobile-nav-height)); }
+  .home-shell .scene-character { width:11%; }
+  .home-shell .home-side { inset:12px 12px 10px auto; width:min(190px, 52%); pointer-events:none; }
+  .home-shell .home-status, .home-shell .behavior-controls { pointer-events:auto; }
+  .home-shell .home-status { padding:10px 12px; }
+  .home-shell .home-status h2 { font-size:15px; }
+  .home-shell .home-status p { font-size:12px; line-height:1.4; }
+  .home-shell .behavior-controls { position:absolute; z-index:4; bottom:0; right:0; margin:0; gap:5px; }
+  .home-shell .behavior-controls button { padding:7px 9px; line-height:1.35; font-size:12px; }
+  .home-shell .behavior-status { display:none; }
+}
+.home-shell .scene { width:100%; aspect-ratio:auto; }

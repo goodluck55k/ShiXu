@@ -9,7 +9,7 @@ const links = [ { href: "/", label: "企鹅小屋", icon: "⌂" }, { href: "/dia
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { state, reload } = useApp();
-  return <div className="app-shell">
+  return <div className={`app-shell${pathname === "/" ? " home-shell" : ""}`}>
     <aside className="sidebar"><Link className="brand" href="/"><span className="brand-mark">♧</span><span>拾绪 <small>ShiXu</small></span></Link><p className="brand-caption">把日子轻轻收好</p>
       <nav aria-label="主导航" className="nav-list">{links.map(link => <Link key={link.href} href={link.href} aria-current={pathname === link.href ? "page" : undefined} className={pathname === link.href ? "nav-link active" : "nav-link"}><span className="nav-icon" aria-hidden="true">{link.icon}</span><span>{link.label}</span></Link>)}</nav>
       <div className="sidebar-note"><span>✳</span><p>每一种心情<br />都值得被珍藏。</p></div>
