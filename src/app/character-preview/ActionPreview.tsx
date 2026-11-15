@@ -31,7 +31,7 @@ export function ActionPreview() {
   const selected = actions[choice];
   const view = running ? { ...idle, pose: selected[1], animation: selected[2], behaviorId: selected[1] === "window" ? "window_gaze" : undefined } : idle;
   return <section>
-    <h2>侧背面与动作 · 视觉待用户验收</h2>
+    <h2>侧背面与动作 · 视觉已获用户确认（第二轮）</h2>
     <p>原创延展，动作参数待验收。选择动作后播放四秒并回到待机；系统低动态设置也会生效。</p>
     <div style={{ display: "flex", flexWrap: "wrap", gap: 24, alignItems: "end" }}>
       {directions.map(([direction, label]) => <div key={direction} style={{ textAlign: "center", width: 140 }}><div style={{ width: 140, height: 145 }}><svg viewBox="0 0 195 201" width="140" height="145"><PenguinPose direction={direction} /></svg></div>{label}</div>)}
@@ -64,8 +64,8 @@ export function SpecialPreview() {
   const play = (next: "smoke" | "drink") => { setChoice(next); setActive(true); setRun(n => n + 1); };
   const view = active ? { ...idle, behaviorId: choice } : idle;
   return <section>
-    <h2>特殊行为 · 视觉待用户验收</h2>
-    <p>仅供开发预览；播放结束或页面隐藏后回到待机，正式触发仍关闭。</p>
+    <h2>特殊行为 · 视觉已获用户确认</h2>
+    <p>仅供开发预览；播放结束或页面隐藏后回到待机。正式触发已开启，真实长期自然触发待进一步验收。</p>
     <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
       <button type="button" onClick={() => play("smoke")}>播放抽烟</button>
       <button type="button" onClick={() => play("drink")}>播放喝酒</button>

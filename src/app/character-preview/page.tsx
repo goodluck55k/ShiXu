@@ -21,7 +21,7 @@ export default function CharacterPreview() {
       <SpecialSimulation />
       <SpecialPreview />
       <ActionPreview />
-      <h1>企鹅九种表情 · 视觉待用户验收</h1>
+      <h1>企鹅九种表情 · 视觉已获用户确认</h1>
       <p>同一已验收正面母版，仅切换五官；表情 ID 不与日记情绪一一对应。</p>
       <h2>完整企鹅对照</h2>
       <section style={{ display: "grid", gridTemplateColumns: "repeat(9, minmax(100px, 1fr))", gap: 8, overflowX: "auto" }}>
