@@ -50,6 +50,8 @@ export const BEHAVIOR_V2: BehaviorRuleConfig = {
   tickIntervalMs: [20000, 40000],
   interactionDurationMs: [2500, 4000],
   saveFeedbackDurationMs: 3000,
+  // 保存反馈跨页面投递有效期；候选 300000 毫秒（5 分钟），待产品验收。
+  saveFeedbackTtlMs: 300000,
   emotionExpressionDurationMs: 3000,
   emotionExpression: {
     joy: { expression: "happy", intensity: 1.2 },

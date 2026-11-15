@@ -20,8 +20,11 @@ import { computeSpecialEligibility } from "./lowMoodStreak";
 
 const SESSION_SEED = 1;
 
-// 会话级消费标记：同一保存事件在组件重挂载后也不重复反馈；刷新即失。
-let consumedSaveEventId: string | null = null;
+// 保存反馈投递归属：正式运行时由 Provider 持有跨页面标记；开发模拟使用自身实例。
+export interface SaveFeedbackDelivery {
+  hasStarted: (eventId: string) => boolean;
+  markStarted: (eventId: string) => void;
+}
 
 function timeBandOf(now: number): TimeBand {
   const hour = new Date(now).getHours();
@@ -40,12 +43,16 @@ export interface BehaviorRuntime {
 }
 
 export function useBehaviorRuntime(): BehaviorRuntime {
-  const { state } = useApp();
-  return useBehaviorRuntimeState(state.snapshot, state.lastConfirmedSave);
+  const { state, hasSaveFeedbackStarted, markSaveFeedbackStarted } = useApp();
+  const delivery = useMemo<SaveFeedbackDelivery>(
+    () => ({ hasStarted: hasSaveFeedbackStarted, markStarted: markSaveFeedbackStarted }),
+    [hasSaveFeedbackStarted, markSaveFeedbackStarted],
+  );
+  return useBehaviorRuntimeState(state.snapshot, state.lastConfirmedSave, false, 0, delivery);
 }
 
 // 开发验收复用同一运行时，但只传入内存快照；正式调用使用 AppProvider 的已提交快照。
-export function useBehaviorRuntimeState(snapshot: Snapshot | null, lastConfirmedSave: ConfirmedSaveContext | null, simulation = false, initialSequence = 0): BehaviorRuntime {
+export function useBehaviorRuntimeState(snapshot: Snapshot | null, lastConfirmedSave: ConfirmedSaveContext | null, simulation = false, initialSequence = 0, delivery?: SaveFeedbackDelivery): BehaviorRuntime {
   const ready = snapshot !== null;
   const [decision, setDecision] = useState<BehaviorDecision | null>(null);
   const [feedbackActive, setFeedbackActive] = useState(false);
@@ -53,7 +60,8 @@ export function useBehaviorRuntimeState(snapshot: Snapshot | null, lastConfirmed
   const [paused, setPaused] = useState(false);
 
   const sequenceRef = useRef(initialSequence);
-  const simulatedConsumedSaveEventId = useRef<string | null>(null);
+  // 本实例内已开始展示的反馈事件；卸载后由 Provider 标记继续去重（模拟实例仅本实例有效）。
+  const startedFeedbackEventIdRef = useRef<string | null>(null);
   const lastRef = useRef<{ id: BehaviorId | null; count: number }>({ id: null, count: 0 });
   const autonomousRef = useRef<BehaviorDecision | null>(null);
   const modeRef = useRef<"auto" | "interaction" | "feedback">("auto");
@@ -226,28 +234,40 @@ export function useBehaviorRuntimeState(snapshot: Snapshot | null, lastConfirmed
     [clearTick, clearEnd, clearAction, resumeAuto],
   );
 
+  const reunionPending = snapshot?.reunion.pending ?? null;
+
   useEffect(() => {
-    if (!lastConfirmedSave) return;
-    const consumedId = simulation ? simulatedConsumedSaveEventId.current : consumedSaveEventId;
-    if (lastConfirmedSave.eventId !== consumedId) {
-      if (simulation) simulatedConsumedSaveEventId.current = lastConfirmedSave.eventId;
-      else consumedSaveEventId = lastConfirmedSave.eventId;
-      const previous = autonomousRef.current;
-      const base = previous?.category === "special" ? selectNext(false) : previous ?? selectNext(false);
-      if (!base) return;
-      clearTick();
-      clearAction();
-      emotionExpiresAtRef.current = Date.now() + BEHAVIOR_V2.emotionExpressionDurationMs;
-      modeRef.current = "feedback";
-      setFeedbackActive(true);
-      setDecision(selectSaveFeedback(base, lastConfirmedSave.emotion));
+    if (!ready || !lastConfirmedSave) return;
+    // 页面隐藏时保留待投递状态：既不展示，也不写入“已开始展示”标记。
+    if (document.visibilityState !== "visible" || paused) return;
+    const eventId = lastConfirmedSave.eventId;
+    const started =
+      startedFeedbackEventIdRef.current === eventId || (delivery?.hasStarted(eventId) ?? false);
+    if (started) {
+      // StrictMode 重跑会先清理可见性 effect 的计时器；仅在仍处于反馈模式且计时器缺失时补一次。
+      if (modeRef.current === "feedback" && endTimerRef.current === null) {
+        endTimerRef.current = window.setTimeout(resumeAuto, BEHAVIOR_V2.saveFeedbackDurationMs);
+      }
+      return;
     }
-    // StrictMode 双调用会经可见性 effect 的清理清掉结束定时器，仍处于反馈模式时须重新计时
-    if (modeRef.current === "feedback") {
-      clearEnd();
-      endTimerRef.current = window.setTimeout(resumeAuto, BEHAVIOR_V2.saveFeedbackDurationMs);
-    }
-  }, [lastConfirmedSave, simulation, clearTick, clearEnd, clearAction, selectNext, resumeAuto]);
+    // 重逢问候优先：未处理时既不展示保存反馈，也不提前消费；确认失败时继续门控。
+    if (reunionPending) return;
+    // 隐藏与重逢门控的等待时间同样计入有效期；过期直接丢弃，不排队延后补播。
+    if (!(Date.now() < lastConfirmedSave.savedAt + BEHAVIOR_V2.saveFeedbackTtlMs)) return;
+    const previous = autonomousRef.current;
+    const base = previous?.category === "special" ? selectNext(false) : previous ?? selectNext(false);
+    if (!base) return;
+    clearTick();
+    clearEnd();
+    clearAction();
+    startedFeedbackEventIdRef.current = eventId;
+    delivery?.markStarted(eventId);
+    emotionExpiresAtRef.current = Date.now() + BEHAVIOR_V2.emotionExpressionDurationMs;
+    modeRef.current = "feedback";
+    setFeedbackActive(true);
+    setDecision(selectSaveFeedback(base, lastConfirmedSave.emotion));
+    endTimerRef.current = window.setTimeout(resumeAuto, BEHAVIOR_V2.saveFeedbackDurationMs);
+  }, [ready, lastConfirmedSave, reunionPending, paused, delivery, clearTick, clearEnd, clearAction, selectNext, resumeAuto]);
 
   const view = useMemo(() => {
     if (!snapshot) return null;

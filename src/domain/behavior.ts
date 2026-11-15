@@ -100,6 +100,7 @@ export interface BehaviorRuleConfig {
   tickIntervalMs: [number, number];
   interactionDurationMs: [number, number];
   saveFeedbackDurationMs: number;
+  saveFeedbackTtlMs: number;          // 跨页面投递有效期；候选 300000，待产品验收
   emotionExpressionDurationMs: number;
   emotionExpression: Record<EmotionLabel, { expression: string; intensity: number }>;
   ambientTimeWeights: Record<TimeBand, Partial<Record<BehaviorId, number>>>;
