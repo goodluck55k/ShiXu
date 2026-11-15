@@ -31,7 +31,7 @@ export function ActionPreview() {
   const selected = actions[choice];
   const view = running ? { ...idle, pose: selected[1], animation: selected[2], behaviorId: selected[1] === "window" ? "window_gaze" : undefined } : idle;
   return <section>
-    <h2>侧背面与动作 · 视觉待用户验收</h2>
+    <h2>侧背面与动作 · 视觉已获用户确认（第二轮）</h2>
     <p>原创延展，动作参数待验收。选择动作后播放四秒并回到待机；系统低动态设置也会生效。</p>
     <div style={{ display: "flex", flexWrap: "wrap", gap: 24, alignItems: "end" }}>
       {directions.map(([direction, label]) => <div key={direction} style={{ textAlign: "center", width: 140 }}><div style={{ width: 140, height: 145 }}><svg viewBox="0 0 195 201" width="140" height="145"><PenguinPose direction={direction} /></svg></div>{label}</div>)}
