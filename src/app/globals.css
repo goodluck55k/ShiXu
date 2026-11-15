@@ -132,3 +132,10 @@ body { background:radial-gradient(circle at 80% 0,#fffaf0 0,transparent 38%),var
 .scene-character { width:19%; }
 .emotion-heading { margin-bottom:0; padding-bottom:14px; }
 @media (max-width:700px) { .scene-character { width:19%; } }
+
+/* Keep the fixed mobile navigation and the scrollable content in the same safe area. */
+@media (max-width:700px) {
+  html { --mobile-nav-height:calc(68px + env(safe-area-inset-bottom, 0px)); scroll-padding-bottom:calc(var(--mobile-nav-height) + 16px); }
+  .app-shell { padding-bottom:calc(var(--mobile-nav-height) + 24px); }
+  .sidebar { height:var(--mobile-nav-height); padding-bottom:calc(5px + env(safe-area-inset-bottom, 0px)); }
+}
