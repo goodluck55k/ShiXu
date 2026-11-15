@@ -178,7 +178,8 @@ function main() {
   const customEval = evaluateReunion({ now: NOW, lastActiveAt: NOW - 2 * HOUR, lastVisitAt: null, lastTriggeredWindowStart: null, pendingWindowStart: null, dominantId: "gentleness" }, custom);
   assert.equal(customEval.triggered, true, "阈值应可配置");
 
-  // 12. SESSION_STARTED 只在成功事件中写重逢标记；未触发时保留原标记；空窗口防御性拒绝。
+  // 12. SESSION_STARTED 只在成功事件中写重逢标记；未触发时保留原标记；
+  // 触发必须携带完整且窗口匹配的问候，否则整体拒绝且不推进基准。
   const seed: Snapshot = {
     ...snapshotWithDominant("low_mood"),
     offlineLife: { lastVisitAt: baseline, lastActiveAt: baseline, lastWindowStart: null, events: [] },
@@ -211,13 +212,33 @@ function main() {
   const noTrigger = applyGameEvent(kept, sessionEvent(baseline, false), { now: NOW, dayKey: "2026-11-13" });
   assert.deepEqual(noTrigger.snapshot.reunion, history, "未触发时保留原重逢标记");
 
+  // 非法触发：空问候 / 窗口不匹配 / 问候字段不完整 → 整体拒绝，不写标记、不推进基准，可重新触发。
+  const invalidCases: Array<[string, SessionStartedEvent["reunionGreeting"]]> = [
+    ["空问候", null],
+    ["窗口不匹配", { ...greeting, windowStart: baseline - DAY }],
+    ["问候字段不完整", { ...greeting, message: "" }],
+  ];
+  for (const [label, invalidGreeting] of invalidCases) {
+    const rejected = applyGameEvent(seed, sessionEvent(baseline, true, invalidGreeting), { now: NOW, dayKey: "2026-11-13" });
+    assert.equal(rejected.changed, false, `${label}不得写入已触发标记`);
+    assert.deepEqual(rejected.snapshot.reunion, seed.reunion, `${label}不得留下半触发状态`);
+    assert.deepEqual(rejected.snapshot.offlineLife, seed.offlineLife, `${label}不得推进访问基准`);
+    assert.deepEqual(rejected.snapshot.appliedEventIds, seed.appliedEventIds, `${label}不得消耗事件`);
+  }
+  const retriedTrigger = applyGameEvent(seed, sessionEvent(baseline, true, greeting), { now: NOW, dayKey: "2026-11-13" });
+  assert.equal(retriedTrigger.changed, true, "拒绝非法事件后，正常问候仍可提交");
+  assert.deepEqual(retriedTrigger.snapshot.reunion.pending, greeting);
+
   const freshSnapshot = createInitialSnapshot();
-  const firstSession = applyGameEvent(freshSnapshot, sessionEvent(null, true), { now: NOW, dayKey: "2026-11-13" });
-  assert.equal(firstSession.changed, true);
-  assert.deepEqual(firstSession.snapshot.reunion, freshSnapshot.reunion, "首次会话空窗口不得写入重逢标记");
+  const firstSession = applyGameEvent(freshSnapshot, sessionEvent(null, false), { now: NOW, dayKey: "2026-11-13" });
+  assert.equal(firstSession.changed, true, "正常无重逢首次会话应正常提交");
+  assert.deepEqual(firstSession.snapshot.reunion, freshSnapshot.reunion, "正常首次会话不写重逢标记");
+  const invalidFirstSession = applyGameEvent(freshSnapshot, sessionEvent(null, true), { now: NOW, dayKey: "2026-11-13" });
+  assert.equal(invalidFirstSession.changed, false, "空窗口触发事件整体拒绝");
+  assert.deepEqual(invalidFirstSession.snapshot.reunion, freshSnapshot.reunion);
 
   // 13. 已提交的窗口不会被不同 eventId 重复触发（基准已推进）。
-  const replay = applyGameEvent(committed.snapshot, { ...sessionEvent(baseline, true), eventId: "other" }, { now: NOW, dayKey: "2026-11-13" });
+  const replay = applyGameEvent(committed.snapshot, { ...sessionEvent(baseline, true, greeting), eventId: "other" }, { now: NOW, dayKey: "2026-11-13" });
   assert.equal(replay.changed, false, "基准推进后旧窗口拒绝");
 
   // 14. 待处理问候阻断新触发；新会话不得覆盖旧问候；明确确认后才清除。

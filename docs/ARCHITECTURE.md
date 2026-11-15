@@ -2,7 +2,7 @@
 
 > 状态：V1 架构基线。标注「已实现」的以 `main` 分支代码为准；「阶段 N 规划」表示尚未合入。产品范围见 [PRODUCT_SPEC](PRODUCT_SPEC.md)，性格与行为参数见 [COMPANION_SPEC](COMPANION_SPEC.md)。
 >
-> 存档 `schemaVersion` 为 4（STO-05 起；v1/v2/v3 读取时迁移）；本文档版本与存档版本无关。截至本版，`main` 已含 `schemaVersion` 3 与五维 `personality-v2` 台账及迁移（PR #18）、主导行为引擎（PR #19）、离线自主生活（PR #20）、久别重逢（PR #22）、AI 情绪识别复核（PR #23）与 `schemaVersion` 4 待处理问候投递修复（STO-05）；阶段七的原创企鹅正面母版（PR #27）、九种组合表情（PR #28）、侧背面与基础动作（PR #30）、特殊动作视觉（PR #31）与特殊行为正式接入（PR #32）均已合入。特殊行为配置已开启，真实长期自然触发待进一步验收；生活空间与正式 UI 尚未开发。当前整体进度以 [ROADMAP](ROADMAP.md) §1.1 为准。
+> 存档目标结构为 `schemaVersion` 4（STO-05，PR #35 待合并；合并后 v1/v2/v3 读取时迁移）。`main` 当前仍为 `schemaVersion` 3；本文档版本与存档版本无关。截至本版，`main` 已含 `schemaVersion` 3、五维 `personality-v2` 台账与迁移（PR #18）、主导行为引擎（PR #19）、离线自主生活（PR #20）、久别重逢（PR #22）与 AI 情绪识别复核（PR #23）；`schemaVersion` 4 的待处理问候投递修复已在 PR #35 实现但尚未合入 `main`，下文的 v4 / `pending` / `REUNION_ACKNOWLEDGED` 内容为目标契约。阶段七的原创企鹅正面母版（PR #27）、九种组合表情（PR #28）、侧背面与基础动作（PR #30）、特殊动作视觉（PR #31）与特殊行为正式接入（PR #32）均已合入。特殊行为配置已开启，真实长期自然触发待进一步验收；生活空间与正式 UI 尚未开发。当前整体进度以 [ROADMAP](ROADMAP.md) §1.1 为准。
 
 ## 1. 架构原则
 
@@ -71,19 +71,19 @@ graph TD
 | `src/app/{layout,page}.tsx`、`src/app/companion/page.tsx`、`src/app/memories/page.tsx` | 已实现（临时路由） | 当前 `/` 为日记、`/companion` 为陪伴、`/memories` 为回忆；正式 `/` 小屋、`/diary` 日记与 `/companion` 兼容尚未实施 |
 | `src/app/character-preview/*` | 已实现（仅开发预览） | 角色、表情、侧背面/动作与特殊行为模拟预览；不属于正式产品导航，不写正式存档 |
 | `src/app/api/emotion/route.ts` | 已实现 | 服务端情绪识别入口 |
-| `src/application/AppProvider.tsx` | 已实现，阶段二至五扩展 | 状态编排、保存、会话启动、恢复、跨标签页冲突、待处理问候投递与确认；问候本身持久化在快照中 |
+| `src/application/AppProvider.tsx` | 已实现，阶段二至五扩展 | 状态编排、保存、会话启动、恢复、跨标签页冲突、待处理问候投递与确认（投递修复见 PR #35，待合并）；问候本身持久化在快照中 |
 | `src/application/useEmotionAnalysis.ts` | 已实现，阶段六扩展 | AI 建议请求、会话失效、过期响应丢弃、客户端超时与降级 |
 | `src/lib/ai/client.ts` | 阶段六新增 | 浏览器侧识别会话、三元组关联、严格 analysis/analysisMeta 校验、HTTP 错误映射；不导入服务端 Provider |
 | `src/lib/ai/server/{config,provider,native,questions,protection}.ts` | 已实现，阶段六复核 | 配置读取、百炼 System One 调用与显式映射、固定错误分类、进程内频率/并发/预算保护 |
 | `src/domain/types.ts` | 已实现，阶段二扩展 | 公共类型与契约 |
 | `src/domain/emotions.ts` | 已实现 | 手选默认 VAD、规范化 |
 | `src/domain/rules.ts` | 已实现，阶段二至五扩展 | 领域事件、原子结算、会话启动入口 |
-| `src/domain/schema.ts` | 已实现，阶段二扩展 | 存档结构校验（v1/v2/v3 读取校验与 v4 当前校验） |
+| `src/domain/schema.ts` | 已实现，阶段二扩展；v4 校验见 PR #35 | 存档结构校验（v1/v2/v3 读取校验与 v4 目标校验） |
 | `src/domain/companion.ts` | 已实现（三维护账） | 阶段二拆分为 `personality.ts` + 配置，之后只作兼容/删除 |
 | `src/domain/personality.ts` | 已实现（PR #18） | 五维派生、主导判定、描述、只读查询 |
 | `src/domain/behavior.ts` | 阶段三已实现（PR #19） | 确定性主导行为/待机/特殊/互动选择 |
 | `src/domain/offlineLife.ts` | 阶段四已实现（PR #20） | 离线窗口规划、活动选择、幂等 ID |
-| `src/domain/reunion.ts` | 阶段五已实现（PR #22），STO-05 扩展 | 长期未访问判断、问候模板选择、待处理问候类型；存在待处理问候时不再触发新问候 |
+| `src/domain/reunion.ts` | 阶段五已实现（PR #22）；投递修复见 PR #35（待合并） | 长期未访问判断、问候模板选择、待处理问候类型；存在待处理问候时不再触发新问候 |
 | `src/domain/characterView.ts` | 已实现（阶段三最小接入，PR #19） | 由快照/行为推导视图 |
 | `src/config/personality.ts` | 已实现（PR #18） | `PersonalityRuleConfig` |
 | `src/config/behavior.ts` | 阶段三已实现（PR #19） | `BehaviorRuleConfig` |
@@ -95,7 +95,7 @@ graph TD
 | `src/components/character/{PenguinFront,PenguinFace,PenguinPoses}.tsx`、`specialMotion.ts` | 已实现（PR #27 / #28 / #30 / #31） | 正面母版、组合表情、侧背面与基础动作、特殊动作视觉；`drink` 使用啤酒瓶；`SPECIAL_MOTION_MS=8000` |
 | `src/components/character/` 正式场景组件 | 规划，未创建 | 企鹅小屋、生活空间与正式 UI 组件；具体文件与资源路径由后续任务卡确认，不得把规划路径当作已有文件 |
 | `src/components/character/OfflineLifePanel.tsx` | 阶段四已实现（PR #20） | 只读已落盘离线事件，区分本次与历史；不写日记/回忆/分数 |
-| `src/components/character/ReunionPanel.tsx` | 阶段五已实现（PR #22），STO-05 修复投递 | 只渲染快照中已提交且未处理的问候；回应/跳过走正式保存，成功后才清除，失败保留可重试 |
+| `src/components/character/ReunionPanel.tsx` | 阶段五已实现（PR #22）；投递修复见 PR #35（待合并） | 只渲染快照中已提交且未处理的问候；回应/跳过走正式保存，成功后才清除，失败保留可重试 |
 | `src/application/useBehaviorRuntime.ts` | 阶段三已实现（PR #19） | 行为调度、隐藏暂停、互动、保存后一次性反馈、低动态降级；不写存档 |
 | `src/application/lowMoodStreak.ts` | PR #32 已合入 | 只读有效情绪与冻结 dayKey，连续四天含当天；正式配置已开启，长期自然触发待进一步验收 |
 | `src/components/emotion/*`、`src/components/memories/*` | 已实现 | 记录、纠正、历史界面 |
@@ -378,7 +378,9 @@ interface ReunionEvaluation {
 - 直接关闭、浏览器崩溃或 checkpoint 写入失败时，只能使用最后一次成功的 `lastActiveAt`（或同标签页救援值）作为降级基准。该降级可能把未 checkpoint 的在线时长计入离线，但不得反向少算；保存失败时不得展示离线事件或重逢。
 - 离线/重逢都不得修改 `personality.contributions`、`scores` 或 `entries`。
 
-### 4.5 存档（schemaVersion 4）
+### 4.5 存档（schemaVersion 4；PR #35 目标实现，待合并）
+
+> 本节描述 PR #35 合并后的目标结构；`main` 在合并前仍为 v3，合并后 v1/v2/v3 读取时按 §6 迁移链处理。
 
 ```ts
 interface SnapshotV4 {
@@ -426,8 +428,8 @@ interface SnapshotV4 {
 | `applyGameEvent(snapshot, event, context)` | rules | 已实现，阶段二至五扩展 | 唯一正式状态变更入口 |
 | `migrateSnapshotV1toV2(v1)` | storage/rules | 已实现 | 保留 |
 | `migrateSnapshotV2toV3(v2)` | storage | 阶段二 | 新增；只做结构转换，不调用计分规则 |
-| `migrateSnapshotV3toV4(v3)` | storage | STO-05 | 补 `reunion.pending = null`；不猜造历史问候，不改日记与触发标记 |
-| `StoragePort.load/save/readRaw/reset` | storage | 已实现，保存结果扩展 `corrupt` / `unsupported-version` | 函数签名不变，`Snapshot` 升为 v4；v1/v2/v3 读取时内存迁移；保存前发现现有存档不可读时返回对应状态与原始 `raw` |
+| `migrateSnapshotV3toV4(v3)` | storage | PR #35（待合并） | 补 `reunion.pending = null`；不猜造历史问候，不改日记与触发标记 |
+| `StoragePort.load/save/readRaw/reset` | storage | 已实现，保存结果扩展 `corrupt` / `unsupported-version` | 函数签名不变；PR #35 合并后 `Snapshot` 为 v4，v1/v2/v3 读取时内存迁移；保存前发现现有存档不可读时返回对应状态与原始 `raw` |
 
 ### 5.1 V1 领域事件
 
@@ -533,7 +535,7 @@ AI 识别（阶段六复核）：
   7. 迁移只在内存完成；下次成功保存才落盘；失败不改变原存档。
   8. 不追溯旧日记、不静默改写不可识别字段、不删除用户历史。
   9. 迁移后旧条目没有 `PersonalityContribution`；之后对这些条目的纠正只更新 `effectiveEmotion`、`revision`、`corrections` 与回忆事件，不补建贡献、不改变性格分数。这是“不追溯”的一部分，不属于结算失败。
-- 迁移 v3→v4（STO-05）：
+- 迁移 v3→v4（STO-05，PR #35 待合并）：
   1. `entries`、`memories`、`appliedEventIds`、`revision`、`personality`、`offlineLife`、`legacy` 原样保留；日记正文、情绪与纠正逐字不动。
   2. `reunion` 增加 `pending: null`；`lastTriggeredWindowStart` / `lastTriggeredAt` 原样保留。
   3. v3 只有“已触发”标记，无法判断用户是否看过问候，因此不生成待处理问候、不擅自重播。

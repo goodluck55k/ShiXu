@@ -1,6 +1,7 @@
 import { OFFLINE_LIFE_V1 } from "@/config/offlineLife";
 import type { OfflineLifeEvent, OfflineLifeState } from "./offlineLife";
-import { addContribution, createEmptyPersonality, reviseContribution } from "./personality";
+import { DIMENSIONS, addContribution, createEmptyPersonality, reviseContribution } from "./personality";
+import type { ReunionGreeting } from "./reunion";
 import {
   SNAPSHOT_SCHEMA_VERSION,
   type ActivityCheckpointEvent,
@@ -201,6 +202,14 @@ function activityCheckpoint(
   return { snapshot: { ...snapshot, offlineLife }, events: [], changed: true };
 }
 
+function validReunionGreeting(event: SessionStartedEvent): ReunionGreeting | null {
+  const greeting = event.reunionGreeting;
+  if (event.windowStart === null || greeting === null) return null;
+  if (greeting.windowStart !== event.windowStart || !DIMENSIONS.includes(greeting.dominantId)) return null;
+  if (![greeting.tone, greeting.message, greeting.question, greeting.rulesVersion].every((value) => typeof value === "string" && value.length > 0)) return null;
+  return greeting;
+}
+
 function sessionStarted(
   snapshot: Snapshot,
   event: SessionStartedEvent,
@@ -209,6 +218,11 @@ function sessionStarted(
   const baseline = snapshot.offlineLife.lastActiveAt ?? snapshot.offlineLife.lastVisitAt;
   // 窗口起点必须等于当前基准；保存成功后基准推进到 now，旧窗口无法再次提交。
   if (event.windowStart !== baseline) return unchanged(snapshot);
+
+  // 有效重逢触发必须携带完整且窗口匹配的问候。非法触发事件整体拒绝：不写触发标记、
+  // 不推进访问基准，避免“已触发但没有待处理问候”导致问候永久丢失；下次会话可重新触发。
+  const triggeredGreeting = event.reunionTriggered ? validReunionGreeting(event) : null;
+  if (event.reunionTriggered && triggeredGreeting === null) return unchanged(snapshot);
 
   const seenIds = new Set(snapshot.offlineLife.events.map((item) => item.id));
   const appended: OfflineLifeEvent[] = [];
@@ -228,17 +242,14 @@ function sessionStarted(
     lastWindowStart: event.windowStart,
     events,
   };
-  // 首次会话窗口（windowStart=null）不可能构成久别重逢；防御性拒绝空窗口触发。
+  // 首次会话窗口（windowStart=null）不可能构成久别重逢；非法触发已在上面整体拒绝。
   // 已有未处理问候时保留旧问候与旧标记，不覆盖、不生成队列。
   const reunion =
-    event.reunionTriggered && event.windowStart !== null && snapshot.reunion.pending === null
+    triggeredGreeting !== null && snapshot.reunion.pending === null
       ? {
-          lastTriggeredWindowStart: event.windowStart,
+          lastTriggeredWindowStart: triggeredGreeting.windowStart,
           lastTriggeredAt: context.now,
-          pending:
-            event.reunionGreeting && event.reunionGreeting.windowStart === event.windowStart
-              ? event.reunionGreeting
-              : null,
+          pending: triggeredGreeting,
         }
       : snapshot.reunion;
   return {
