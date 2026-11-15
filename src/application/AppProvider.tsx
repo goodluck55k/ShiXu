@@ -17,7 +17,7 @@ import { OFFLINE_LIFE_V1 } from "@/config/offlineLife";
 import { REUNION_V1 } from "@/config/reunion";
 import { derivePersonality } from "@/domain/personality";
 import { planOfflineLife } from "@/domain/offlineLife";
-import { evaluateReunion, type ReunionGreeting } from "@/domain/reunion";
+import { evaluateReunion } from "@/domain/reunion";
 import type {
   ActivityCheckpointEvent,
   Analysis,
@@ -48,12 +48,10 @@ interface PendingOperation {
   expectedRevision: number;
 }
 
-// 会话启动保存失败时冻结 SESSION_STARTED：窗口与事件已生成但未提交，必须随下一次正式写入一起补交。
-// 问候与事件一起冻结；只有包含该事件的正式快照保存成功后，才允许激活一次展示。
+// 会话启动保存失败时冻结 SESSION_STARTED：窗口、事件与待处理问候已生成但未提交，必须随下一次正式写入一起补交。
 interface PendingSession {
   event: SessionStartedEvent;
   context: GameContext;
-  reunion: ReunionGreeting | null;
 }
 
 // C1 → C4 接口：保存成功结果与本次确认情绪，运行时内存，供 C4 构造一次性共鸣上下文
@@ -77,10 +75,6 @@ export interface AppState {
   pending: PendingOperation | null;
   tabConflict: boolean;
   lastConfirmedSave: ConfirmedSaveContext | null;
-  // 仅本次运行会话有效：当前已成功提交、等待用户处理的久别重逢问候。
-  reunionPrompt: ReunionGreeting | null;
-  // 本次会话已处理（回答/跳过）或已展示过的窗口，避免同一窗口重复出现。
-  reunionHandledWindow: number | null;
   loadId: number;
 }
 
@@ -95,8 +89,6 @@ const initialState: AppState = {
   pending: null,
   tabConflict: false,
   lastConfirmedSave: null,
-  reunionPrompt: null,
-  reunionHandledWindow: null,
   loadId: 0,
 };
 
@@ -111,9 +103,7 @@ type Action =
   | { type: "COMMIT_SNAPSHOT"; snapshot: Snapshot }
   | { type: "INVALIDATE_PENDING" }
   | { type: "ENABLE_TEMP" }
-  | { type: "TAB_CONFLICT" }
-  | { type: "REUNION_SHOW"; prompt: ReunionGreeting }
-  | { type: "REUNION_DISMISS" };
+  | { type: "TAB_CONFLICT" };
 
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
@@ -126,8 +116,6 @@ function reducer(state: AppState, action: Action): AppState {
         saveError: null,
         savedNotice: null,
         lastConfirmedSave: null,
-        reunionPrompt: null,
-        reunionHandledWindow: null,
         loadId: state.loadId + 1,
       };
       const result = action.result;
@@ -197,8 +185,6 @@ function reducer(state: AppState, action: Action): AppState {
         tabConflict: false,
         savedNotice: null,
         lastConfirmedSave: null,
-        reunionPrompt: null,
-        reunionHandledWindow: null,
       };
     case "RESET_OK":
       // 只有真正成功重置才清除冲突与恢复状态，允许立即保存。
@@ -214,8 +200,6 @@ function reducer(state: AppState, action: Action): AppState {
         pending: null,
         tabConflict: false,
         lastConfirmedSave: null,
-        reunionPrompt: null,
-        reunionHandledWindow: null,
       };
     case "RESET_FAIL":
       // 重置失败不改变原有 phase/problem/tabConflict：冲突是否解除只能由成功重置证明。
@@ -235,21 +219,11 @@ function reducer(state: AppState, action: Action): AppState {
         saveError: null,
         savedNotice: null,
         lastConfirmedSave: null,
-        reunionPrompt: null,
-        reunionHandledWindow: null,
       };
     case "COMMIT_SNAPSHOT":
       return { ...state, phase: "ready", problem: null, snapshot: action.snapshot };
     case "TAB_CONFLICT":
       return { ...state, tabConflict: true, savedNotice: null };
-    case "REUNION_SHOW":
-      if (state.reunionHandledWindow === action.prompt.windowStart) return state;
-      if (state.reunionPrompt?.windowStart === action.prompt.windowStart) return state;
-      return { ...state, reunionPrompt: action.prompt };
-    case "REUNION_DISMISS":
-      return state.reunionPrompt
-        ? { ...state, reunionPrompt: null, reunionHandledWindow: state.reunionPrompt.windowStart }
-        : state;
   }
 }
 
@@ -283,8 +257,8 @@ interface AppContextValue {
   enableTemporary: () => void;
   resetStorage: () => Promise<void>;
   exportRaw: () => void;
-  // 回答或跳过都只关闭本次运行时问候；不写日记/分数/存档。
-  dismissReunion: () => void;
+  // 明确回应或跳过：只有确认事件成功持久化后才清除待处理问候；失败保留并允许重试。
+  dismissReunion: () => Promise<boolean>;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -378,6 +352,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [state.temporary]);
 
   // 正式存档包含该 SESSION_STARTED 才算会话窗口已结算；只有此时才允许推进救援时间戳。
+  // 待处理问候随事件写入正式快照，不依赖运行时展示状态。
   const settlePendingSession = useCallback((snapshot: Snapshot) => {
     const pendingSession = sessionPendingRef.current;
     if (!pendingSession) return;
@@ -385,8 +360,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     sessionPendingRef.current = null;
     sessionStartedRef.current = true;
     clearActivityRescue();
-    // 只有正式快照已包含会话事件，重逢问候才进入一次性展示。
-    if (pendingSession.reunion) dispatch({ type: "REUNION_SHOW", prompt: pendingSession.reunion });
   }, []);
 
   // 未提交的会话窗口必须先合并进本次候选快照，否则 lastActiveAt 会越过窗口起点导致事件永久丢失。
@@ -432,6 +405,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           lastActiveAt: snapshot.offlineLife.lastActiveAt,
           lastVisitAt: snapshot.offlineLife.lastVisitAt,
           lastTriggeredWindowStart: snapshot.reunion.lastTriggeredWindowStart,
+          pendingWindowStart: snapshot.reunion.pending?.windowStart ?? null,
           dominantId,
           offlineEvents: refreshRescue ? [] : plan.events,
           activityRescueAt: rescue,
@@ -444,6 +418,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         windowStart: plan.windowStart,
         offlineEvents: refreshRescue ? [] : plan.events,
         reunionTriggered: reunion.triggered,
+        reunionGreeting: reunion.triggered ? reunion.greeting : null,
       };
       const context: GameContext = { now, dayKey: localDayKey(now) };
       const result = applyGameEvent(snapshot, event, context);
@@ -456,7 +431,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       sessionPendingRef.current = {
         event,
         context,
-        reunion: reunion.triggered ? reunion.greeting : null,
       };
       if (savingRef.current) return;
       savingRef.current = true;
@@ -746,9 +720,36 @@ export function AppProvider({ children }: { children: ReactNode }) {
     dispatch({ type: "RESET_FAIL", message: result.reason });
   }, [storage]);
 
-  const dismissReunion = useCallback(() => {
-    dispatch({ type: "REUNION_DISMISS" });
-  }, []);
+  const dismissReunion = useCallback(async (): Promise<boolean> => {
+    const pendingWindow = state.snapshot?.reunion.pending?.windowStart ?? null;
+    if (pendingWindow === null) return false;
+    // 其他未完成的保存必须先解决，避免覆盖其冻结事件；同一问候的重试可以继续。
+    if (
+      state.pending &&
+      !(
+        state.pending.event.type === "REUNION_ACKNOWLEDGED" &&
+        state.pending.event.windowStart === pendingWindow
+      )
+    ) {
+      return false;
+    }
+    return runOperation(
+      () => {
+        const now = Date.now();
+        return {
+          event: {
+            type: "REUNION_ACKNOWLEDGED",
+            eventId: createId("evt"),
+            windowStart: pendingWindow,
+          },
+          context: { now, dayKey: localDayKey(now) },
+        };
+      },
+      (pendingEvent) =>
+        pendingEvent.type === "REUNION_ACKNOWLEDGED" &&
+        pendingEvent.windowStart === pendingWindow,
+    );
+  }, [runOperation, state.pending, state.snapshot]);
 
   const exportRaw = useCallback(() => {
     const raw = state.problem?.raw ?? storage.readRaw();

@@ -10,6 +10,7 @@ import {
   type Snapshot,
   type SnapshotV1,
   type SnapshotV2,
+  type SnapshotV3,
 } from "./types";
 
 export type SnapshotValidation =
@@ -19,7 +20,8 @@ export type SnapshotValidation =
 export type VersionedSnapshotValidation =
   | { ok: true; schemaVersion: 1; snapshot: SnapshotV1 }
   | { ok: true; schemaVersion: 2; snapshot: SnapshotV2 }
-  | { ok: true; schemaVersion: 3; snapshot: Snapshot }
+  | { ok: true; schemaVersion: 3; snapshot: SnapshotV3 }
+  | { ok: true; schemaVersion: 4; snapshot: Snapshot }
   | { ok: false; kind: "unsupported-version" | "corrupt"; reason: string };
 
 const EMOTION_SOURCES = ["ai", "manual", "corrected"] as const;
@@ -324,8 +326,8 @@ function validatePersonality(value: unknown, entries: Map<string, { dayKey: stri
   return null;
 }
 
-function validateV3(value: Record<string, unknown>): string | null {
-  // 复用共同字段校验；旧字段只属于兼容数据，不参与 v3 业务。
+function validateLegacyAndCommon(value: Record<string, unknown>): string | null {
+  // 复用共同字段校验；旧字段只属于兼容数据，不参与 v3/v4 业务。
   const base = validateSnapshotStructure({ ...value, character: isRecord(value.character) ? { ...value.character, totalXp: 0, stage: 0 } : value.character, decorations: { ownedIds: [], equippedBySlot: {}, hiddenById: {} } });
   if (base) return base;
   const personalityError = validatePersonality(value.personality, collectEntryIndex(value));
@@ -346,15 +348,47 @@ function validateV3(value: Record<string, unknown>): string | null {
   return null;
 }
 
+function validateV3(value: Record<string, unknown>): string | null {
+  return validateLegacyAndCommon(value);
+}
+
+function validateReunionPending(value: unknown): string | null {
+  if (!isRecord(value)) return "reunion.pending 必须是对象或 null";
+  if (!isFiniteNumber(value.windowStart)) return "reunion.pending.windowStart 非法";
+  if (!DIMENSIONS.includes(value.dominantId as never)) return "reunion.pending.dominantId 非法";
+  for (const key of ["tone", "message", "question", "rulesVersion"]) {
+    if (!isNonEmptyString(value[key])) return `reunion.pending.${key} 缺失`;
+  }
+  return null;
+}
+
+function validateV4(value: Record<string, unknown>): string | null {
+  const common = validateLegacyAndCommon(value);
+  if (common) return common;
+  const reunion = value.reunion as Record<string, unknown>;
+  if (reunion.pending !== null) {
+    const pendingError = validateReunionPending(reunion.pending);
+    if (pendingError) return pendingError;
+    if ((reunion.pending as { windowStart: number }).windowStart !== reunion.lastTriggeredWindowStart) {
+      return "reunion.pending 与已触发窗口不一致";
+    }
+  }
+  return null;
+}
+
 export function validateSnapshotJson(raw: string): VersionedSnapshotValidation {
   let parsed: unknown;
   try { parsed = JSON.parse(raw); } catch { return fail("corrupt", "存档不是合法 JSON"); }
   if (!isRecord(parsed)) return fail("corrupt", "存档根节点必须是对象");
   if (!isFiniteNumber(parsed.schemaVersion)) return fail("corrupt", "存档缺少有效 schemaVersion");
-  if (parsed.schemaVersion !== 1 && parsed.schemaVersion !== 2 && parsed.schemaVersion !== 3) return fail("unsupported-version", `不支持的存档版本 ${parsed.schemaVersion}`);
+  if (parsed.schemaVersion !== 1 && parsed.schemaVersion !== 2 && parsed.schemaVersion !== 3 && parsed.schemaVersion !== 4) return fail("unsupported-version", `不支持的存档版本 ${parsed.schemaVersion}`);
+  if (parsed.schemaVersion === 4) {
+    const error = validateV4(parsed);
+    return error ? fail("corrupt", error) : { ok: true, schemaVersion: 4, snapshot: parsed as unknown as Snapshot };
+  }
   if (parsed.schemaVersion === 3) {
     const error = validateV3(parsed);
-    return error ? fail("corrupt", error) : { ok: true, schemaVersion: 3, snapshot: parsed as unknown as Snapshot };
+    return error ? fail("corrupt", error) : { ok: true, schemaVersion: 3, snapshot: parsed as unknown as SnapshotV3 };
   }
   const error = validateSnapshotStructure(parsed);
   if (error) return fail("corrupt", error);
@@ -366,7 +400,7 @@ export function validateSnapshotJson(raw: string): VersionedSnapshotValidation {
 export function validateSnapshot(value: unknown): SnapshotValidation {
   if (!isRecord(value)) return fail("corrupt", "存档根节点必须是对象");
   if (value.schemaVersion !== SNAPSHOT_SCHEMA_VERSION) return fail("unsupported-version", "存档版本与当前 schema 不一致");
-  const error = validateV3(value);
+  const error = validateV4(value);
   return error ? fail("corrupt", error) : { ok: true, snapshot: value as unknown as Snapshot };
 }
 

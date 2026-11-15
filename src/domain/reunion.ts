@@ -2,9 +2,14 @@ import { REUNION_V1 } from "@/config/reunion";
 import type { OfflineLifeEvent } from "./offlineLife";
 import type { DimensionId } from "./personality";
 
-export interface ReunionState {
+export interface ReunionStateV3 {
   lastTriggeredWindowStart: number | null;
   lastTriggeredAt: number | null;
+}
+
+export interface ReunionState extends ReunionStateV3 {
+  // 已触发但尚未被用户回应或跳过的问候；正式存档持有，刷新/关闭网页不丢失。
+  pending: ReunionGreeting | null;
 }
 
 export interface ReunionTemplate {
@@ -33,13 +38,16 @@ export type ReunionReasonCode =
   | "triggered"
   | "no-baseline"
   | "within-threshold"
-  | "already-triggered";
+  | "already-triggered"
+  | "pending-unhandled";
 
 export interface ReunionEvaluationInput {
   now: number;
   lastActiveAt: number | null;
   lastVisitAt: number | null;
   lastTriggeredWindowStart: number | null;
+  // 已触发但尚未处理的问候窗口；存在时不得再生成新问候，避免覆盖旧问候或形成队列。
+  pendingWindowStart: number | null;
   dominantId: DimensionId;
   // 本次窗口已规划的离线事件；仅用于挑选不虚构的具体生活描述。
   offlineEvents?: OfflineLifeEvent[];
@@ -64,6 +72,11 @@ export function evaluateReunion(
   const baseline = input.lastActiveAt ?? input.lastVisitAt;
   if (baseline === null) {
     return { triggered: false, windowStart: null, reasonCode: "no-baseline", absenceMs: null, greeting: null };
+  }
+
+  // 旧问候尚未被用户处理：保留它，不生成也不覆盖新问候。
+  if (input.pendingWindowStart !== null && input.pendingWindowStart !== undefined) {
+    return { triggered: false, windowStart: baseline, reasonCode: "pending-unhandled", absenceMs: null, greeting: null };
   }
 
   if (

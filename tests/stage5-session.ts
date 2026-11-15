@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import type { Snapshot } from "../src/domain/types";
 
-// 阶段五回归：久别重逢只在 SESSION_STARTED 正式保存成功后展示一次；
-// 复用阶段四冻结/补交机制；回答/跳过零结算；刷新、StrictMode、救援与跨标签页冲突不重复/不提前展示。
+// 阶段五回归（STO-05）：待处理问候持久化在正式快照中。
+// 覆盖：日记页启动不消费、刷新/关闭重开不丢失、回应/跳过成功落盘才清除、
+// 保存失败/空间不足保留重试、StrictMode、冲突、隐藏恢复、旧存档迁移不重播、
+// 旧问候不被覆盖，且问候操作不新增日记/不修改五维贡献。
 
 interface DomEvent { type: string; key?: string }
 type Listener = (ev: DomEvent) => void;
@@ -96,14 +98,24 @@ const HOUR = 60 * MIN;
 const OFFLINE_MS = 73 * HOUR;
 const THRESHOLD = 72 * HOUR;
 
+interface ParsedPending {
+  windowStart: number;
+  dominantId: string;
+  tone: string;
+  message: string;
+  question: string;
+  rulesVersion: string;
+}
 interface ParsedSnapshot {
+  schemaVersion: number;
   revision: number;
-  entries: unknown[];
+  character: { latestEntryId: string | null };
+  entries: { id: string; text: string }[];
   memories: unknown[];
   appliedEventIds: string[];
   personality: { contributions: Record<string, unknown> };
   offlineLife: { lastActiveAt: number | null; lastVisitAt: number | null; lastWindowStart: number | null; events: { id: string; windowStart: number }[] };
-  reunion: { lastTriggeredWindowStart: number | null; lastTriggeredAt: number | null };
+  reunion: { lastTriggeredWindowStart: number | null; lastTriggeredAt: number | null; pending: ParsedPending | null };
 }
 
 async function main() {
@@ -156,35 +168,48 @@ async function main() {
     };
   }
 
+  function pendingOf() { return ctx.state.snapshot?.reunion.pending ?? null; }
+
   async function mount(options: {
     fail?: boolean;
+    quota?: boolean;
     revision?: number;
     startClock?: number;
     baseline?: number | null;
     raw?: string;
+    snap?: Snapshot;
     rescue?: number | null;
     conflictOnSave?: boolean;
     strict?: boolean;
   }) {
-    const seed = options.raw ? null : seedSnapshot(options.baseline ?? null, options.revision ?? 0);
+    const seed = options.raw ? null : (options.snap ?? seedSnapshot(options.baseline ?? null, options.revision ?? 0));
     let raw: string | null = options.raw ?? serializeSnapshot(seed!);
     let fail = options.fail ?? false;
+    let quota = options.quota ?? false;
+    let conflictOnSave = options.conflictOnSave ?? false;
     let readCount = 0;
-    const bumped = seed
-      ? serializeSnapshot({ ...seed, revision: seed.revision + 10 })
-      : raw;
+    const bumpedRaw = (): string | null => {
+      if (raw === null) return null;
+      try {
+        const parsed = JSON.parse(raw) as { revision?: number };
+        parsed.revision = (parsed.revision ?? 0) + 10;
+        return JSON.stringify(parsed);
+      } catch {
+        return raw;
+      }
+    };
     const session = new Map<string, string>();
     if (options.rescue !== undefined && options.rescue !== null) session.set("shixu.activityRescue", String(options.rescue));
     window.localStorage = {
       getItem: (k) => {
         if (k !== SNAPSHOT_STORAGE_KEY) return null;
         readCount += 1;
-        if (options.conflictOnSave && readCount > 1) return bumped;
+        if (conflictOnSave && readCount > 1) return bumpedRaw();
         return raw;
       },
       setItem: (k, v) => {
         if (fail) throw new Error("storage failed");
-        if (options.conflictOnSave) throw new Error("unexpected save during conflict case");
+        if (quota) throw new DOMException("quota exceeded", "QuotaExceededError");
         if (k === SNAPSHOT_STORAGE_KEY) raw = v;
       },
       removeItem: (k) => { if (k === SNAPSHOT_STORAGE_KEY) raw = null; },
@@ -208,92 +233,134 @@ async function main() {
     return {
       raw: () => raw,
       parsed: (): ParsedSnapshot => JSON.parse(raw!) as ParsedSnapshot,
+      pending: pendingOf,
       setFail: (v: boolean) => { fail = v; },
+      setQuota: (v: boolean) => { quota = v; },
+      setConflict: (v: boolean) => { conflictOnSave = v; },
       advance: (ms: number) => { clock += ms; },
       async checkpoint() { await act(async () => { intervalCb?.(); for (let i = 0; i < 50; i++) await Promise.resolve(); }); },
       async storageEvent() {
         await act(async () => { window.dispatchEvent({ type: "storage", key: SNAPSHOT_STORAGE_KEY }); for (let i = 0; i < 50; i++) await Promise.resolve(); });
       },
+      async ack() {
+        let ok = false;
+        await act(async () => { ok = await ctx.dismissReunion(); });
+        await flush();
+        return ok;
+      },
+      async reload() { await act(async () => { await ctx.reload(); }); await flush(); },
       async unmount() { await act(async () => { root.unmount(); }); },
     };
   }
 
   const sessionIds = (ids: string[]) => ids.filter((id) => id.startsWith("session:"));
 
-  // 场景 1：72 小时 + 1 毫秒成功启动 → 展示一次；回答/跳过后本会话不再出现；刷新不重复。
+  // 场景 1：长期离线后从日记页进入（未渲染问候）→ 状态持久化且不被消费；
+  // 进入企鹅页后可见；回应成功落盘后才清除；重开不重复。
   {
     const baseline = BASE - OFFLINE_MS;
-    const seed = seedSnapshot(baseline, 2);
-    const seedRaw = serializeSnapshot(seed);
-    const m = await mount({ revision: 2, baseline, startClock: BASE, raw: seedRaw });
-    const prompt = ctx.state.reunionPrompt;
-    assert.ok(prompt, "保存成功后应展示重逢问候");
+    const m = await mount({ revision: 2, baseline, startClock: BASE });
+    const prompt = m.pending();
+    assert.ok(prompt, "会话保存成功后待处理问候应随快照持久化");
     assert.equal(prompt!.windowStart, baseline);
     assert.equal(prompt!.question, REUNION_V1.baseQuestion);
     assert.equal(prompt!.dominantId, "gentleness");
+
     const snap = m.parsed();
+    assert.equal(snap.schemaVersion, 4);
     assert.equal(snap.revision, 3, "会话启动只提交一次");
-    assert.deepEqual(snap.reunion, { lastTriggeredWindowStart: baseline, lastTriggeredAt: BASE });
-    assert.equal(snap.offlineLife.lastVisitAt, BASE);
-    assert.equal(snap.offlineLife.lastActiveAt, BASE);
-    assert.equal(sessionIds(snap.appliedEventIds).length, 1);
+    assert.equal(snap.reunion.lastTriggeredWindowStart, baseline);
+    assert.equal(snap.reunion.lastTriggeredAt, BASE);
+    assert.deepEqual(snap.reunion.pending, prompt, "待处理问候写入正式存档");
     assert.equal(snap.entries.length, 0, "重逢不创建日记");
     assert.deepEqual(snap.personality.contributions, {}, "重逢不写性格贡献");
+    assert.equal(sessionIds(snap.appliedEventIds).length, 1);
 
-    await act(async () => { ctx.dismissReunion(); });
-    await flush();
-    assert.equal(ctx.state.reunionPrompt === null, true);
-    assert.equal(ctx.state.reunionHandledWindow, baseline);
+    // 日记页期间 checkpoint / 页面隐藏不应消费问候。
+    m.advance(6 * MIN);
+    document.visibilityState = "hidden";
+    await m.checkpoint();
+    document.visibilityState = "visible";
+    await m.checkpoint();
+    assert.deepEqual(m.pending(), prompt, "未进入企鹅页不得自动消费问候");
+    assert.deepEqual(m.parsed().reunion.pending, prompt, "checkpoint 后仍保留");
+
+    // 进入企鹅页，明确回应。
+    assert.equal(await m.ack(), true, "回应保存成功");
+    assert.equal(m.pending(), null);
+    const after = m.parsed();
+    assert.equal(after.reunion.pending, null, "处理结果成功持久化后才清除");
+    assert.equal(after.reunion.lastTriggeredWindowStart, baseline, "已处理仍保留触发标记");
+    assert.equal(after.entries.length, 0, "回应不写日记");
+    assert.deepEqual(after.personality.contributions, {}, "回应不改五维贡献");
+    assert.equal(after.memories.length, 0, "回应不写回忆");
 
     m.advance(6 * MIN);
     await m.checkpoint();
-    assert.equal(ctx.state.reunionPrompt === null, true, "回答/跳过后同一会话不再出现");
-    assert.equal(sessionIds(m.parsed().appliedEventIds).length, 1);
+    assert.equal(m.pending(), null, "处理成功后不再出现");
     const committed = m.raw();
     await m.unmount();
 
     const m2 = await mount({ startClock: BASE + 10 * MIN, raw: committed! });
-    assert.equal(ctx.state.reunionPrompt === null, true, "刷新后不重复展示");
+    assert.equal(m2.pending(), null, "刷新/重开不重复");
     assert.equal(m2.parsed().reunion.lastTriggeredWindowStart, baseline, "旧标记保留");
-    assert.equal(m2.parsed().entries.length, 0);
     await m2.unmount();
   }
 
-  // 场景 2：SESSION_STARTED 保存失败不展示；存储恢复后 checkpoint 补交窗口并展示一次。
+  // 场景 2：问候展示前刷新 / 关闭后重新打开：待处理状态仍在，不重复触发、不覆盖。
+  {
+    const baseline = BASE - OFFLINE_MS;
+    const m = await mount({ revision: 2, baseline, startClock: BASE });
+    const prompt = m.pending();
+    assert.ok(prompt);
+    const committed = m.raw();
+    await m.unmount();
+
+    const m2 = await mount({ startClock: BASE + 10 * MIN, raw: committed! });
+    assert.deepEqual(m2.pending(), prompt, "刷新后待处理问候仍在");
+    assert.equal(m2.parsed().reunion.lastTriggeredWindowStart, baseline, "不重复触发新窗口");
+
+    const midRaw = m2.raw();
+    await m2.unmount();
+    // 即便超过 72 小时，旧问候未处理时也不得被新触发覆盖。
+    const m3 = await mount({ startClock: BASE + OFFLINE_MS + HOUR, raw: midRaw! });
+    assert.deepEqual(m3.pending(), prompt, "关闭重开且再次长期离线也不覆盖旧问候");
+    assert.equal(m3.parsed().reunion.lastTriggeredWindowStart, baseline, "旧触发窗口保持不变");
+    assert.equal(await m3.ack(), true);
+    assert.equal(m3.pending(), null);
+    await m3.unmount();
+  }
+
+  // 场景 3：会话启动保存失败 → 不产生待处理问候；checkpoint 补交后才持久化。
   {
     const baseline = BASE - OFFLINE_MS;
     const m = await mount({ fail: true, revision: 3, baseline, startClock: BASE });
-    assert.equal(ctx.state.reunionPrompt === null, true, "保存失败不得展示");
+    assert.equal(m.pending(), null, "保存失败不得提前产生问候");
     assert.equal(m.parsed().revision, 3);
     assert.equal(m.parsed().reunion.lastTriggeredWindowStart, null);
 
     m.advance(6 * MIN);
     await m.checkpoint();
-    assert.equal(ctx.state.reunionPrompt === null, true, "存储未恢复时 checkpoint 不得补交");
-    assert.equal(m.parsed().reunion.lastTriggeredWindowStart, null);
+    assert.equal(m.pending(), null, "存储未恢复时 checkpoint 不得补交");
 
     m.setFail(false);
     m.advance(6 * MIN);
     await m.checkpoint();
-    const prompt = ctx.state.reunionPrompt;
-    assert.ok(prompt, "checkpoint 补交成功后展示重逢");
-    assert.equal(prompt.windowStart, baseline);
+    const prompt = m.pending();
+    assert.ok(prompt, "补交成功后问候持久化");
+    assert.equal(prompt!.windowStart, baseline);
     const after = m.parsed();
     assert.equal(after.revision, 4);
-    assert.deepEqual(after.reunion, { lastTriggeredWindowStart: baseline, lastTriggeredAt: BASE }, "补交沿用冻结的会话时间");
+    assert.equal(after.reunion.lastTriggeredWindowStart, baseline);
+    assert.equal(after.reunion.lastTriggeredAt, BASE, "补交沿用冻结的会话时间");
+    assert.deepEqual(after.reunion.pending, prompt);
     assert.equal(sessionIds(after.appliedEventIds).length, 1);
-    assert.equal(after.offlineLife.events.length, 6);
 
-    await act(async () => { ctx.dismissReunion(); });
-    await flush();
-    m.advance(6 * MIN);
-    await m.checkpoint();
-    assert.equal(ctx.state.reunionPrompt === null, true, "补交后关闭不重复出现");
-    assert.equal(sessionIds(m.parsed().appliedEventIds).length, 1);
+    assert.equal(await m.ack(), true);
     await m.unmount();
   }
 
-  // 场景 3：会话启动失败后日记保存补交 → 重逢与日记一次原子提交后展示一次。
+  // 场景 4：会话启动失败后日记保存补交 → 问候与日记一次原子提交。
   {
     const baseline = BASE - OFFLINE_MS;
     const m = await mount({ fail: true, revision: 2, baseline, startClock: BASE });
@@ -302,133 +369,193 @@ async function main() {
     await act(async () => { ok = await ctx.confirmEntry("离线之后的日记", createManualEmotion("calm")); });
     await flush();
     assert.equal(ok, true);
-    assert.ok(ctx.state.reunionPrompt, "日记保存补交成功后展示重逢");
+    assert.ok(m.pending(), "日记保存补交成功后问候持久化");
     const snap = m.parsed();
     assert.equal(snap.revision, 3, "会话窗口与日记一次提交");
     assert.equal(snap.entries.length, 1);
     assert.equal(Object.keys(snap.personality.contributions).length, 1, "只有日记产生贡献");
-    assert.deepEqual(snap.reunion, { lastTriggeredWindowStart: baseline, lastTriggeredAt: BASE });
-    await act(async () => { ctx.dismissReunion(); });
-    await flush();
-    assert.equal(ctx.state.reunionPrompt === null, true);
-    assert.equal(m.parsed().entries.length, 1, "回答/跳过不写日记");
+    assert.equal(snap.reunion.lastTriggeredWindowStart, baseline);
+    assert.equal(await m.ack(), true);
+    assert.equal(m.parsed().entries.length, 1, "回应不写日记");
     await m.unmount();
   }
 
-  // 场景 4：会话窗口未提交且日记保存也失败 → 不展示；retrySave 成功补交后展示一次。
+  // 场景 5：回应/跳过保存失败 → 问候保留可重试；空间不足同样保留。
   {
     const baseline = BASE - OFFLINE_MS;
-    const m = await mount({ fail: true, revision: 2, baseline, startClock: BASE });
-    let ok = true;
-    await act(async () => { ok = await ctx.confirmEntry("失败时写日记", createManualEmotion("sadness")); });
-    await flush();
-    assert.equal(ok, false);
-    assert.ok(ctx.state.pending);
-    assert.equal(ctx.state.reunionPrompt === null, true, "日记保存失败不得提前展示重逢");
+    const m = await mount({ revision: 2, baseline, startClock: BASE });
+    const prompt = m.pending();
+    assert.ok(prompt);
+    const revisionBefore = m.parsed().revision;
 
-    m.advance(6 * MIN);
-    await m.checkpoint();
-    assert.equal(ctx.state.reunionPrompt === null, true);
-    assert.equal(m.parsed().revision, 2, "pending 期间 checkpoint 暂停");
+    m.setFail(true);
+    assert.equal(await m.ack(), false, "保存失败不得假装已处理");
+    assert.deepEqual(m.pending(), prompt, "失败后问候仍在界面状态");
+    assert.deepEqual(m.parsed().reunion.pending, prompt, "失败后存档仍保留待处理");
+    assert.equal(m.parsed().revision, revisionBefore);
 
     m.setFail(false);
-    await act(async () => { ok = await ctx.retrySave(); });
-    await flush();
-    assert.equal(ok, true);
-    assert.ok(ctx.state.reunionPrompt, "retrySave 补交成功后展示一次");
-    const snap = m.parsed();
-    assert.equal(snap.revision, 3);
-    assert.equal(snap.entries.length, 1);
-    assert.equal(sessionIds(snap.appliedEventIds).length, 1);
-    assert.deepEqual(snap.reunion, { lastTriggeredWindowStart: baseline, lastTriggeredAt: BASE });
-    await act(async () => { ctx.dismissReunion(); });
-    await flush();
-    assert.equal(ctx.state.reunionPrompt === null, true, "retry 后关闭不再出现");
-    m.advance(6 * MIN);
-    await m.checkpoint();
-    assert.equal(ctx.state.reunionPrompt === null, true);
-    await m.unmount();
+    assert.equal(await m.ack(), true, "恢复后重试成功");
+    assert.equal(m.pending(), null);
+    assert.equal(m.parsed().reunion.pending, null);
+
+    // 空间不足：同样保留并允许重试。
+    const m2 = await mount({ revision: 2, baseline, startClock: BASE + HOUR });
+    const prompt2 = m2.pending();
+    assert.ok(prompt2);
+    const beforeQuota = m2.parsed().revision;
+    m2.setQuota(true);
+    assert.equal(await m2.ack(), false);
+    assert.deepEqual(m2.pending(), prompt2);
+    assert.deepEqual(m2.parsed().reunion.pending, prompt2);
+    assert.equal(m2.parsed().revision, beforeQuota);
+    assert.ok((ctx.state.saveError ?? "").includes("空间不足"), "空间不足应给出真实失败提示");
+    m2.setQuota(false);
+    assert.equal(await m2.ack(), true);
+    assert.equal(m2.pending(), null);
+    await m2.unmount();
   }
 
-  // 场景 5：同标签页刷新救援值 → 旧快照基准不得被误判为长期离线。
-  {
-    const baseline = BASE - OFFLINE_MS;
-    const m = await mount({ revision: 2, baseline, startClock: BASE, rescue: BASE - 5 * MIN });
-    assert.equal(ctx.state.reunionPrompt === null, true, "救援值应阻止刷新误触发");
-    const snap = m.parsed();
-    assert.equal(snap.revision, 3, "会话仍正常提交访问时间");
-    assert.equal(snap.reunion.lastTriggeredWindowStart, null);
-    assert.equal(snap.reunion.lastTriggeredAt, null);
-    assert.equal(snap.offlineLife.events.length, 0, "刷新不伪造离线生活");
-    await m.unmount();
-  }
-
-  // 场景 6：StrictMode 重复 effect 不产生第二次展示或第二次会话事件。
+  // 场景 6：StrictMode 重复 effect 不重复提交、不重复问候；处理后重开不重复。
   {
     const baseline = BASE - OFFLINE_MS;
     const m = await mount({ revision: 2, baseline, startClock: BASE, strict: true });
-    const prompt = ctx.state.reunionPrompt;
-    assert.ok(prompt, "StrictMode 下仍只展示一次");
-    assert.equal(prompt.windowStart, baseline);
+    const prompt = m.pending();
+    assert.ok(prompt, "StrictMode 下仍只有待处理问候");
+    assert.equal(prompt!.windowStart, baseline);
     assert.equal(sessionIds(m.parsed().appliedEventIds).length, 1, "StrictMode 不重复提交会话事件");
     assert.equal(m.parsed().revision, 3);
+    assert.equal(await m.ack(), true);
+    assert.equal(m.pending(), null);
+    const raw = m.raw();
     await m.unmount();
+    const m2 = await mount({ startClock: BASE + 10 * MIN, raw: raw!, strict: true });
+    assert.equal(m2.pending(), null, "处理后重开不重复");
+    await m2.unmount();
   }
 
-  // 场景 7：真实跨标签页 revision 冲突 → 不展示、不覆盖、不绕过冲突保护。
+  // 场景 7：跨标签页冲突暂停 → 不提前清除；重新加载后待处理仍在，可再次回应。
   {
     const baseline = BASE - OFFLINE_MS;
-    const m = await mount({ revision: 2, baseline, startClock: BASE, conflictOnSave: true });
-    assert.equal(ctx.state.tabConflict, true, "真实冲突应暂停提交");
-    assert.equal(ctx.state.reunionPrompt === null, true, "冲突不得提前展示重逢");
-    assert.equal(m.parsed().revision, 2, "不得覆盖其他标签页");
-    assert.equal(m.parsed().reunion.lastTriggeredWindowStart, null);
-    m.advance(6 * MIN);
-    await m.checkpoint();
-    assert.equal(ctx.state.reunionPrompt === null, true);
-    assert.equal(m.parsed().revision, 2);
-    await m.unmount();
-  }
-
-  // 场景 8：storage 事件触发冲突暂停 → 未提交窗口不得被 checkpoint 补交并展示。
-  {
-    const baseline = BASE - OFFLINE_MS;
-    const m = await mount({ fail: true, revision: 2, baseline, startClock: BASE });
-    assert.equal(ctx.state.reunionPrompt === null, true);
-    await m.storageEvent();
-    assert.equal(ctx.state.tabConflict, true);
-    m.advance(6 * MIN);
-    await m.checkpoint();
-    assert.equal(ctx.state.reunionPrompt === null, true, "冲突暂停时不得展示重逢");
-    assert.equal(m.parsed().revision, 2);
-    await m.unmount();
-  }
-
-  // 场景 9：旧快照已有重逢标记 → 不因历史标记再次弹出；未触发会话保留原标记。
-  {
-    const baseline = BASE - OFFLINE_MS;
-    const seed = seedSnapshot(baseline, 2);
-    seed.offlineLife.lastWindowStart = baseline;
-    seed.reunion = { lastTriggeredWindowStart: baseline, lastTriggeredAt: baseline + HOUR };
-    const m = await mount({ revision: 2, raw: serializeSnapshot(seed), startClock: BASE });
-    assert.equal(ctx.state.reunionPrompt === null, true, "历史触发标记不得再次弹出");
-    const snap = m.parsed();
-    assert.equal(snap.revision, 3);
-    assert.deepEqual(snap.reunion, seed.reunion, "未触发时保留原重逢标记");
-    await m.unmount();
-  }
-
-  // 场景 10：恰好 72 小时不触发（候选阈值严格大于），但会话仍正常提交。
-  {
-    const baseline = BASE - THRESHOLD;
     const m = await mount({ revision: 2, baseline, startClock: BASE });
-    assert.equal(ctx.state.reunionPrompt === null, true, "恰好等于阈值不触发");
+    const prompt = m.pending();
+    assert.ok(prompt);
+
+    m.setConflict(true);
+    assert.equal(await m.ack(), false, "真实修订冲突不得覆盖其他标签页");
+    assert.deepEqual(m.pending(), prompt, "冲突后界面仍保留问候");
+    assert.deepEqual(m.parsed().reunion.pending, prompt, "冲突后存档仍保留待处理");
+    assert.equal(ctx.state.tabConflict, true);
+    m.setConflict(false);
+
+    await m.reload();
+    assert.equal(ctx.state.tabConflict, false);
+    assert.deepEqual(m.pending(), prompt, "重新加载后待处理问候仍可展示");
+    assert.equal(await m.ack(), true);
+    assert.equal(m.pending(), null);
+
+    // storage 事件暂停提交：同样不得假装处理成功。
+    const m2 = await mount({ revision: 2, baseline, startClock: BASE + HOUR });
+    const prompt2 = m2.pending();
+    assert.ok(prompt2);
+    await m2.storageEvent();
+    assert.equal(ctx.state.tabConflict, true);
+    assert.equal(await m2.ack(), false);
+    assert.deepEqual(m2.parsed().reunion.pending, prompt2);
+    await m2.unmount();
+    await m.unmount();
+  }
+
+  // 场景 8：旧 v3 存档已标记触发但没有待处理信息 → 迁移不猜造、不重播；历史日记保留。
+  {
+    const entry = {
+      id: "legacy-entry",
+      text: "旧日记原文",
+      createdAt: BASE - 20 * HOUR,
+      updatedAt: BASE - 20 * HOUR,
+      dayKey: "2026-11-12",
+      revision: 0,
+      originalAnalysis: null,
+      analysisMeta: null,
+      effectiveEmotion: { label: "calm", valence: 0.5, arousal: 0.5, dominance: 0.5, intensity: 0.5, confidence: null, source: "manual" },
+      corrections: [],
+      awardedXp: 0,
+      rulesVersion: "rules-v1",
+    };
+    const v3 = {
+      ...createInitialSnapshot(),
+      schemaVersion: 3,
+      revision: 2,
+      character: { latestEntryId: entry.id, currentEmotion: entry.effectiveEmotion },
+      entries: [entry],
+      reunion: { lastTriggeredWindowStart: BASE - 10 * HOUR, lastTriggeredAt: BASE - 9 * HOUR },
+      offlineLife: { lastVisitAt: BASE - HOUR, lastActiveAt: BASE - HOUR, lastWindowStart: BASE - 10 * HOUR, events: [] },
+    };
+    const raw = JSON.stringify(v3);
+    const m = await mount({ raw, startClock: BASE });
+    assert.equal(m.pending(), null, "旧存档不得被猜造为待处理并重播");
+    const parsed = m.parsed();
+    assert.equal(parsed.schemaVersion, 4, "成功保存后迁移为 v4");
+    assert.equal(parsed.reunion.pending, null);
+    assert.equal(parsed.reunion.lastTriggeredWindowStart, BASE - 10 * HOUR, "旧触发标记原样保留");
+    assert.equal(parsed.entries.length, 1);
+    assert.equal(parsed.entries[0].text, "旧日记原文", "迁移不改历史正文");
+    await m.unmount();
+  }
+
+  // 场景 9：待处理旧问候阻断新触发、不被覆盖；处理后新的离线窗口可正常触发。
+  {
+    const pendingWindow = BASE - 200 * HOUR;
+    const oldGreeting = {
+      windowStart: pendingWindow,
+      dominantId: "gentleness" as const,
+      tone: REUNION_V1.templates.gentleness.tone,
+      message: REUNION_V1.templates.gentleness.generic,
+      question: REUNION_V1.baseQuestion,
+      rulesVersion: "reunion-v1",
+    };
+    const snap: Snapshot = {
+      ...createInitialSnapshot(),
+      revision: 2,
+      offlineLife: { lastVisitAt: BASE - OFFLINE_MS, lastActiveAt: BASE - OFFLINE_MS, lastWindowStart: pendingWindow, events: [] },
+      reunion: { lastTriggeredWindowStart: pendingWindow, lastTriggeredAt: pendingWindow + HOUR, pending: oldGreeting },
+    };
+    const m = await mount({ snap, startClock: BASE });
+    assert.deepEqual(m.pending(), oldGreeting, "旧待处理问候保持不变");
+    assert.equal(m.parsed().reunion.lastTriggeredWindowStart, pendingWindow, "不得改记新窗口");
+    assert.equal(m.parsed().revision, 3, "会话访问仍正常提交");
+
+    assert.equal(await m.ack(), true);
+    assert.equal(m.pending(), null);
+    const raw = m.raw();
+    await m.unmount();
+
+    // 处理完成后的新离线窗口可以正常触发新问候。
+    const m2 = await mount({ startClock: BASE + OFFLINE_MS + HOUR, raw: raw! });
+    const next = m2.pending();
+    assert.ok(next, "旧问候处理后允许新窗口触发");
+    assert.equal(next!.windowStart, BASE, "新问候使用新窗口起点");
+    assert.equal(m2.parsed().reunion.lastTriggeredWindowStart, BASE);
+    await m2.unmount();
+  }
+
+  // 场景 10：同标签页刷新救援值阻止误触发；恰好 72 小时不触发。
+  {
+    const baseline = BASE - OFFLINE_MS;
+    const m = await mount({ revision: 2, baseline, startClock: BASE, rescue: BASE - 5 * MIN });
+    assert.equal(m.pending(), null, "救援值应阻止刷新误触发");
     assert.equal(m.parsed().revision, 3);
     assert.equal(m.parsed().reunion.lastTriggeredWindowStart, null);
     await m.unmount();
+
+    const exact = await mount({ revision: 2, baseline: BASE - THRESHOLD, startClock: BASE });
+    assert.equal(exact.pending(), null, "恰好等于阈值不触发");
+    assert.equal(exact.parsed().revision, 3);
+    assert.equal(exact.parsed().reunion.lastTriggeredWindowStart, null);
+    await exact.unmount();
   }
 
   Date.now = realDateNow;
-  console.log("阶段五回归通过：重逢仅保存后展示一次、失败补交、刷新/StrictMode/救援/冲突不重复或提前展示");
+  console.log("STO-05 回归通过：问候持久化、跨刷新/重开投递、失败重试、迁移不重播、旧问候不被覆盖");
 }
 void main().catch((e) => { console.error(e); process.exit(1); });

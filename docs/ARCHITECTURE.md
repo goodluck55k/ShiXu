@@ -2,7 +2,7 @@
 
 > 状态：V1 架构基线。标注「已实现」的以 `main` 分支代码为准；「阶段 N 规划」表示尚未合入。产品范围见 [PRODUCT_SPEC](PRODUCT_SPEC.md)，性格与行为参数见 [COMPANION_SPEC](COMPANION_SPEC.md)。
 >
-> 存档 `schemaVersion` 为 3；本文档版本与存档版本无关。截至本版，`main` 已含 `schemaVersion` 3、五维 `personality-v2` 台账与迁移（PR #18）、主导行为引擎（PR #19）、离线自主生活（PR #20）、久别重逢（PR #22）与 AI 情绪识别复核（PR #23）；阶段七的原创企鹅正面母版（PR #27）、九种组合表情（PR #28）、侧背面与基础动作（PR #30）、特殊动作视觉（PR #31）与特殊行为正式接入（PR #32）均已合入。特殊行为配置已开启，真实长期自然触发待进一步验收；生活空间与正式 UI 尚未开发。当前整体进度以 [ROADMAP](ROADMAP.md) §1.1 为准。
+> 存档目标结构为 `schemaVersion` 4（STO-05，PR #35 待合并；合并后 v1/v2/v3 读取时迁移）。`main` 当前仍为 `schemaVersion` 3；本文档版本与存档版本无关。截至本版，`main` 已含 `schemaVersion` 3、五维 `personality-v2` 台账与迁移（PR #18）、主导行为引擎（PR #19）、离线自主生活（PR #20）、久别重逢（PR #22）与 AI 情绪识别复核（PR #23）；`schemaVersion` 4 的待处理问候投递修复已在 PR #35 实现但尚未合入 `main`，下文的 v4 / `pending` / `REUNION_ACKNOWLEDGED` 内容为目标契约。阶段七的原创企鹅正面母版（PR #27）、九种组合表情（PR #28）、侧背面与基础动作（PR #30）、特殊动作视觉（PR #31）与特殊行为正式接入（PR #32）均已合入。特殊行为配置已开启，真实长期自然触发待进一步验收；生活空间与正式 UI 尚未开发。当前整体进度以 [ROADMAP](ROADMAP.md) §1.1 为准。
 
 ## 1. 架构原则
 
@@ -24,7 +24,7 @@
 | 性格 | `personality` | 五维贡献账本、派生分数、主导性格、描述 | `PersonalityState`、`PersonalitySnapshot`、`PersonalityRuleConfig`、`derivePersonality`、`resolveDominant` | 贡献台账、`dominantId`、规则版本 | `PERSONALITY_RULES_VERSION` + 规则配置 |
 | 行为 | `behavior` | 主导行为、普通待机、特殊行为、互动反应 | `BehaviorContext`、`BehaviorDecision`、`BehaviorRuleConfig`、`selectBehavior` | 无持久状态（运行时序号） | `BEHAVIOR_RULES_VERSION` + 规则配置 |
 | 离线生活 | `offlineLife` | 按离线窗口生成有限生活事件 | `OfflineLifeState`、`OfflineLifeEvent`、`OfflineLifeRuleConfig`、`planOfflineLife` | 事件历史（通过快照持有） | `offline-life-v1` |
-| 久别重逢 | `reunion` | 判断长期未访问、生成问候、记录触发窗口 | `ReunionState`、`ReunionRuleConfig`、`evaluateReunion` | 已触发窗口（通过快照持有） | `reunion-v1` |
+| 久别重逢 | `reunion` | 判断长期未访问、生成问候、记录触发窗口与待处理问候 | `ReunionState`、`ReunionRuleConfig`、`evaluateReunion` | 已触发窗口与待处理问候（通过快照持有） | `reunion-v1` |
 | 角色展示 | `character` | 按视图渲染企鹅、组合表情、动作与生活空间 | `CharacterView`、`AppearanceConfig` | 无（仅运行时展示状态） | 表情/动作/图层映射（阶段七） |
 | 存储 | `storage` | 版本化存档、加载、保存、恢复、迁移入口 | `StoragePort`、`LoadResult`、`SaveResult` | localStorage 键 | 迁移表 |
 | 装扮（V2） | `decoration` | 饰品状态、解锁、穿戴 | 仅预留读取与外观扩展点 | V2 自行持有 | V2 定义 |
@@ -71,19 +71,19 @@ graph TD
 | `src/app/{layout,page}.tsx`、`src/app/companion/page.tsx`、`src/app/memories/page.tsx` | 已实现（临时路由） | 当前 `/` 为日记、`/companion` 为陪伴、`/memories` 为回忆；正式 `/` 小屋、`/diary` 日记与 `/companion` 兼容尚未实施 |
 | `src/app/character-preview/*` | 已实现（仅开发预览） | 角色、表情、侧背面/动作与特殊行为模拟预览；不属于正式产品导航，不写正式存档 |
 | `src/app/api/emotion/route.ts` | 已实现 | 服务端情绪识别入口 |
-| `src/application/AppProvider.tsx` | 已实现，阶段二至五扩展 | 状态编排、保存、会话启动、恢复、跨标签页冲突、重逢一次性展示；阶段六不新增持久状态 |
+| `src/application/AppProvider.tsx` | 已实现，阶段二至五扩展 | 状态编排、保存、会话启动、恢复、跨标签页冲突、待处理问候投递与确认（投递修复见 PR #35，待合并）；问候本身持久化在快照中 |
 | `src/application/useEmotionAnalysis.ts` | 已实现，阶段六扩展 | AI 建议请求、会话失效、过期响应丢弃、客户端超时与降级 |
 | `src/lib/ai/client.ts` | 阶段六新增 | 浏览器侧识别会话、三元组关联、严格 analysis/analysisMeta 校验、HTTP 错误映射；不导入服务端 Provider |
 | `src/lib/ai/server/{config,provider,native,questions,protection}.ts` | 已实现，阶段六复核 | 配置读取、百炼 System One 调用与显式映射、固定错误分类、进程内频率/并发/预算保护 |
 | `src/domain/types.ts` | 已实现，阶段二扩展 | 公共类型与契约 |
 | `src/domain/emotions.ts` | 已实现 | 手选默认 VAD、规范化 |
 | `src/domain/rules.ts` | 已实现，阶段二至五扩展 | 领域事件、原子结算、会话启动入口 |
-| `src/domain/schema.ts` | 已实现，阶段二扩展 | 存档结构校验 |
+| `src/domain/schema.ts` | 已实现，阶段二扩展；v4 校验见 PR #35 | 存档结构校验（v1/v2/v3 读取校验与 v4 目标校验） |
 | `src/domain/companion.ts` | 已实现（三维护账） | 阶段二拆分为 `personality.ts` + 配置，之后只作兼容/删除 |
 | `src/domain/personality.ts` | 已实现（PR #18） | 五维派生、主导判定、描述、只读查询 |
 | `src/domain/behavior.ts` | 阶段三已实现（PR #19） | 确定性主导行为/待机/特殊/互动选择 |
 | `src/domain/offlineLife.ts` | 阶段四已实现（PR #20） | 离线窗口规划、活动选择、幂等 ID |
-| `src/domain/reunion.ts` | 阶段五已实现（PR #22） | 长期未访问判断、问候模板选择 |
+| `src/domain/reunion.ts` | 阶段五已实现（PR #22）；投递修复见 PR #35（待合并） | 长期未访问判断、问候模板选择、待处理问候类型；存在待处理问候时不再触发新问候 |
 | `src/domain/characterView.ts` | 已实现（阶段三最小接入，PR #19） | 由快照/行为推导视图 |
 | `src/config/personality.ts` | 已实现（PR #18） | `PersonalityRuleConfig` |
 | `src/config/behavior.ts` | 阶段三已实现（PR #19） | `BehaviorRuleConfig` |
@@ -95,7 +95,7 @@ graph TD
 | `src/components/character/{PenguinFront,PenguinFace,PenguinPoses}.tsx`、`specialMotion.ts` | 已实现（PR #27 / #28 / #30 / #31） | 正面母版、组合表情、侧背面与基础动作、特殊动作视觉；`drink` 使用啤酒瓶；`SPECIAL_MOTION_MS=8000` |
 | `src/components/character/` 正式场景组件 | 规划，未创建 | 企鹅小屋、生活空间与正式 UI 组件；具体文件与资源路径由后续任务卡确认，不得把规划路径当作已有文件 |
 | `src/components/character/OfflineLifePanel.tsx` | 阶段四已实现（PR #20） | 只读已落盘离线事件，区分本次与历史；不写日记/回忆/分数 |
-| `src/components/character/ReunionPanel.tsx` | 阶段五已实现（PR #22） | 只渲染应用层已提交的一次性问候；回答/跳过仅本地临时状态 |
+| `src/components/character/ReunionPanel.tsx` | 阶段五已实现（PR #22）；投递修复见 PR #35（待合并） | 只渲染快照中已提交且未处理的问候；回应/跳过走正式保存，成功后才清除，失败保留可重试 |
 | `src/application/useBehaviorRuntime.ts` | 阶段三已实现（PR #19） | 行为调度、隐藏暂停、互动、保存后一次性反馈、低动态降级；不写存档 |
 | `src/application/lowMoodStreak.ts` | PR #32 已合入 | 只读有效情绪与冻结 dayKey，连续四天含当天；正式配置已开启，长期自然触发待进一步验收 |
 | `src/components/emotion/*`、`src/components/memories/*` | 已实现 | 记录、纠正、历史界面 |
@@ -138,7 +138,7 @@ interface Entry {
 
 `Analysis`、`EmotionCorrection`、`AnalysisMeta` 保持 [AI_CONTRACT](AI_CONTRACT.md) 与现有 `src/domain/types.ts` 的定义。`Entry.text` 不设产品字数上限，只校验非空白。九类情绪枚举在本阶段不改名、不增删；中文显示名差异见 [COMPANION_SPEC](COMPANION_SPEC.md) 2.4。
 
-### 4.2 性格（阶段二，schemaVersion 3）
+### 4.2 性格（阶段二起，v3/v4 共用结构）
 
 阶段二实现：配置 `src/config/personality.ts`，领域查询与结算 `src/domain/personality.ts`，迁移 `src/domain/migrations.ts`。候选参数待验收。
 
@@ -304,9 +304,19 @@ interface OfflineLifeState {
   events: OfflineLifeEvent[];       // 有上限
 }
 
+interface ReunionGreeting {
+  windowStart: number;
+  dominantId: DimensionId;
+  tone: string;
+  message: string;
+  question: string;
+  rulesVersion: string;
+}
+
 interface ReunionState {
-  lastTriggeredWindowStart: number | null;
+  lastTriggeredWindowStart: number | null;  // 已触发的窗口起点（不代表用户已看到）
   lastTriggeredAt: number | null;
+  pending: ReunionGreeting | null;          // 已触发但尚未回应/跳过的问候；正式存档持有
 }
 
 interface OfflineLifeRuleConfig {
@@ -336,6 +346,7 @@ interface ReunionEvaluationInput {
   lastActiveAt: number | null;
   lastVisitAt: number | null;
   lastTriggeredWindowStart: number | null;
+  pendingWindowStart: number | null;  // 存在未处理问候时阻断新触发，避免覆盖
   dominantId: DimensionId;
   offlineEvents?: OfflineLifeEvent[]; // 仅用于挑选真实生成的具体生活描述
   activityRescueAt?: number | null;   // 同标签页救援值，只抬高判定基准
@@ -344,7 +355,7 @@ interface ReunionEvaluationInput {
 interface ReunionEvaluation {
   triggered: boolean;
   windowStart: number | null;
-  reasonCode: "triggered" | "no-baseline" | "within-threshold" | "already-triggered";
+  reasonCode: "triggered" | "no-baseline" | "within-threshold" | "already-triggered" | "pending-unhandled";
   absenceMs: number | null;
   greeting: ReunionGreeting | null;
 }
@@ -357,16 +368,23 @@ interface ReunionEvaluation {
 - 存在未解决的 pending 日记操作（保存失败后保留的待重试事件）时，应用层暂停正式 checkpoint 写入，直到该 pending 成功提交或被明确取消（`INVALIDATE_PENDING` / 重新加载 / 临时体验 / 重置）。checkpoint 与日记保存共用 `savingRef` 互斥；pending 镜像须与 `state.pending` 同步更新，避免渲染提交间隙竞态。否则 checkpoint 推进 `revision` 会使 `retrySave` 冻结的 `expectedRevision` 失效，误判跨标签页冲突。pending 解决/取消后恢复；跨标签页冲突保护与救援/降级语义不变。
 - 同一次离线窗口最多生成一次：`eventId = session:<windowStart>` + `lastWindowStart` + 事件 `id` 去重；`windowStart = baseline`。
 - 重逢在更新 `lastVisitAt` / `lastActiveAt` 之前判断；`baseline = lastActiveAt ?? lastVisitAt`，`absence = now - max(baseline, rescue)`，只有严格 `absence > thresholdMs` 且 `lastTriggeredWindowStart < baseline` 才触发；同一次离线窗口只触发一次；保存成功后才展示。
-- 重逢问候只从配置模板与本次已规划（并随同一事件提交）的离线事件生成；无对应事件时使用通用问候，不虚构具体经历。问候、回答与跳过均不写入 `entries`、`memories`、`appliedEventIds` 或性格台账。
-- 一次性展示状态只存在于应用层内存：只有包含该 `SESSION_STARTED` 的正式快照保存成功后，才把问候放入 `reunionPrompt`；会话启动保存失败时问候随未提交窗口一起冻结；checkpoint/日记保存补交成功后展示一次；回答或跳过只清除运行时状态并记录本次已处理窗口，不产生第二次展示。不得从旧快照的 `lastTriggeredAt` 反推展示。
+- 重逢问候只从配置模板与本次已规划（并随同一事件提交）的离线事件生成；无对应事件时使用通用问候，不虚构具体经历。问候、回答与跳过均不写入 `entries`、`memories` 或性格台账。
+- 触发、待处理与已处理是三种独立状态：`lastTriggeredWindowStart` 表示“已触发”；`pending` 表示“已触发但用户尚未回应/跳过”；`pending=null` 且 `lastTriggeredWindowStart` 保留表示“已处理”。`pending` 是正式存档的一部分，不依赖 React state、模块全局变量或 `sessionStorage`。
+- `SESSION_STARTED` 与待处理问候原子提交：事件携带 `reunionGreeting`，只有包含该事件的完整快照保存成功后，`reunion.pending` 才生效；保存失败时不产生待处理问候，冻结事件在 checkpoint/日记保存补交成功后一并落盘。
+- 任一页面启动会话都可以持久化待处理问候，但只有 `/companion` 渲染 `ReunionPanel`；未进入企鹅页、页面隐藏、刷新或关闭网页都不会自动消费问候。
+- 用户明确回应或跳过时生成 `REUNION_ACKNOWLEDGED`，只有该事件成功保存后才清除 `reunion.pending`；保存失败、空间不足或跨标签页冲突时保留问候并允许重试，不得假装已处理。已触发标记不因确认而回退。
+- 存在待处理问候时 `evaluateReunion` 返回 `pending-unhandled`，不生成、不覆盖也不排队新问候；旧问候处理完成后的新离线窗口仍可正常触发。
+- 不得从旧快照的 `lastTriggeredAt` 反推展示；v3 迁移只补 `pending: null`，不猜造历史问候。
 - 直接关闭、浏览器崩溃或 checkpoint 写入失败时，只能使用最后一次成功的 `lastActiveAt`（或同标签页救援值）作为降级基准。该降级可能把未 checkpoint 的在线时长计入离线，但不得反向少算；保存失败时不得展示离线事件或重逢。
 - 离线/重逢都不得修改 `personality.contributions`、`scores` 或 `entries`。
 
-### 4.5 存档（schemaVersion 3）
+### 4.5 存档（schemaVersion 4；PR #35 目标实现，待合并）
+
+> 本节描述 PR #35 合并后的目标结构；`main` 在合并前仍为 v3，合并后 v1/v2/v3 读取时按 §6 迁移链处理。
 
 ```ts
-interface SnapshotV3 {
-  schemaVersion: 3;
+interface SnapshotV4 {
+  schemaVersion: 4;
   revision: number;
   entries: Entry[];
   character: {
@@ -375,7 +393,7 @@ interface SnapshotV3 {
   };
   personality: PersonalityState;
   offlineLife: OfflineLifeState;
-  reunion: ReunionState;
+  reunion: ReunionState;          // 含 pending: ReunionGreeting | null
   memories: MemoryEvent[];
   appliedEventIds: string[];
   legacy?: {
@@ -386,6 +404,7 @@ interface SnapshotV3 {
 }
 ```
 
+- `pending` 必须为 `null`，或为与 `lastTriggeredWindowStart` 相同窗口的完整问候对象；回答/跳过成功后清除 `pending`，保留已触发标记。
 - `legacy` 只在迁移旧存档时出现；V1 不读、不展示、不参与结算，只保证原样往返。
 - `MemoryEvent` 类型在 V1 只新增 `ENTRY_SAVED`、`ENTRY_TEXT_EDITED`、`EMOTION_CORRECTED`；旧 `ITEM_*`、`STAGE_REACHED` 只用于读取历史，不再产生。离线/重逢不写入 `memories`，避免与日记回忆混淆。
 - 旧 `DecorationState`、`HabitProgress`、`WorldTrace` 类型可暂时保留为兼容类型，但不得进入 V1 业务逻辑。
@@ -409,7 +428,8 @@ interface SnapshotV3 {
 | `applyGameEvent(snapshot, event, context)` | rules | 已实现，阶段二至五扩展 | 唯一正式状态变更入口 |
 | `migrateSnapshotV1toV2(v1)` | storage/rules | 已实现 | 保留 |
 | `migrateSnapshotV2toV3(v2)` | storage | 阶段二 | 新增；只做结构转换，不调用计分规则 |
-| `StoragePort.load/save/readRaw/reset` | storage | 已实现，保存结果扩展 `corrupt` / `unsupported-version` | 函数签名不变，`Snapshot` 升为 v3；保存前发现现有存档不可读时返回对应状态与原始 `raw` |
+| `migrateSnapshotV3toV4(v3)` | storage | PR #35（待合并） | 补 `reunion.pending = null`；不猜造历史问候，不改日记与触发标记 |
+| `StoragePort.load/save/readRaw/reset` | storage | 已实现，保存结果扩展 `corrupt` / `unsupported-version` | 函数签名不变；PR #35 合并后 `Snapshot` 为 v4，v1/v2/v3 读取时内存迁移；保存前发现现有存档不可读时返回对应状态与原始 `raw` |
 
 ### 5.1 V1 领域事件
 
@@ -419,7 +439,8 @@ interface SnapshotV3 {
 | `EDIT_ENTRY_TEXT` | 原样改正文 | `eventId` + `expectedEntryRevision` | entry 存在、修订匹配 |
 | `CORRECT_EMOTION` | 替换情绪与贡献 | `eventId` + `expectedEntryRevision` | entry 存在、修订匹配 |
 | `ACTIVITY_CHECKPOINT` | 更新最后活动时间 `lastActiveAt` | 单调 `max`；重复应用无副作用 | `at` 为非负时间且不晚于 `context.now`；不写回忆、不改分数 |
-| `SESSION_STARTED` | 记录本次访问、离线事件、重逢触发标记 | `eventId`（候选 `session:<windowStart ?? "first">`） | `windowStart` 等于当前基准 `lastActiveAt ?? lastVisitAt`；事件 id 不与已存事件重复 |
+| `SESSION_STARTED` | 记录本次访问、离线事件、重逢触发标记与待处理问候 | `eventId`（候选 `session:<windowStart ?? "first">`） | `windowStart` 等于当前基准 `lastActiveAt ?? lastVisitAt`；事件 id 不与已存事件重复 |
+| `REUNION_ACKNOWLEDGED` | 用户明确回应或跳过问候，清除 `reunion.pending` | `eventId` + `windowStart` | 存在同窗口待处理问候；不写日记/回忆/性格；重复应用或窗口不匹配无副作用 |
 
 `SESSION_STARTED` 载荷（应用层用纯函数算好后传入）：
 
@@ -430,6 +451,13 @@ interface SessionStartedEvent {
   windowStart: number | null;      // 本次离线窗口起点；首次为 null
   offlineEvents: OfflineLifeEvent[];
   reunionTriggered: boolean;
+  reunionGreeting: ReunionGreeting | null; // 与触发标记同一次原子提交的待处理问候
+}
+
+interface ReunionAcknowledgedEvent {
+  type: "REUNION_ACKNOWLEDGED";
+  eventId: string;                 // evt:<id>
+  windowStart: number;             // 必须匹配当前 reunion.pending.windowStart
 }
 
 interface ActivityCheckpointEvent {
@@ -443,7 +471,9 @@ interface ActivityCheckpointEvent {
 - 当前实现把每次正式事件（含 `SESSION_STARTED`）的 `eventId` 追加到 `appliedEventIds`，且**没有裁剪或归档机制**；长时间使用会随会话与保存次数线性增长，增加快照体积。这是已知未修复问题，不得在文档中描述为已限制或已清理。`ACTIVITY_CHECKPOINT` 不进入该列表。
 - `ACTIVITY_CHECKPOINT` 不进入 `memories`，也不写入 `appliedEventIds`；应用 `lastActiveAt = max(lastActiveAt, at)`，因此重复、乱序或重放都不会改变结果。checkpoint 仍走同一条整快照保存路径，失败不改变正式状态。
 - 任何成功的日记正式事件（`CONFIRM_ENTRY` / `EDIT_ENTRY_TEXT` / `CORRECT_EMOTION`）在同一 `applyGameEvent` 中把 `offlineLife.lastActiveAt` 推进到 `context.now`；保存失败时与事件一起回滚。
-- `SESSION_STARTED` 原子更新：`offlineLife.lastVisitAt = context.now`、`offlineLife.lastActiveAt = context.now`、`lastWindowStart = windowStart`、按 `id` 去重追加事件并裁剪到 `maxStoredEvents`；`reunionTriggered` 为真且 `windowStart !== null` 时写 `reunion.lastTriggeredWindowStart = windowStart`、`lastTriggeredAt = context.now`；否则保留原重逢标记不变。
+- `SESSION_STARTED` 原子更新：`offlineLife.lastVisitAt = context.now`、`offlineLife.lastActiveAt = context.now`、`lastWindowStart = windowStart`、按 `id` 去重追加事件并裁剪到 `maxStoredEvents`；`reunionTriggered` 为真、`windowStart !== null` 且当前无待处理问候时写 `reunion.lastTriggeredWindowStart = windowStart`、`lastTriggeredAt = context.now`、`reunion.pending = reunionGreeting`（问候窗口必须匹配 `windowStart`）；否则保留原重逢状态不变，不覆盖旧问候。
+- `REUNION_ACKNOWLEDGED` 仅在 `reunion.pending.windowStart` 匹配时应用：清除 `pending`、保留 `lastTriggeredWindowStart/At`、把事件 id 写入 `appliedEventIds`；不更新 `lastActiveAt`、不写日记/回忆/性格。重复或过期确认返回 `changed=false`。
+- `REUNION_ACKNOWLEDGED` 与其他正式事件一样走整快照保存；保存失败时正式快照不改变，待处理问候保留并允许重试。
 - `RESTORE_DECORATION`、`EQUIP_DECORATION`、`UNEQUIP_DECORATION` **不属于 V1**；`GameEvent` 联合类型可保留兼容分支但必须显式拒绝，不得悄悄执行业务。
 - 回忆事件 id 由 `eventId + 类型 + entryId` 确定性生成，保证重放不重复。
 - `GameContext` 只含 `now` 与 `dayKey`，由应用层生成；任何新增上下文（种子、时间段）必须显式加入契约。
@@ -465,12 +495,12 @@ interface ActivityCheckpointEvent {
 
 1. 加载快照，取 `context.now`、`context.dayKey`、当前 `dominantId`；计算 `baseline = offlineLife.lastActiveAt ?? offlineLife.lastVisitAt`。
 2. 调用 `planOfflineLife({ lastActiveAt, lastVisitAt, now, dominantId }, config)`；首次/迁移存档返回空事件。
-3. 调用 `evaluateReunion({ lastActiveAt, lastVisitAt, now, lastTriggeredWindowStart, dominantId, offlineEvents, activityRescueAt }, config)`；救援值只抬高判定基准，不改变 `windowStart`。
-4. 生成 `SESSION_STARTED`；`windowStart = baseline`，事件与 `reunionTriggered` 由纯函数结果填充；问候对象随冻结的会话保存在应用层内存，不进入 `SESSION_STARTED` 或存档。
+3. 调用 `evaluateReunion({ lastActiveAt, lastVisitAt, now, lastTriggeredWindowStart, pendingWindowStart, dominantId, offlineEvents, activityRescueAt }, config)`；救援值只抬高判定基准，不改变 `windowStart`；存在 `pending` 时返回 `pending-unhandled`，不生成新问候。
+4. 生成 `SESSION_STARTED`；`windowStart = baseline`，事件、`reunionTriggered` 与 `reunionGreeting` 由纯函数结果填充；问候随事件进入候选快照，不再只存在应用层内存。
 5. `applyGameEvent` 得到候选快照，`storage.save(candidate, expectedRevision)`。
-6. 只有保存成功后才展示离线事件与重逢问候；失败保留旧状态，不展示、不提前确认“已经回来过”。
-7. 页面隐藏、`pagehide`、刷新前生成 `ACTIVITY_CHECKPOINT`；可见期间最多每 5 分钟一次，`at = context.now`，走同一保存路径；失败只保留旧 `lastActiveAt`，不展示未保存事件。
-8. 刷新后 `lastVisitAt` / `lastActiveAt` 已更新，同一窗口不会重复生成或重复问候。
+6. 只有保存成功后才提交包含待处理问候的正式快照；失败保留旧状态，不产生待处理问候、不提前确认“已经回来过”。冻结的会话事件（含问候）由 checkpoint 或日记保存原子补交。
+7. 页面隐藏、`pagehide`、刷新前生成 `ACTIVITY_CHECKPOINT`；可见期间最多每 5 分钟一次，`at = context.now`，走同一保存路径；失败只保留旧 `lastActiveAt`，不展示未保存事件，也不消费待处理问候。
+8. 刷新或重新打开后，`reunion.pending` 随快照恢复；只有 `/companion` 展示并允许回应/跳过。用户确认成功后 `REUNION_ACKNOWLEDGED` 原子清除 `pending`；刷新后同一窗口不会重复生成或重复问候。
 
 AI 识别（阶段六复核）：
 
@@ -505,14 +535,19 @@ AI 识别（阶段六复核）：
   7. 迁移只在内存完成；下次成功保存才落盘；失败不改变原存档。
   8. 不追溯旧日记、不静默改写不可识别字段、不删除用户历史。
   9. 迁移后旧条目没有 `PersonalityContribution`；之后对这些条目的纠正只更新 `effectiveEmotion`、`revision`、`corrections` 与回忆事件，不补建贡献、不改变性格分数。这是“不追溯”的一部分，不属于结算失败。
+- 迁移 v3→v4（STO-05，PR #35 待合并）：
+  1. `entries`、`memories`、`appliedEventIds`、`revision`、`personality`、`offlineLife`、`legacy` 原样保留；日记正文、情绪与纠正逐字不动。
+  2. `reunion` 增加 `pending: null`；`lastTriggeredWindowStart` / `lastTriggeredAt` 原样保留。
+  3. v3 只有“已触发”标记，无法判断用户是否看过问候，因此不生成待处理问候、不擅自重播。
+  4. 迁移只在内存完成；下次成功保存才落盘；失败不改变原存档。
 - 读取校验必须按每条贡献自己的 `rulesVersion` 解析配置，不得用当前 `dailyNetCap` 统一复检历史：单条 `deltas` 的绝对值不超过该版本 `perSaveCap`；同一 `dayKey` 内若所有贡献属于同一版本，每个维度的合计不超过该版本 `dailyNetCap`；同日混合多个版本时只逐条校验单条上限，不按任一版本的日上限重新拒绝，因为各次写入时已分别应用当时规则。
 - 写入校验使用当前 `PersonalityState.rulesVersion`，对每个维度独立判断，只约束当前版本的新贡献，不追溯历史：
   - 若该 `dayKey` 该维度的历史合计在 `[-dailyNetCap, dailyNetCap]` 内，写入后合计绝对值必须不超过当前 `dailyNetCap`。
   - 若历史合计已越界（`|dayDeltas| > dailyNetCap`），新贡献只允许 `0`，或使合计绝对值严格减小；结果允许仍越界（历史 `+6`、上限 `4`，新增 `-1` 得 `+5` 允许；新增 `+1` 得 `+7` 拒绝）。正负方向对称：历史 `-6` 时，新增 `+1` 得 `-5` 允许，新增 `-1` 得 `-7` 拒绝。
   - 具体裁剪区间统一按 [COMPANION_SPEC](COMPANION_SPEC.md) §2.5.2 的 `lower`/`upper` 公式；不得用新规则重算或回写旧贡献。
 - 旧 `rulesVersion` 配置缺失时，该贡献不可解释：读取保留原值并标记不可纠正，纠正请求拒绝；不得猜测旧参数、不得静默删除或按当前配置重算。
-- 还需校验：`dominantId` 属于五维或为 `null`；`offlineLife.lastActiveAt` 为 `null` 或不早于 `lastVisitAt`；`offlineLife.events` 的 `id` 唯一、`windowStart` 合法、数量不超过上限；`reunion.lastTriggeredWindowStart` 为 `null`，或为不晚于 `offlineLife.lastWindowStart` 的已处理窗口起点（不能要求与当前窗口相等，否则后续正常会话会被误判为损坏）。
-- 迁移函数只读类型与配置，不导入计分/派生逻辑；`storage` 不得因新增 v2→v3 迁移而依赖 `rules`（既有 v1→v2 兼容迁移后续可一并移出，不阻塞阶段二）。
+- 还需校验：`dominantId` 属于五维或为 `null`；`offlineLife.lastActiveAt` 为 `null` 或不早于 `lastVisitAt`；`offlineLife.events` 的 `id` 唯一、`windowStart` 合法、数量不超过上限；`reunion.lastTriggeredWindowStart` 为 `null`，或为不晚于 `offlineLife.lastWindowStart` 的已处理窗口起点（不能要求与当前窗口相等，否则后续正常会话会被误判为损坏）；v4 的 `reunion.pending` 为 `null` 或结构完整的问候对象，且其 `windowStart` 必须等于 `lastTriggeredWindowStart`。
+- 迁移函数只读类型与配置，不导入计分/派生逻辑；`storage` 不得因新增 v3→v4 迁移而依赖 `rules`（既有 v1→v2 兼容迁移后续可一并移出，不阻塞阶段二）。
 - 旧三维护账是否换算成五维：**待确认**；确认前一律不换算，只保留 `legacy`。旧文档中的五维草案 `personality-v1` 从未在 `main` 实现，不作为迁移来源。
 
 ## 7. 角色渲染
@@ -536,4 +571,4 @@ AI 识别（阶段六复核）：
 - 新增/修改公共类型必须同步本文、[COMPANION_SPEC](COMPANION_SPEC.md) 与调用方；不同步视为未完成。
 - 存档结构变化必须提供迁移函数、失败路径与最小验证（旧档读取、正文/情绪不变、重复保存幂等、离线窗口不重复、重逢不重复）。
 - V1 不引入 V2 业务字段；V2 接入时新增独立字段与迁移，不允许复用 `legacy` 执行业务。
-- 演示前检查：手选主流程、AI 降级、刷新恢复、损坏存档提示、纠正替换、主导行为确定性、离线事件幂等、重逢只触发一次、长时间离线不增加 `low_mood`。
+- 演示前检查：手选主流程、AI 降级、刷新恢复、损坏存档提示、纠正替换、主导行为确定性、离线事件幂等、重逢只触发一次且待处理问候跨刷新/重开不丢失、长时间离线不增加 `low_mood`。
