@@ -1,0 +1,132 @@
+{
+  "generatedAt": "2026-11-16T08:46:21.570Z",
+  "checks": {
+    "desktopPagination": {
+      "page1": {
+        "indicator": "1 / 8",
+        "detailDate": "2026/11/08 14:49",
+        "detailText": "去去去",
+        "noteCount": 3,
+        "summary": "本月心情小记 ♡ 开心 2 安心 2 悲伤 1 其他 2"
+      },
+      "page2": {
+        "indicator": "2 / 8",
+        "detailDate": "2026/11/08 14:48",
+        "detailText": "111",
+        "noteCount": 3,
+        "summary": "本月心情小记 ♡ 开心 2 安心 2 悲伤 1 其他 2"
+      },
+      "changed": true,
+      "headerTop": 28.796875
+    },
+    "draftGuard": {
+      "notice": "正文还有未保存的修改，请先保存或取消编辑后再翻页。",
+      "indicator": "1 / 8",
+      "blocked": true
+    },
+    "edit": {
+      "storedAfterEdit": {
+        "text": "去去去（编辑验证）",
+        "revision": 1
+      },
+      "saved": true
+    },
+    "correction": {
+      "storedAfterCorrection": {
+        "text": "去去去（编辑验证）",
+        "label": "calm",
+        "source": "corrected"
+      },
+      "textPreserved": true,
+      "label": "calm"
+    },
+    "keyboard": {
+      "keyboardNext": "2 / 8",
+      "keyboardPrevious": "1 / 8"
+    },
+    "reducedMotion": {
+      "animationName": "none"
+    },
+    "saveFailure": {
+      "draft": "保存失败时保留的草稿",
+      "error": "本地存储空间不足，本次未保存",
+      "stillEditing": true
+    },
+    "desktopLayout": {
+      "innerWidth": 1440,
+      "scrollWidth": 1440
+    },
+    "mobile": {
+      "page1": {
+        "indicator": "1 / 8",
+        "detailDate": "2026/11/08 14:49",
+        "detailText": "去去去",
+        "noteCount": 3,
+        "summary": "本月心情小记♡开心2安心2悲伤1其他2"
+      },
+      "page2": {
+        "indicator": "2 / 8",
+        "detailDate": "2026/11/08 14:48",
+        "detailText": "111",
+        "noteCount": 3,
+        "summary": "本月心情小记♡开心2安心2悲伤1其他2"
+      },
+      "layout": {
+        "innerWidth": 390,
+        "scrollWidth": 390,
+        "bottomNavVisible": true
+      },
+      "safeArea": {
+        "navTop": 776,
+        "controlsTop": 666,
+        "controlsBottom": 710,
+        "controlsClearOfNav": true
+      }
+    },
+    "narrow": {
+      "innerWidth": 375,
+      "scrollWidth": 375
+    },
+    "tiny": {
+      "innerWidth": 360,
+      "scrollWidth": 360
+    },
+    "empty": {
+      "controls": 0,
+      "text": "这里还留着一片空白",
+      "link": true
+    },
+    "single": {
+      "indicator": "1 / 1",
+      "previousDisabled": true,
+      "nextDisabled": true
+    },
+    "longText": {
+      "textLength": 1734,
+      "panelScrollHeight": 3945,
+      "panelClientHeight": 610,
+      "expectedLength": 1734,
+      "scrollable": true
+    },
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    ]
+  },
+  "screenshots": [
+    "desktop-1440-page1.png",
+    "desktop-1440-page2.png",
+    "desktop-1440-draft-guard.png",
+    "desktop-1920-page1.png",
+    "mobile-390-page1.png",
+    "mobile-390-page1-full.png",
+    "mobile-390-page1-bottom.png",
+    "mobile-390-page2.png",
+    "mobile-390-page2-full.png",
+    "mobile-375-page1.png",
+    "mobile-375-page1-full.png",
+    "mobile-360-page1.png",
+    "desktop-empty.png",
+    "desktop-single.png",
+    "desktop-long-text.png"
+  ]
+}
