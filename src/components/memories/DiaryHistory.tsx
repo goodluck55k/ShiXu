@@ -1,16 +1,26 @@
 "use client";
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useApp } from "@/application/AppProvider";
 import { EntryEmotionCorrection } from "@/components/emotion/EntryEmotionCorrection";
 import { EMOTION_NAMES, type Entry, type EmotionSource } from "@/domain/types";
 import { PenguinFront } from "@/components/character/PenguinFront";
 import { formatDateTime } from "@/lib/format";
 const SOURCE_NAMES: Record<EmotionSource, string> = { ai: "AI 建议", manual: "手动选择", corrected: "手动纠正" };
-function MemoryDetail({ entry }: { entry: Entry }) {
+type FlipDirection = "prev" | "next";
+type FlipState = { direction: FlipDirection; stage: "out" | "in" };
+function flipTiming(): { out: number; in: number } {
+  if (typeof window === "undefined") return { out: 220, in: 280 };
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return { out: 0, in: 0 };
+  return window.matchMedia("(max-width: 700px)").matches ? { out: 120, in: 160 } : { out: 220, in: 280 };
+}
+function MemoryDetail({ entry, onDirtyChange }: { entry: Entry; onDirtyChange: (dirty: boolean) => void }) {
  const { state, editEntryText } = useApp();
  const [editing, setEditing] = useState(false);
  const [text, setText] = useState(entry.text);
  const [message, setMessage] = useState("");
+ const dirty = editing && text !== entry.text;
+ useEffect(() => { onDirtyChange(dirty); }, [dirty, onDirtyChange]);
+ useEffect(() => () => onDirtyChange(false), [onDirtyChange]);
  async function save() {
    const saved = await editEntryText(entry.id, entry.revision, text);
    if (saved) { setEditing(false); setMessage("正文已保存。"); }
@@ -36,21 +46,90 @@ function MonthNotes({ entries }: { entries: Entry[] }) {
  const counts = Object.entries(EMOTION_NAMES).map(([label, name]) => ({ label, name, count: month.filter(entry => entry.effectiveEmotion.label === label).length })).filter(item => item.count > 0);
  return <div className="scrap-stats"><h3>本月心情小记 ♡</h3>{counts.length ? <div className="scrap-counts">{counts.map(item => <div key={item.label}><i className={`emotion-${item.label}`}/><span>{item.name}</span><strong>{item.count}</strong></div>)}</div> : <p>这个月还没有记录</p>}<small>本月共 {month.length} 篇回忆</small></div>;
 }
+function ProgressCard({ total, page }: { total: number; page: number }) {
+ const percent = total ? Math.round((page / total) * 100) : 0;
+ return <div className="scrap-progress"><b>▤　手账进度</b><p>已珍藏 {total} 篇回忆</p><div className="progress-line" role="progressbar" aria-label="翻阅进度" aria-valuemin={0} aria-valuemax={Math.max(total, 1)} aria-valuenow={total ? page : 0}><i style={{ width: `${percent}%` }}/></div><small>{total ? `第 ${page} / ${total} 页 · ${percent}%` : "还没有回忆"}</small></div>;
+}
+interface PagerProps {
+  page: number;
+  total: number;
+  onPrev: () => void;
+  onNext: () => void;
+  notice: string;
+  variant: "top" | "bottom";
+}
+function Pager({ page, total, onPrev, onNext, notice, variant }: PagerProps) {
+ const canPrev = page > 1;
+ const canNext = page < total;
+ return <div className={`page-controls${variant === "top" ? " mobile-page-pager" : ""}`} role="group" aria-label="回忆翻页">
+  <button type="button" onClick={onPrev} disabled={!canPrev} aria-label={canPrev ? "上一页" : "上一页，已经是第一页"}>‹</button>
+  <span className="pager-count" aria-live={variant === "bottom" ? "polite" : undefined} aria-atomic="true" aria-label={`第 ${page} 页，共 ${total} 页`}>{page} / {total}</span>
+  <button type="button" onClick={onNext} disabled={!canNext} aria-label={canNext ? "下一页" : "下一页，已经是最后一页"}>›</button>
+  {notice && <p className="pager-notice" role={variant === "bottom" ? "alert" : undefined} aria-hidden={variant === "top" ? true : undefined}>{notice}</p>}
+ </div>;
+}
 export function DiaryHistory({ entries }: { entries: Entry[] }) {
- const ordered = [...entries].sort((a,b) => b.createdAt-a.createdAt);
+ const ordered = useMemo(() => [...entries].sort((a,b) => b.createdAt-a.createdAt), [entries]);
  const [selectedId, setSelectedId] = useState<string | null>(null);
- const selected = ordered.find(entry => entry.id === selectedId) ?? ordered[0];
+ const [draftDirty, setDraftDirty] = useState(false);
+ const [flip, setFlip] = useState<FlipState | null>(null);
+ const [notice, setNotice] = useState("");
+ const selected = ordered.find(entry => entry.id === selectedId) ?? ordered[0] ?? null;
+ const selectedIndex = selected ? ordered.findIndex(entry => entry.id === selected.id) : -1;
+ const page = selectedIndex >= 0 ? selectedIndex + 1 : 0;
+ const total = ordered.length;
+ const visibleEntries = selectedIndex >= 0 ? ordered.slice(Math.max(0, selectedIndex - 1), selectedIndex + 2) : [];
+ const lockRef = useRef(false);
+ const timersRef = useRef<Array<ReturnType<typeof setTimeout>>>([]);
+ const bookRef = useRef<HTMLDivElement>(null);
+ const previousIdRef = useRef<string | null>(null);
+ const handleDirtyChange = useCallback((dirty: boolean) => { setDraftDirty(dirty); if (!dirty) setNotice(""); }, []);
+ useEffect(() => () => { for (const timer of timersRef.current) clearTimeout(timer); timersRef.current = []; }, []);
+ useEffect(() => {
+   if (!selected) return;
+   if (previousIdRef.current === null) { previousIdRef.current = selected.id; return; }
+   if (previousIdRef.current === selected.id) return;
+   previousIdRef.current = selected.id;
+   if (typeof window === "undefined" || !window.matchMedia("(max-width: 700px)").matches) return;
+   bookRef.current?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+ }, [selected]);
+ function navigateTo(index: number) {
+   if (lockRef.current) return;
+   const target = ordered[index];
+   if (!target || target.id === selected?.id) return;
+   if (draftDirty) { setNotice("正文还有未保存的修改，请先保存或取消编辑，再翻页。"); return; }
+   setNotice("");
+   lockRef.current = true;
+   const direction: FlipDirection = index > selectedIndex ? "next" : "prev";
+   const timing = flipTiming();
+   if (timing.out === 0) {
+     setSelectedId(target.id);
+     setFlip(null);
+     timersRef.current.push(setTimeout(() => { lockRef.current = false; timersRef.current = []; }, 40));
+     return;
+   }
+   setFlip({ direction, stage: "out" });
+   timersRef.current.push(setTimeout(() => {
+     setSelectedId(target.id);
+     setFlip({ direction, stage: "in" });
+     timersRef.current.push(setTimeout(() => { lockRef.current = false; setFlip(null); timersRef.current = []; }, timing.in));
+   }, timing.out));
+ }
+ const goPrev = () => navigateTo(selectedIndex - 1);
+ const goNext = () => navigateTo(selectedIndex + 1);
  return <section aria-label="日记历史" className="scrapbook-wrap">
-  <aside className="scrap-sidebar-extra"><MonthNotes entries={entries}/><div className="scrap-progress"><b>▤　手账进度</b><p>已珍藏 {ordered.length} 篇回忆</p><div className="progress-line"/></div><p className="scrap-quote">每一种心情<br/>都值得被珍藏。 ♡</p><Sprig className="side-sprig"/></aside>
-  <div className="scrapbook"><div className="book-ribbon" aria-hidden="true"/><div className="scrapbook-pages">
+  <aside className="scrap-sidebar-extra"><MonthNotes entries={entries}/><ProgressCard total={total} page={page}/><p className="scrap-quote">每一种心情<br/>都值得被珍藏。 ♡</p><Sprig className="side-sprig"/></aside>
+  <div className="scrapbook" ref={bookRef}><div className="book-ribbon" aria-hidden="true"/><div className={`scrapbook-pages${flip ? ` is-turning turn-${flip.direction} stage-${flip.stage}` : ""}`}>
    <div className="scrap-left"><div className="scrap-title">我的回忆碎片 ♡</div><Sprig className="title-sprig"/>
-    <div className="memory-list-pane"><div className="list-heading"><span>全部记录</span><span>{ordered.length} 篇回忆</span></div><ul>{ordered.map(entry => <li key={entry.id}><button type="button" className="memory-list-item" aria-pressed={selected?.id === entry.id} onClick={() => setSelectedId(entry.id)}><span className="memory-item-top"><time dateTime={new Date(entry.createdAt).toISOString()}>{formatDateTime(entry.createdAt)}</time><span className={`mood-pill emotion-${entry.effectiveEmotion.label}`}>{EMOTION_NAMES[entry.effectiveEmotion.label]}</span></span><span className="memory-preview">{entry.text}</span><small>{SOURCE_NAMES[entry.effectiveEmotion.source]}</small></button></li>)}</ul></div>
+    <div className="memory-list-pane"><div className="list-heading"><span>回忆索引 · 当前与相邻</span><span>{total ? `第 ${page} / ${total} 页` : "暂无回忆"}</span></div><ul>{visibleEntries.map(entry => <li key={entry.id}><button type="button" className="memory-list-item" aria-pressed={selected?.id === entry.id} aria-current={selected?.id === entry.id ? "page" : undefined} onClick={() => navigateTo(ordered.findIndex(item => item.id === entry.id))}><span className="memory-item-top"><time dateTime={new Date(entry.createdAt).toISOString()}>{formatDateTime(entry.createdAt)}</time><span className={`mood-pill emotion-${entry.effectiveEmotion.label}`}>{EMOTION_NAMES[entry.effectiveEmotion.label]}</span></span><span className="memory-preview">{entry.text}</span><small>{SOURCE_NAMES[entry.effectiveEmotion.source]}</small></button></li>)}</ul></div>
     <div className="left-bottom"><MonthNotes entries={entries}/><div className="little-note">把每一个<br/>小小的瞬间<br/>轻轻收好 ♡</div><svg className="scrap-clover" viewBox="0 0 60 70" aria-hidden="true"><path d="M30 43 Q32 59 23 67" fill="none" stroke="#7d8c42" strokeWidth="3"/><g fill="#a9b75d" stroke="#7d8c42" strokeWidth="1.5"><path d="M30 34 C7 31 9 12 21 14 Q29 15 30 24 Q32 13 40 14 C53 13 54 30 30 34Z"/><path d="M30 34 C8 28 6 45 18 49 Q26 51 30 40 Q34 51 42 49 C54 46 52 30 30 34Z"/></g><circle cx="30" cy="34" r="3" fill="#d6d995"/></svg></div><Sprig className="bottom-sprig"/>
    </div>
-   <div className="scrap-right"><div className="mobile-scrap-title">我的回忆碎片 ♡</div><Sprig className="right-sprig"/>{selected ? <MemoryDetail key={selected.id} entry={selected}/> : <section className="empty-memory"><span aria-hidden="true">✿</span><h2>这里还留着一片空白</h2><p>等你愿意写下的时候，回忆会在这里慢慢生长。</p></section>}
+   <div className="scrap-right"><div className="mobile-scrap-title">我的回忆碎片 ♡</div><Sprig className="right-sprig"/>{total > 0 && <Pager page={page} total={total} onPrev={goPrev} onNext={goNext} notice={notice} variant="top"/>}
+    <div className="page-leaf" key={selected?.id ?? "empty"} aria-busy={flip !== null}>{selected ? <MemoryDetail entry={selected} onDirtyChange={handleDirtyChange}/> : <section className="empty-memory"><span aria-hidden="true">✿</span><h2>这里还留着一片空白</h2><p>等你愿意写下的时候，回忆会在这里慢慢生长。</p></section>}</div>
     <div className="mobile-stats"><MonthNotes entries={entries}/><div className="little-note">把每一个<br/>小小的瞬间<br/>轻轻收好 ♡</div></div>
     <ReadingScene/>
    </div>
-  </div></div><div className="page-controls" aria-label="翻页功能尚未接线"><button type="button" disabled aria-label="上一页，尚未接线">‹</button><span>翻页功能待接线</span><button type="button" disabled aria-label="下一页，尚未接线">›</button></div>
+   {flip && <span className="turn-glint" aria-hidden="true"/>}
+  </div></div>{total > 0 && <Pager page={page} total={total} onPrev={goPrev} onNext={goNext} notice={notice} variant="bottom"/>}
  </section>;
 }

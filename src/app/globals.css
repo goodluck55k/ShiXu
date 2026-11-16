@@ -245,3 +245,50 @@ body { background:radial-gradient(circle at 80% 0,#fffaf0 0,transparent 38%),var
 /* Align the ruling below the first line of handwriting. */
 .memory-full-text { background-position:0 12px; }
 .left-bottom { position:relative; }.scrap-clover { width:43px; position:absolute; right:-8px; bottom:-8px; transform:rotate(17deg); filter:drop-shadow(0 2px 1px #a2764b55); pointer-events:none; }
+
+/* Real pagination over the approved scrapbook spread. Layout stays untouched. */
+.page-leaf { position:relative; min-width:0; scroll-margin-top:12px; }
+.pager-count { min-width:58px; text-align:center; font-variant-numeric:tabular-nums; }
+.page-controls { position:relative; flex-wrap:wrap; }
+.page-controls button:disabled { opacity:.35; box-shadow:none; }
+.page-controls .pager-notice { margin:0 0 2px; text-align:center; color:#8a5d3f; font-size:12px; line-height:1.6; }
+.page-controls:not(.mobile-page-pager) .pager-notice { position:absolute; left:50%; bottom:calc(100% + 4px); transform:translateX(-50%); width:max-content; max-width:min(92vw,560px); padding:3px 12px; border-radius:10px; background:#fff4e2e8; box-shadow:0 2px 6px #9a6a4533; }
+.progress-line { overflow:hidden; }.progress-line i { display:block; height:100%; border-radius:inherit; background:linear-gradient(90deg,#b9c47b,#94a45c); transition:width .38s ease; }
+.scrap-progress small { display:block; margin-top:7px; color:#8c725c; font-size:11px; }
+.scrapbook { scroll-margin-top:10px; }
+.mobile-page-pager { display:none; }
+.turn-glint { position:absolute; z-index:3; top:7px; bottom:7px; left:50%; right:5px; border-radius:0 22px 15px 0; pointer-events:none; opacity:0; background:linear-gradient(96deg,transparent 0,#fff9edcc 38%,#f2dabcb8 62%,transparent 100%); }
+.memories-page .scrapbook-pages.is-turning .turn-glint { animation:page-glint-next .5s ease-out both; }
+.memories-page .scrapbook-pages.is-turning.turn-prev .turn-glint { left:5px; right:50%; border-radius:22px 0 0 15px; animation-name:page-glint-prev; }
+@keyframes page-glint-next { 0% { opacity:0; transform:translateX(-28%); } 32% { opacity:.85; } 100% { opacity:0; transform:translateX(34%); } }
+@keyframes page-glint-prev { 0% { opacity:0; transform:translateX(28%); } 32% { opacity:.85; } 100% { opacity:0; transform:translateX(-34%); } }
+@media (min-width:701px) and (prefers-reduced-motion:no-preference) {
+  .memories-page .scrapbook-pages .page-leaf { transform-origin:left center; }
+  .memories-page .scrapbook-pages.turn-next.stage-out .page-leaf { animation:leaf-out-next .22s ease-in both; }
+  .memories-page .scrapbook-pages.turn-prev.stage-out .page-leaf { animation:leaf-out-prev .22s ease-in both; }
+  .memories-page .scrapbook-pages.turn-next.stage-in .page-leaf { animation:leaf-in-next .28s cubic-bezier(.22,.61,.36,1) both; }
+  .memories-page .scrapbook-pages.turn-prev.stage-in .page-leaf { animation:leaf-in-prev .28s cubic-bezier(.22,.61,.36,1) both; }
+  .memories-page .scrapbook-pages.stage-in .scrap-left .memory-list-pane { animation:notes-turn .3s ease-out both; }
+  @keyframes leaf-out-next { 0% { opacity:1; transform:none; } 100% { opacity:.12; transform:perspective(1500px) rotateY(-7deg) translateX(-8px); } }
+  @keyframes leaf-out-prev { 0% { opacity:1; transform:none; } 100% { opacity:.12; transform:perspective(1500px) rotateY(7deg) translateX(8px); } }
+  @keyframes leaf-in-next { 0% { opacity:.12; transform:perspective(1500px) rotateY(7deg) translateX(8px); } 100% { opacity:1; transform:none; } }
+  @keyframes leaf-in-prev { 0% { opacity:.12; transform:perspective(1500px) rotateY(-7deg) translateX(-8px); } 100% { opacity:1; transform:none; } }
+  @keyframes notes-turn { 0% { opacity:.3; transform:translateX(5px); } 100% { opacity:1; transform:none; } }
+}
+@media (max-width:700px) {
+  .mobile-page-pager { display:flex; position:relative; z-index:2; justify-content:center; gap:14px; margin:-4px 0 18px; }
+  .mobile-page-pager button { width:40px; height:40px; font-size:24px; }
+  .mobile-page-pager span { padding:7px 14px; }
+  .mobile-page-pager .pager-notice { order:1; flex-basis:100%; margin:2px 0 0; }
+  .turn-glint { display:none; }
+}
+@media (max-width:700px) and (prefers-reduced-motion:no-preference) {
+  .memories-page .scrapbook-pages.turn-next.stage-out .page-leaf { animation:leaf-out-mobile-next .12s ease-in both; }
+  .memories-page .scrapbook-pages.turn-prev.stage-out .page-leaf { animation:leaf-out-mobile-prev .12s ease-in both; }
+  .memories-page .scrapbook-pages.turn-next.stage-in .page-leaf { animation:leaf-in-mobile-next .16s ease-out both; }
+  .memories-page .scrapbook-pages.turn-prev.stage-in .page-leaf { animation:leaf-in-mobile-prev .16s ease-out both; }
+  @keyframes leaf-out-mobile-next { 0% { opacity:1; transform:none; } 100% { opacity:.2; transform:translateX(-7px); } }
+  @keyframes leaf-out-mobile-prev { 0% { opacity:1; transform:none; } 100% { opacity:.2; transform:translateX(7px); } }
+  @keyframes leaf-in-mobile-next { 0% { opacity:.2; transform:translateX(7px); } 100% { opacity:1; transform:none; } }
+  @keyframes leaf-in-mobile-prev { 0% { opacity:.2; transform:translateX(-7px); } 100% { opacity:1; transform:none; } }
+}
