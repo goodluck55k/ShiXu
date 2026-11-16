@@ -1,18 +1,23 @@
 "use client";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useApp } from "@/application/AppProvider";
 import { EntryEmotionCorrection } from "@/components/emotion/EntryEmotionCorrection";
+import { useReportReadingProgress } from "@/components/AppSidebar";
 import { EMOTION_NAMES, type Entry, type EmotionSource } from "@/domain/types";
 import { PenguinFront } from "@/components/character/PenguinFront";
 import { formatDateTime } from "@/lib/format";
+
 const SOURCE_NAMES: Record<EmotionSource, string> = { ai: "AI 建议", manual: "手动选择", corrected: "手动纠正" };
 type FlipDirection = "prev" | "next";
-type FlipState = { direction: FlipDirection; stage: "out" | "in" };
-function flipTiming(): { out: number; in: number } {
-  if (typeof window === "undefined") return { out: 220, in: 280 };
-  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return { out: 0, in: 0 };
-  return window.matchMedia("(max-width: 700px)").matches ? { out: 120, in: 160 } : { out: 220, in: 280 };
+type FlipState = { direction: FlipDirection; from: Entry; to: Entry; duration: number; settling: boolean };
+const FLIP_SETTLE = 150;
+
+function flipTiming(): { duration: number } | null {
+  if (typeof window === "undefined") return null;
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return null;
+  return { duration: window.matchMedia("(max-width: 700px)").matches ? 640 : 780 };
 }
+
 function MemoryDetail({ entry, onDirtyChange }: { entry: Entry; onDirtyChange: (dirty: boolean) => void }) {
  const { state, editEntryText } = useApp();
  const [editing, setEditing] = useState(false);
@@ -31,6 +36,15 @@ function MemoryDetail({ entry, onDirtyChange }: { entry: Entry; onDirtyChange: (
  {message && <p role="status">{message}</p>}{state.saveError && <p role="alert" className="save-error">{state.saveError}</p>}
  <details className="correction"><summary>✧ 纠正心情</summary><EntryEmotionCorrection entry={entry}/></details></article>;
 }
+
+function PageFace({ entry }: { entry: Entry }) {
+  return <div className="flip-page">
+    <div className="flip-page-head"><time dateTime={new Date(entry.createdAt).toISOString()}>{formatDateTime(entry.createdAt)}</time><span>来源：{SOURCE_NAMES[entry.effectiveEmotion.source]}</span></div>
+    <span className={`mood-pill emotion-${entry.effectiveEmotion.label}`}>{EMOTION_NAMES[entry.effectiveEmotion.label]}</span>
+    <p className="flip-page-text">{entry.text}</p>
+  </div>;
+}
+
 function Sprig({ className = "" }: { className?: string }) {
  return <svg className={className} viewBox="0 0 120 160" aria-hidden="true"><path d="M15 150 Q45 75 102 12 M37 108 Q18 95 20 70 M52 79 Q38 57 42 37 M69 58 Q88 56 99 38" fill="none" stroke="#8c8f48" strokeWidth="2.5"/><g fill="#a6ae65" stroke="#858d47" strokeWidth="1"><path d="M36 105 Q7 100 20 70 Q41 76 36 105Z"/><path d="M52 80 Q27 69 42 37 Q61 48 52 80Z"/><path d="M69 58 Q73 35 99 38 Q92 59 69 58Z"/><path d="M79 43 Q76 20 101 12 Q105 29 79 43Z"/><path d="M28 125 Q43 103 62 110 Q53 130 28 125Z"/></g><g fill="#fff8e6" stroke="#e9d7ad" strokeWidth=".7"><path d="M21 69 C8 64 13 55 21 64 C24 53 32 58 26 67 C36 68 31 77 23 73 C19 82 11 75 17 70Z"/><path d="M42 36 C29 31 34 22 42 31 C45 20 53 25 47 34 C57 35 52 44 44 40 C40 49 32 42 38 37Z"/><path d="M100 37 C87 32 92 23 100 32 C103 21 111 26 105 35 C115 36 110 45 102 41 C98 50 90 43 96 38Z"/></g><g fill="#e9b451"><circle cx="21" cy="69" r="3"/><circle cx="42" cy="36" r="3"/><circle cx="100" cy="37" r="3"/></g></svg>;
 }
@@ -45,10 +59,6 @@ function MonthNotes({ entries }: { entries: Entry[] }) {
  const month = entries.filter(entry => { const date = new Date(entry.createdAt); return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth(); });
  const counts = Object.entries(EMOTION_NAMES).map(([label, name]) => ({ label, name, count: month.filter(entry => entry.effectiveEmotion.label === label).length })).filter(item => item.count > 0);
  return <div className="scrap-stats"><h3>本月心情小记 ♡</h3>{counts.length ? <div className="scrap-counts">{counts.map(item => <div key={item.label}><i className={`emotion-${item.label}`}/><span>{item.name}</span><strong>{item.count}</strong></div>)}</div> : <p>这个月还没有记录</p>}<small>本月共 {month.length} 篇回忆</small></div>;
-}
-function ProgressCard({ total, page }: { total: number; page: number }) {
- const percent = total ? Math.round((page / total) * 100) : 0;
- return <div className="scrap-progress"><b>▤　手账进度</b><p>已珍藏 {total} 篇回忆</p><div className="progress-line" role="progressbar" aria-label="翻阅进度" aria-valuemin={0} aria-valuemax={Math.max(total, 1)} aria-valuenow={total ? page : 0}><i style={{ width: `${percent}%` }}/></div><small>{total ? `第 ${page} / ${total} 页 · ${percent}%` : "还没有回忆"}</small></div>;
 }
 interface PagerProps {
   page: number;
@@ -79,12 +89,35 @@ export function DiaryHistory({ entries }: { entries: Entry[] }) {
  const page = selectedIndex >= 0 ? selectedIndex + 1 : 0;
  const total = ordered.length;
  const visibleEntries = selectedIndex >= 0 ? ordered.slice(Math.max(0, selectedIndex - 1), selectedIndex + 2) : [];
+ useReportReadingProgress(page, total);
  const lockRef = useRef(false);
  const timersRef = useRef<Array<ReturnType<typeof setTimeout>>>([]);
  const bookRef = useRef<HTMLDivElement>(null);
  const previousIdRef = useRef<string | null>(null);
+ const flipRef = useRef<FlipState | null>(null);
+ const clearTimers = useCallback(() => { for (const timer of timersRef.current) clearTimeout(timer); timersRef.current = []; }, []);
  const handleDirtyChange = useCallback((dirty: boolean) => { setDraftDirty(dirty); if (!dirty) setNotice(""); }, []);
- useEffect(() => () => { for (const timer of timersRef.current) clearTimeout(timer); timersRef.current = []; }, []);
+ const finishFlipNow = useCallback(() => {
+   const current = flipRef.current;
+   if (!current) return;
+   clearTimers();
+   setSelectedId(current.to.id);
+   setFlip(null);
+   flipRef.current = null;
+   lockRef.current = false;
+ }, [clearTimers]);
+ useEffect(() => {
+   const onVisibility = () => { if (document.hidden) finishFlipNow(); };
+   document.addEventListener("visibilitychange", onVisibility);
+   window.addEventListener("pagehide", finishFlipNow);
+   return () => {
+     document.removeEventListener("visibilitychange", onVisibility);
+     window.removeEventListener("pagehide", finishFlipNow);
+     clearTimers();
+     flipRef.current = null;
+     lockRef.current = false;
+   };
+ }, [clearTimers, finishFlipNow]);
  useEffect(() => {
    if (!selected) return;
    if (previousIdRef.current === null) { previousIdRef.current = selected.id; return; }
@@ -96,40 +129,49 @@ export function DiaryHistory({ entries }: { entries: Entry[] }) {
  function navigateTo(index: number) {
    if (lockRef.current) return;
    const target = ordered[index];
-   if (!target || target.id === selected?.id) return;
+   if (!target || !selected || target.id === selected.id) return;
    if (draftDirty) { setNotice("正文还有未保存的修改，请先保存或取消编辑，再翻页。"); return; }
    setNotice("");
+   const timing = flipTiming();
+   if (!timing) { setSelectedId(target.id); return; }
    lockRef.current = true;
    const direction: FlipDirection = index > selectedIndex ? "next" : "prev";
-   const timing = flipTiming();
-   if (timing.out === 0) {
-     setSelectedId(target.id);
-     setFlip(null);
-     timersRef.current.push(setTimeout(() => { lockRef.current = false; timersRef.current = []; }, 40));
-     return;
-   }
-   setFlip({ direction, stage: "out" });
+   const nextState: FlipState = { direction, from: selected, to: target, duration: timing.duration, settling: false };
+   flipRef.current = nextState;
+   setFlip(nextState);
+   const swapAt = direction === "prev" ? timing.duration * 0.94 : timing.duration / 2;
+   timersRef.current.push(setTimeout(() => setSelectedId(target.id), swapAt));
    timersRef.current.push(setTimeout(() => {
-     setSelectedId(target.id);
-     setFlip({ direction, stage: "in" });
-     timersRef.current.push(setTimeout(() => { lockRef.current = false; setFlip(null); timersRef.current = []; }, timing.in));
-   }, timing.out));
+     const settled: FlipState = { ...nextState, settling: true };
+     flipRef.current = settled;
+     setFlip(settled);
+     timersRef.current.push(setTimeout(() => {
+       setFlip(null);
+       flipRef.current = null;
+       lockRef.current = false;
+       timersRef.current = [];
+     }, FLIP_SETTLE));
+   }, timing.duration));
  }
  const goPrev = () => navigateTo(selectedIndex - 1);
  const goNext = () => navigateTo(selectedIndex + 1);
- return <section aria-label="日记历史" className="scrapbook-wrap">
-  <aside className="scrap-sidebar-extra"><MonthNotes entries={entries}/><ProgressCard total={total} page={page}/><p className="scrap-quote">每一种心情<br/>都值得被珍藏。 ♡</p><Sprig className="side-sprig"/></aside>
-  <div className="scrapbook" ref={bookRef}><div className="book-ribbon" aria-hidden="true"/><div className={`scrapbook-pages${flip ? ` is-turning turn-${flip.direction} stage-${flip.stage}` : ""}`}>
+ return <section aria-label="日记历史" className="scrapbook-wrap" aria-busy={flip !== null}>
+  <div className={`scrapbook${flip ? " is-flipping" : ""}`} ref={bookRef}><div className="book-ribbon" aria-hidden="true"/><div className="scrapbook-pages">
    <div className="scrap-left"><div className="scrap-title">我的回忆碎片 ♡</div><Sprig className="title-sprig"/>
     <div className="memory-list-pane"><div className="list-heading"><span>回忆索引 · 当前与相邻</span><span>{total ? `第 ${page} / ${total} 页` : "暂无回忆"}</span></div><ul>{visibleEntries.map(entry => <li key={entry.id}><button type="button" className="memory-list-item" aria-pressed={selected?.id === entry.id} aria-current={selected?.id === entry.id ? "page" : undefined} onClick={() => navigateTo(ordered.findIndex(item => item.id === entry.id))}><span className="memory-item-top"><time dateTime={new Date(entry.createdAt).toISOString()}>{formatDateTime(entry.createdAt)}</time><span className={`mood-pill emotion-${entry.effectiveEmotion.label}`}>{EMOTION_NAMES[entry.effectiveEmotion.label]}</span></span><span className="memory-preview">{entry.text}</span><small>{SOURCE_NAMES[entry.effectiveEmotion.source]}</small></button></li>)}</ul></div>
     <div className="left-bottom"><MonthNotes entries={entries}/><div className="little-note">把每一个<br/>小小的瞬间<br/>轻轻收好 ♡</div><svg className="scrap-clover" viewBox="0 0 60 70" aria-hidden="true"><path d="M30 43 Q32 59 23 67" fill="none" stroke="#7d8c42" strokeWidth="3"/><g fill="#a9b75d" stroke="#7d8c42" strokeWidth="1.5"><path d="M30 34 C7 31 9 12 21 14 Q29 15 30 24 Q32 13 40 14 C53 13 54 30 30 34Z"/><path d="M30 34 C8 28 6 45 18 49 Q26 51 30 40 Q34 51 42 49 C54 46 52 30 30 34Z"/></g><circle cx="30" cy="34" r="3" fill="#d6d995"/></svg></div><Sprig className="bottom-sprig"/>
    </div>
    <div className="scrap-right"><div className="mobile-scrap-title">我的回忆碎片 ♡</div><Sprig className="right-sprig"/>{total > 0 && <Pager page={page} total={total} onPrev={goPrev} onNext={goNext} notice={notice} variant="top"/>}
-    <div className="page-leaf" key={selected?.id ?? "empty"} aria-busy={flip !== null}>{selected ? <MemoryDetail entry={selected} onDirtyChange={handleDirtyChange}/> : <section className="empty-memory"><span aria-hidden="true">✿</span><h2>这里还留着一片空白</h2><p>等你愿意写下的时候，回忆会在这里慢慢生长。</p></section>}</div>
+    <div className="page-leaf" key={selected?.id ?? "empty"} aria-busy={flip !== null} inert={flip ? true : undefined}>{selected ? <MemoryDetail entry={selected} onDirtyChange={handleDirtyChange}/> : <section className="empty-memory"><span aria-hidden="true">✿</span><h2>这里还留着一片空白</h2><p>等你愿意写下的时候，回忆会在这里慢慢生长。</p></section>}</div>
     <div className="mobile-stats"><MonthNotes entries={entries}/><div className="little-note">把每一个<br/>小小的瞬间<br/>轻轻收好 ♡</div></div>
     <ReadingScene/>
+    {flip && <div className={`flip-stage flip-${flip.direction}${flip.settling ? " is-settling" : ""}`} aria-hidden="true" style={{ "--flip-duration": `${flip.duration}ms` } as CSSProperties}>
+      <div className="flip-leaf" style={{ animationDuration: `${flip.duration}ms` }}>
+        <div className="flip-face flip-front"><PageFace entry={flip.direction === "next" ? flip.from : flip.to}/><span className="flip-edge"/><span className="flip-curl"/></div>
+        <div className="flip-face flip-back"><span className="flip-back-mark">♧</span><span className="flip-edge"/><span className="flip-curl"/></div>
+      </div>
+    </div>}
    </div>
-   {flip && <span className="turn-glint" aria-hidden="true"/>}
   </div></div>{total > 0 && <Pager page={page} total={total} onPrev={goPrev} onNext={goNext} notice={notice} variant="bottom"/>}
  </section>;
 }
