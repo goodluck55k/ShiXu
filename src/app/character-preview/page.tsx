@@ -3,6 +3,7 @@ import path from "node:path";
 import { notFound } from "next/navigation";
 import { ActionPreview, SpecialPreview } from "./ActionPreview";
 import { PenguinFront } from "@/components/character/PenguinFront";
+import { RoomPreview } from "./RoomPreview";
 import { SpecialSimulation } from "./SpecialSimulation";
 
 export const dynamic = "force-dynamic";
@@ -18,6 +19,7 @@ export default function CharacterPreview() {
   const board = readFileSync(path.join(process.cwd(), "docs/assets/character/references/00_original_design_board.png")).toString("base64");
   return (
     <main style={{ fontFamily: "sans-serif", background: "#f7f1e8", color: "#30271f", padding: 32, minHeight: "100vh" }}>
+      <RoomPreview />
       <SpecialSimulation />
       <SpecialPreview />
       <ActionPreview />

@@ -5,10 +5,10 @@ import { SPECIAL_MOTION_MS } from "./specialMotion";
 
 const animations = new Set(["none", "breathe", "bounce", "sway", "wave", "spin", "walk", "react"]);
 
-export function CharacterRenderer({ view, direction, motionOff = false }: { view: CharacterView; direction?: PenguinDirection; motionOff?: boolean }) {
+export function CharacterRenderer({ view, direction, motionOff = false, sceneMode = false }: { view: CharacterView; direction?: PenguinDirection; motionOff?: boolean; sceneMode?: boolean }) {
   const animation = animations.has(view.animation) ? view.animation : "none";
   const seated = ["sit", "kneel", "curl"].includes(view.pose);
-  const offset = view.pose === "corner" ? "translate(-64 6)" : view.pose === "window" ? "translate(56 0)" : undefined;
+  const offset = sceneMode ? undefined : view.pose === "corner" ? "translate(-64 6)" : view.pose === "window" ? "translate(56 0)" : undefined;
   const rest = view.pose === "kneel" || view.pose === "curl" ? view.pose : undefined;
   const pondering = view.behaviorId === "window_gaze";
   const amplitude = Number.isFinite(view.amplitude) ? Math.max(0, Math.min(1.5, view.amplitude!)) : 1;

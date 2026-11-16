@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useApp } from "@/application/AppProvider";
 import { useEmotionAnalysis } from "@/application/useEmotionAnalysis";
 import { createId } from "@/application/ids";
@@ -124,10 +125,7 @@ export function EmotionDraftForm() {
 
   return (
     <section aria-label="写日记" className="diary-form">
-      <div className="section-heading"><div><span className="section-kicker">TODAY’S NOTE</span><h2>今天想说些什么？</h2></div><span aria-hidden="true">✳</span></div>
-      <p className="section-description">不必组织语言，想到什么就写下来。</p>
       <textarea disabled={state.saving} value={text} onChange={event => changeText(event.target.value)} placeholder="今天发生了什么？有什么想轻轻记下的……" rows={7} aria-label="日记正文" className="diary-input" />
-      <button type="button" className="text-button" disabled={!canAnalyze} onClick={requestSuggestion}>{ai.loading ? "AI 识别中…" : "让 AI 建议心情"}</button>
       {ai.error && <div role="alert" className="save-error"><p>{ai.error.message}</p><p>草稿已保留，可手动选择心情后保存。</p></div>}
       {suggestion && (
         <div role="status" className="form-hint">
@@ -137,13 +135,13 @@ export function EmotionDraftForm() {
             : <p>已采纳 AI 建议；修改下方心情或细调后会按手动纠正保存。</p>}
         </div>
       )}
-      <div className="emotion-heading"><div><span className="section-kicker">HOW DO YOU FEEL</span><h2>此刻的心情</h2></div><span>手选或采纳 AI 建议</span></div>
+      <div className="emotion-heading"><h2>今天的心情是？</h2><button type="button" className="ai-suggestion-button" disabled={!canAnalyze} onClick={requestSuggestion}>{ai.loading ? "AI 识别中…" : "✧ 让 AI 建议心情"}</button></div>
       <EmotionCategoryPicker value={label} disabled={busy} onSelect={selectLabel} />
       <details className="dimensions"><summary>细调一下这种感觉 <span>（可选）</span></summary>{label === null ? <p>先选择一种心情，再调整细节。</p> : <div><p>已选「{EMOTION_NAMES[label]}」，可以按自己的感觉调整。</p><EmotionDimensionSliders value={dimensions} disabled={busy} onChange={changeDimensions} /></div>}</details>
       {state.saveError && <div role="alert" className="save-error"><p>{state.saveError}</p><p>草稿已保留，本次未保存。</p>{state.pending && !state.tabConflict && <button type="button" onClick={() => void handleRetry()} disabled={state.saving} className="text-button">重试保存这一条</button>}</div>}
       <button type="button" disabled={!canConfirm} onClick={() => void handleConfirm()} className="save-button">{state.saving ? "保存中…" : "保存今天的心情"} <span aria-hidden="true">↗</span></button>
       {label === null && text.trim().length > 0 && <p className="form-hint">请先选择一个心情再保存。</p>}
-      {state.savedNotice && !state.saveError && <p role="status" className="form-hint">{state.savedNotice === "temporary" ? "已记录（仅本次会话，刷新后不保留）" : "已保存到本地"}</p>}
+      {state.savedNotice && !state.saveError && <p role="status" className="form-hint">{state.savedNotice === "temporary" ? "已记录（仅本次会话，刷新后不保留）" : "已保存到本地"}　<Link href="/">回小屋看看 →</Link></p>}
     </section>
   );
 }

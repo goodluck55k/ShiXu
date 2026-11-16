@@ -6,7 +6,7 @@ import { AppFrame } from "@/components/AppFrame";
 export const metadata: Metadata = {
   title: "拾绪 ShiXu · 情绪陪伴日记",
   description:
-    "记录日常心情，陪伴一个全白小人成长。快乐化作成长的印记，悲伤被温柔收藏。",
+    "记录日常心情，和陪伴企鹅一起慢慢生活。",
 };
 
 export const viewport: Viewport = {
