@@ -7,7 +7,7 @@
 - 阶段：阶段七后续补充开发包（见 [ROADMAP](ROADMAP.md) §1.1 与“阶段七后续补充开发包：回忆手帐翻页”）
 - 模块：`diary` 只读历史展示与既有编辑/纠正入口；`character` 仅复用已验收企鹅 SVG 作静态装饰
 - 一句话目标：`/memories` 以真实日记驱动手账翻页阅读；桌面双页手账、手机单页手账均接近已确认概念图，同时保留正文编辑、情绪纠正与存档边界。
-- 对应 Issue / PR：本分支独立 PR（尚未创建）
+- 对应 Issue / PR：PR #40（`feature/memories-pagination` → `main`）
 
 ## 输入与输出
 
