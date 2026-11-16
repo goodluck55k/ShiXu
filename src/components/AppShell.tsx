@@ -10,7 +10,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { state, reload } = useApp();
   const entries = state.snapshot?.entries ?? [];
   return <ReadingProgressProvider>
-    <div className={`app-shell${pathname === "/" ? " home-shell" : pathname === "/memories" ? " memories-shell" : ""}`}>
+    <div className={`app-shell${pathname === "/" ? " home-shell" : pathname === "/memories" ? " memories-shell" : pathname === "/wishes" ? " wishes-shell" : ""}`}>
       <AppSidebar pathname={pathname} entries={entries} />
       <main className="main-content"><div className="content-wrap">
         {state.phase === "loading" && <p role="status" className="notice">正在读取本地存档…</p>}
