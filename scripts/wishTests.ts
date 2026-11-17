@@ -17,6 +17,7 @@ import {
   hashWishId,
 } from "../src/components/wishes/wishLayout";
 import type { WishView } from "../src/components/wishes/wishView";
+import { formatWishCompletedAt } from "../src/components/wishes/wishView";
 
 let passed = 0;
 type TestCase = { name: string; run: () => void | Promise<void> };
@@ -234,6 +235,128 @@ test("存储：重置只覆盖用户确认过的同一份原始数据", async ()
   assert.equal(reset.status, "saved");
   if (reset.status === "saved") assert.equal(reset.collection.revision, 0);
   assert.deepEqual(adapter.load(), { status: "ready", collection: createEmptyWishCollection() });
+});
+
+test("时间戳：Date 可表示范围内的合法值通过，超范围被拒绝", () => {
+  const maxDate = 8_640_000_000_000_000;
+  const overflow = 9_000_000_000_000_000;
+  assert.equal(createPendingWish("wish-1", "愿望", maxDate).ok, true);
+  assert.equal(createPendingWish("wish-1", "愿望", overflow).ok, false);
+
+  const collection = buildCollection(["去看海"]);
+  const completed = completeWishInCollection(collection, "wish-1", overflow);
+  assert.equal(completed.changed, false);
+  assert.equal(completed.collection, collection);
+  assert.equal(completed.wish, null);
+});
+
+test("时间戳：超范围 createdAt/completedAt 的存档被判损坏", () => {
+  const overflow = 9_000_000_000_000_000;
+  const collection = buildCollection(["一"]);
+
+  const badCreated = JSON.parse(serializeWishCollection(collection));
+  badCreated.wishes[0].createdAt = overflow;
+  const createdResult = validateWishCollection(badCreated);
+  assert.equal(createdResult.ok, false);
+  if (!createdResult.ok) assert.equal(createdResult.kind, "corrupt");
+
+  const completed = completeWishInCollection(collection, "wish-1", 5000);
+  assert.equal(completed.changed, true);
+  const badCompleted = JSON.parse(serializeWishCollection(completed.collection));
+  badCompleted.wishes[0].completedAt = overflow;
+  const completedResult = validateWishCollection(badCompleted);
+  assert.equal(completedResult.ok, false);
+  if (!completedResult.ok) assert.equal(completedResult.kind, "corrupt");
+});
+
+test("存储：无效 completedAt 的存档读取为 corrupt，原始数据保留", async () => {
+  const storage = new TestStorage();
+  const adapter = createLocalStorageWishAdapter(storage);
+  const completed = completeWishInCollection(buildCollection(["一"]), "wish-1", 5000);
+  assert.equal(completed.changed, true);
+  const badStored = JSON.parse(serializeWishCollection(completed.collection));
+  badStored.wishes[0].completedAt = 9_000_000_000_000_000;
+  const raw = JSON.stringify(badStored);
+  storage.setItem(WISH_STORAGE_KEY, raw);
+
+  const loaded = adapter.load();
+  assert.equal(loaded.status, "corrupt");
+  if (loaded.status === "corrupt") assert.equal(loaded.raw, raw);
+
+  const saved = await adapter.save(buildCollection(["二"]), 0);
+  assert.equal(saved.status, "corrupt");
+  assert.equal(storage.getItem(WISH_STORAGE_KEY), raw);
+});
+
+test("展示：已完成愿望的异常时间戳不会构造非法 Date", () => {
+  assert.equal(formatWishCompletedAt(null), null);
+  assert.equal(formatWishCompletedAt(Number.NaN), null);
+  assert.equal(formatWishCompletedAt(9_000_000_000_000_000), null);
+
+  const valid = formatWishCompletedAt(5000);
+  assert.notEqual(valid, null);
+  if (valid) assert.equal(valid.dateTime, new Date(5000).toISOString());
+
+  const maxDate = 8_640_000_000_000_000;
+  const boundary = formatWishCompletedAt(maxDate);
+  assert.notEqual(boundary, null);
+  if (boundary) assert.equal(boundary.dateTime, new Date(maxDate).toISOString());
+});
+
+test("修订号：正常保存后的修订号严格递增", async () => {
+  const storage = new TestStorage();
+  const adapter = createLocalStorageWishAdapter(storage);
+  const base = buildCollection(["一"]);
+  const first = await adapter.save(base, 0);
+  assert.equal(first.status, "saved");
+  if (first.status !== "saved") return;
+  assert.equal(first.collection.revision, 1);
+
+  const second = await adapter.save(first.collection, 1);
+  assert.equal(second.status, "saved");
+  if (second.status !== "saved") return;
+  assert.equal(second.collection.revision, 2);
+  assert.ok(second.collection.revision > first.collection.revision);
+});
+
+test("修订号：达到安全整数上限时拒绝写入，不产生假成功且不改原数据", async () => {
+  const maxSafe = Number.MAX_SAFE_INTEGER;
+  const storage = new TestStorage();
+  const adapter = createLocalStorageWishAdapter(storage);
+  const boundary: WishCollection = { ...buildCollection(["一"]), revision: maxSafe - 1 };
+  storage.setItem(WISH_STORAGE_KEY, serializeWishCollection(boundary));
+
+  const lastAllowed = await adapter.save(boundary, maxSafe - 1);
+  assert.equal(lastAllowed.status, "saved");
+  if (lastAllowed.status !== "saved") return;
+  assert.equal(lastAllowed.collection.revision, maxSafe);
+  assert.ok(lastAllowed.collection.revision > boundary.revision);
+
+  const rawBefore = storage.getItem(WISH_STORAGE_KEY);
+  assert.equal(JSON.parse(rawBefore!).revision, maxSafe);
+  const rejected = await adapter.save(lastAllowed.collection, maxSafe);
+  assert.equal(rejected.status, "invalid");
+  assert.equal(storage.getItem(WISH_STORAGE_KEY), rawBefore);
+});
+
+test("修订号：超出安全整数范围的存档被判损坏且不被覆盖", async () => {
+  const storage = new TestStorage();
+  const adapter = createLocalStorageWishAdapter(storage);
+  const unsafe = { schemaVersion: 1, revision: 9_007_199_254_740_992, wishes: [] };
+  const raw = JSON.stringify(unsafe);
+  storage.setItem(WISH_STORAGE_KEY, raw);
+
+  const result = validateWishCollection(unsafe);
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.equal(result.kind, "corrupt");
+
+  const loaded = adapter.load();
+  assert.equal(loaded.status, "corrupt");
+  if (loaded.status === "corrupt") assert.equal(loaded.raw, raw);
+
+  const saved = await adapter.save(buildCollection(["一"]), 0);
+  assert.equal(saved.status, "corrupt");
+  assert.equal(storage.getItem(WISH_STORAGE_KEY), raw);
 });
 
 test("槽位：纸团最多 8 个，槽位唯一，且同一输入顺序无关", () => {

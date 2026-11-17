@@ -102,6 +102,11 @@ export function createLocalStorageWishAdapter(target?: Storage): WishStoragePort
       return { status: "conflict", reason: "愿望数据已被清除，请重新加载" };
     }
 
+    // 修订号必须严格递增；达到安全整数上限时无法再安全递增，拒绝写入而不是产生修订号不变的假成功。
+    if (expectedRevision >= Number.MAX_SAFE_INTEGER) {
+      return { status: "invalid", reason: "愿望数据修订号已达上限，本次写入已停止" };
+    }
+
     const next: WishCollection = { ...collection, revision: expectedRevision + 1 };
     try {
       storage.setItem(WISH_STORAGE_KEY, serializeWishCollection(next));

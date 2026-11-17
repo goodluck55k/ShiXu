@@ -43,12 +43,20 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
 
-function isNonNegativeInteger(value: unknown): value is number {
-  return typeof value === "number" && Number.isFinite(value) && Number.isInteger(value) && value >= 0;
+const MAX_DATE_TIMESTAMP = 8_640_000_000_000_000;
+
+function isNonNegativeSafeInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 }
 
+// 只有落在 Date 可表示范围内的数值才能安全构造 Date 并调用 toISOString()。
 function isValidTimestamp(value: unknown): value is number {
-  return typeof value === "number" && Number.isFinite(value) && value >= 0;
+  return (
+    typeof value === "number" &&
+    Number.isFinite(value) &&
+    value >= 0 &&
+    value <= MAX_DATE_TIMESTAMP
+  );
 }
 
 function fail(kind: "unsupported-version" | "corrupt", reason: string): WishCollectionValidation {
@@ -122,7 +130,7 @@ export function validateWishCollection(value: unknown): WishCollectionValidation
   if (value.schemaVersion !== WISH_SCHEMA_VERSION) {
     return fail("unsupported-version", `不支持的愿望存储版本 ${value.schemaVersion}`);
   }
-  if (!isNonNegativeInteger(value.revision)) return fail("corrupt", "愿望数据 revision 非法");
+  if (!isNonNegativeSafeInteger(value.revision)) return fail("corrupt", "愿望数据 revision 非法");
   if (!Array.isArray(value.wishes)) return fail("corrupt", "愿望数据 wishes 必须是数组");
 
   const ids = new Set<string>();

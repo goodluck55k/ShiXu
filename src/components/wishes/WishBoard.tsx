@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { WishActionResult } from "@/application/wishTypes";
 import type { WishCompletionNotice } from "@/application/useWishHouse";
 import type { WishDecorIcon, WishStatus, WishView } from "./wishView";
+import { formatWishCompletedAt } from "./wishView";
 import { BoardSprig } from "./WishDecor";
 
 function WishIcon({ icon }: { icon?: WishDecorIcon }) {
@@ -22,17 +23,6 @@ function WishIcon({ icon }: { icon?: WishDecorIcon }) {
     default:
       return <svg viewBox="0 0 28 28" aria-hidden="true" className="wish-item-icon" style={{ color: "#7d9c50" }}><path d="M14 24V12M14 14c-1-5-5-8-10-7 1 5 5 8 10 7ZM14 12c1-5 5-8 10-7-1 5-5 8-10 7Z" {...stroke} stroke="currentColor" /></svg>;
   }
-}
-
-function formatCompletedAt(completedAt: number | null): { label: string; dateTime: string } | null {
-  if (completedAt === null) return null;
-  const date = new Date(completedAt);
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return {
-    label: `${date.getFullYear()}.${month}.${day} 完成`,
-    dateTime: date.toISOString(),
-  };
 }
 
 function shorten(text: string, max = 24): string {
@@ -123,7 +113,7 @@ export function WishBoard({
           ) : list.length > 0 ? (
             <ul className="wish-list">
               {list.map((wish) => {
-                const completedAt = wish.status === "completed" ? formatCompletedAt(wish.completedAt) : null;
+                const completedAt = wish.status === "completed" ? formatWishCompletedAt(wish.completedAt) : null;
                 const busy = busyWishId === wish.id;
                 return (
                   <li key={wish.id} data-wish-id={wish.id} className={wish.status === "completed" ? "wish-item done" : "wish-item"}>

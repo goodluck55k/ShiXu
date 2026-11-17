@@ -26,6 +26,33 @@ export function toWishView(wish: Wish): WishView {
   };
 }
 
+const MAX_DATE_TIMESTAMP = 8_640_000_000_000_000;
+
+export interface WishCompletedAtLabel {
+  label: string;
+  dateTime: string;
+}
+
+/** 展示层兜底：即使收到未经校验的时间戳也不构造非法 Date，避免渲染抛错。 */
+export function formatWishCompletedAt(completedAt: number | null): WishCompletedAtLabel | null {
+  if (
+    completedAt === null ||
+    !Number.isFinite(completedAt) ||
+    completedAt < 0 ||
+    completedAt > MAX_DATE_TIMESTAMP
+  ) {
+    return null;
+  }
+  const date = new Date(completedAt);
+  if (Number.isNaN(date.getTime())) return null;
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return {
+    label: `${date.getFullYear()}.${month}.${day} 完成`,
+    dateTime: date.toISOString(),
+  };
+}
+
 const SAMPLE_DAY = 24 * 60 * 60 * 1000;
 const SAMPLE_BASE = Date.UTC(2026, 10, 1, 2);
 
