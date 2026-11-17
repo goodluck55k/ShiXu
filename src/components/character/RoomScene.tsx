@@ -24,8 +24,15 @@ export function RoomScene({ decision, view, paused, feedbackActive, showHearts, 
     const penguin = penguinRef.current;
     const viewport = viewportRef.current;
     if (!canvas || !penguin || !viewport) return;
+    // Optional CSS insets mark viewport edges covered by floating UI (sidebar, status notes),
+    // so the camera centres the penguin in the visible stage rather than the raw viewport.
+    function inset(name: string) {
+      const value = parseFloat(getComputedStyle(viewport!).getPropertyValue(name));
+      return Number.isFinite(value) ? value : 0;
+    }
     function cameraX(x: number) {
-      return Math.min(0, Math.max(viewport!.clientWidth - canvas!.clientWidth, viewport!.clientWidth / 2 - canvas!.clientWidth * x / 100));
+      const stageCenter = (inset("--camera-inset-left") + viewport!.clientWidth - inset("--camera-inset-right")) / 2;
+      return Math.min(0, Math.max(viewport!.clientWidth - canvas!.clientWidth, stageCenter - canvas!.clientWidth * x / 100));
     }
     function stop() {
       if (animationsRef.current.length) {
@@ -72,9 +79,10 @@ export function RoomScene({ decision, view, paused, feedbackActive, showHearts, 
   }, [behaviorId, category, reason, paused, reunionPending, feedbackActive, decision]);
 
   const walking = motion !== null && !paused && !reunionPending && !feedbackActive && category !== "interaction" && category !== "special";
-  return <div className="scene" ref={viewportRef} aria-label="企鹅的绘本小屋">
+  return <div className={`scene${paused ? " is-paused" : ""}`} ref={viewportRef} aria-label="企鹅的绘本小屋">
     <div className="room-canvas" ref={canvasRef}>
       <div className="room-art" aria-hidden="true" />
+      <RoomLight />
       <div className={`scene-character${paused ? " is-paused" : ""}`} ref={penguinRef} style={{ left: `${ROOM_ZONES.center.x}%`, top: `${ROOM_ZONES.center.y}%` }}>
         <CharacterRenderer key={walking ? motion : "front"} view={walking ? { ...view, pose: "walk", animation: "walk" } : view} direction={walking ? motion : undefined} sceneMode />
         {showHearts && <span className="save-hearts" aria-hidden="true">♥</span>}
@@ -87,4 +95,34 @@ export function RoomScene({ decision, view, paused, feedbackActive, showHearts, 
       </svg>
     </div>
   </div>;
+}
+
+// Afternoon light from the arched window: two soft beams and a few drifting motes.
+// Pure decoration in the room's 1000 × 334 overlay space; it follows the camera with the canvas.
+const MOTES = [
+  { x: 300, y: 150, r: 2.2, d: "0s" }, { x: 352, y: 196, r: 1.6, d: "-3s" }, { x: 418, y: 132, r: 1.9, d: "-6s" },
+  { x: 446, y: 214, r: 1.4, d: "-1.5s" }, { x: 262, y: 222, r: 1.7, d: "-4.5s" }, { x: 498, y: 176, r: 1.5, d: "-7.5s" },
+];
+function RoomLight() {
+  return <svg className="room-light" viewBox="0 0 1000 334" preserveAspectRatio="none" aria-hidden="true">
+    <defs>
+      <linearGradient id="room-beam" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stopColor="#fff6d8" stopOpacity=".85" />
+        <stop offset=".55" stopColor="#ffe9b8" stopOpacity=".38" />
+        <stop offset="1" stopColor="#ffe2a8" stopOpacity="0" />
+      </linearGradient>
+      <radialGradient id="room-pool" cx=".5" cy=".5" r=".5">
+        <stop offset="0" stopColor="#fff1c9" stopOpacity=".55" />
+        <stop offset="1" stopColor="#fff1c9" stopOpacity="0" />
+      </radialGradient>
+    </defs>
+    <g className="room-beams">
+      <path d="M118 22 L200 14 L560 300 L380 318 Z" fill="url(#room-beam)" />
+      <path d="M232 30 L300 26 L700 292 L556 306 Z" fill="url(#room-beam)" opacity=".7" />
+    </g>
+    <ellipse className="room-pool" cx="520" cy="268" rx="230" ry="34" fill="url(#room-pool)" />
+    <g className="room-motes" fill="#fffbe8">
+      {MOTES.map((m, i) => <circle key={i} cx={m.x} cy={m.y} r={m.r} style={{ animationDelay: m.d }} />)}
+    </g>
+  </svg>;
 }
