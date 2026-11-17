@@ -1,4 +1,5 @@
 "use client";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useApp } from "@/application/AppProvider";
 import { EntryEmotionCorrection } from "@/components/emotion/EntryEmotionCorrection";
@@ -8,6 +9,8 @@ import { PenguinFront } from "@/components/character/PenguinFront";
 import { formatDateTime } from "@/lib/format";
 
 const SOURCE_NAMES: Record<EmotionSource, string> = { ai: "AI 建议", manual: "手动选择", corrected: "手动纠正" };
+const LEAVE_CONFIRM = "正文还有未保存的修改，确定要离开吗？离开后这次修改会丢失。";
+const LEAVE_UNLOAD = "正文还有未保存的修改，离开后这次修改会丢失。";
 type FlipDirection = "prev" | "next";
 type FlipState = { direction: FlipDirection; from: Entry; to: Entry; duration: number; settling: boolean };
 const FLIP_SETTLE = 150;
@@ -18,21 +21,34 @@ function flipTiming(): { duration: number } | null {
   return { duration: window.matchMedia("(max-width: 700px)").matches ? 640 : 780 };
 }
 
+// 未保存草稿：App Router 的浏览器后退/前进是客户端历史导航，不触发 beforeunload，也没有可安全取消的路由守卫。
+// 不劫持 History API（会产生重复历史条目或导航循环），改为把同一标签页内的未保存草稿按条目暂存于内存，
+// 返回回忆页时恢复编辑，避免静默丢失。
+type UnfinishedDraft = { text: string; revision: number };
+const unfinishedDrafts = new Map<string, UnfinishedDraft>();
+let lastDraftEntryId: string | null = null;
+
 function MemoryDetail({ entry, onDirtyChange }: { entry: Entry; onDirtyChange: (dirty: boolean) => void }) {
  const { state, editEntryText } = useApp();
- const [editing, setEditing] = useState(false);
- const [text, setText] = useState(entry.text);
- const [message, setMessage] = useState("");
+ const stored = unfinishedDrafts.get(entry.id);
+ const restored = stored && stored.revision === entry.revision && stored.text !== entry.text ? stored.text : null;
+ const [editing, setEditing] = useState(restored !== null);
+ const [text, setText] = useState(restored ?? entry.text);
+ const [message, setMessage] = useState(restored !== null ? "已恢复上次未保存的修改，尚未保存。" : "");
  const dirty = editing && text !== entry.text;
  useEffect(() => { onDirtyChange(dirty); }, [dirty, onDirtyChange]);
  useEffect(() => () => onDirtyChange(false), [onDirtyChange]);
+ useEffect(() => {
+  if (dirty) { unfinishedDrafts.set(entry.id, { text, revision: entry.revision }); lastDraftEntryId = entry.id; }
+  else unfinishedDrafts.delete(entry.id);
+ }, [dirty, entry.id, entry.revision, text]);
  async function save() {
    const saved = await editEntryText(entry.id, entry.revision, text);
    if (saved) { setEditing(false); setMessage("正文已保存。"); }
    else setMessage("未能保存，编辑内容仍在，请重试。");
  }
  return <article className="memory-detail"><div className="memory-detail-heading"><time dateTime={new Date(entry.createdAt).toISOString()}>{formatDateTime(entry.createdAt)}</time><span>来源：{SOURCE_NAMES[entry.effectiveEmotion.source]}</span></div><span className={`mood-pill emotion-${entry.effectiveEmotion.label}`}>{EMOTION_NAMES[entry.effectiveEmotion.label]}</span>
- {editing ? <><label htmlFor="edit-memory">编辑日记正文</label><textarea id="edit-memory" className="diary-input" value={text} onChange={e => setText(e.target.value)}/><div className="memory-actions"><button type="button" disabled={state.saving || state.tabConflict || !text.trim()} onClick={() => void save()}>保存正文</button><button type="button" onClick={() => { setText(entry.text); setEditing(false); }}>取消</button></div></> : <><p className="memory-full-text" tabIndex={0}>{entry.text}</p><button type="button" className="text-button memory-edit" onClick={() => { setText(entry.text); setEditing(true); }}>✎ 编辑正文</button></>}
+ {editing ? <><label htmlFor="edit-memory">编辑日记正文</label><textarea id="edit-memory" className="diary-input" value={text} onChange={e => setText(e.target.value)}/><div className="memory-actions"><button type="button" disabled={state.saving || state.tabConflict || !text.trim()} onClick={() => void save()}>保存正文</button><button type="button" onClick={() => { setText(entry.text); setEditing(false); setMessage(""); }}>取消</button></div></> : <><p className="memory-full-text" tabIndex={0}>{entry.text}</p><button type="button" className="text-button memory-edit" onClick={() => { setText(entry.text); setEditing(true); }}>✎ 编辑正文</button></>}
  {message && <p role="status">{message}</p>}{state.saveError && <p role="alert" className="save-error">{state.saveError}</p>}
  <details className="correction"><summary>✧ 纠正心情</summary><EntryEmotionCorrection entry={entry}/></details></article>;
 }
@@ -80,7 +96,7 @@ function Pager({ page, total, onPrev, onNext, notice, variant }: PagerProps) {
 }
 export function DiaryHistory({ entries }: { entries: Entry[] }) {
  const ordered = useMemo(() => [...entries].sort((a,b) => b.createdAt-a.createdAt), [entries]);
- const [selectedId, setSelectedId] = useState<string | null>(null);
+ const [selectedId, setSelectedId] = useState<string | null>(() => lastDraftEntryId && unfinishedDrafts.has(lastDraftEntryId) ? lastDraftEntryId : null);
  const [draftDirty, setDraftDirty] = useState(false);
  const [flip, setFlip] = useState<FlipState | null>(null);
  const [notice, setNotice] = useState("");
@@ -118,6 +134,42 @@ export function DiaryHistory({ entries }: { entries: Entry[] }) {
      lockRef.current = false;
    };
  }, [clearTimers, finishFlipNow]);
+ // 未保存正文：刷新或关闭页面时走浏览器原生离开提醒（提示文案由浏览器控制）。
+ useEffect(() => {
+  if (!draftDirty) return;
+  const onBeforeUnload = (event: BeforeUnloadEvent) => {
+    event.preventDefault();
+    event.returnValue = LEAVE_UNLOAD;
+    return LEAVE_UNLOAD;
+  };
+  window.addEventListener("beforeunload", onBeforeUnload);
+  return () => window.removeEventListener("beforeunload", onBeforeUnload);
+ }, [draftDirty]);
+ // 未保存正文：拦截应用内链接导航，确认放弃才离开；取消则保留草稿和当前页。
+ const router = useRouter();
+ useEffect(() => {
+  if (!draftDirty) return;
+  const onClick = (event: MouseEvent) => {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    const anchor = event.target instanceof Element ? event.target.closest("a[href]") : null;
+    if (!(anchor instanceof HTMLAnchorElement)) return;
+    if (anchor.target && anchor.target !== "_self") return;
+    if (anchor.hasAttribute("download")) return;
+    const href = anchor.getAttribute("href");
+    if (!href || href.startsWith("#")) return;
+    let destination: URL;
+    try { destination = new URL(href, window.location.href); } catch { return; }
+    if (destination.origin !== window.location.origin) return;
+    if (destination.pathname === window.location.pathname && destination.search === window.location.search) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (!window.confirm(LEAVE_CONFIRM)) return;
+    if (selected) unfinishedDrafts.delete(selected.id);
+    router.push(`${destination.pathname}${destination.search}${destination.hash}`);
+  };
+  document.addEventListener("click", onClick, true);
+  return () => document.removeEventListener("click", onClick, true);
+ }, [draftDirty, router, selected]);
  useEffect(() => {
    if (!selected) return;
    if (previousIdRef.current === null) { previousIdRef.current = selected.id; return; }
