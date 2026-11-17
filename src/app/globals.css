@@ -280,36 +280,120 @@ body { background:radial-gradient(circle at 80% 0,#fffaf0 0,transparent 38%),var
   .app-shell { padding-bottom:calc(var(--mobile-nav-height) + 24px); }
 }
 
-/* The home viewport is a camera onto the original, uniformly scaled room. */
-.home-shell .main-content { padding:0; }
+/* ================= 企鹅小屋：绘本生活空间（UI 还原第二轮） =================
+   房间插画按原比例铺满视口，侧栏与状态便签浮在房间之上；镜头把企鹅放在两者之间的可见舞台中央。 */
+@property --camera-inset-left { syntax:'<length>'; inherits:false; initial-value:0px; }
+@property --camera-inset-right { syntax:'<length>'; inherits:false; initial-value:0px; }
+.home-shell { --home-side-w:clamp(272px,21vw,320px); }
 .home-shell .content-wrap, .home-shell .companion-page { max-width:none; }
 .home-shell .room-layout { position:relative; display:block; }
-.home-shell .scene { height:100svh; border:0; border-radius:0; box-shadow:none; }
+.home-shell .main-content { margin-left:0; width:100%; padding:0; }
+.home-shell .scene { --camera-inset-left:var(--shell-content-offset); --camera-inset-right:calc(var(--home-side-w) * .5); width:100%; height:100svh; min-height:560px; aspect-ratio:auto; border:0; border-radius:0; box-shadow:none; background:#eccdaf; }
 .home-shell .room-canvas { width:auto; min-width:100%; }
 .home-shell .scene-character { width:11%; }
-.home-shell .home-side { position:absolute; inset:24px 24px auto auto; z-index:3; width:min(230px, 22%); }
-.home-shell .home-status { padding:16px 18px; background:#fffaf2e8; }
-.home-shell .home-status h2 { font-size:18px; margin:5px 0; }
-.home-shell .home-status p { font-size:13px; margin:5px 0; }
-.home-shell .behavior-controls { display:grid; grid-template-columns:repeat(3,1fr); }
-.home-shell .behavior-controls button { padding:10px 3px; background:#fffaf2ed; }
-.home-shell .behavior-status { background:#fffaf2e8; border-radius:12px; padding:4px 8px; }
-.home-shell .companion-profile { margin:20px; }
-@media (max-width:700px) {
-  .home-shell { padding-bottom:var(--mobile-nav-height); }
-  .home-shell .main-content { width:100%; }
-  .home-shell .scene { height:calc(100svh - var(--mobile-nav-height)); }
-  .home-shell .scene-character { width:11%; }
-  .home-shell .home-side { inset:12px 12px 10px auto; width:min(190px, 52%); pointer-events:none; }
-  .home-shell .home-status, .home-shell .behavior-controls { pointer-events:auto; }
-  .home-shell .home-status { padding:10px 12px; }
-  .home-shell .home-status h2 { font-size:15px; }
-  .home-shell .home-status p { font-size:12px; line-height:1.4; }
-  .home-shell .behavior-controls { position:absolute; z-index:4; bottom:0; right:0; margin:0; gap:5px; }
-  .home-shell .behavior-controls button { padding:7px 9px; line-height:1.35; font-size:12px; }
-  .home-shell .behavior-status { display:none; }
+/* 暖色暗角：让画面边缘收拢，视线落回中央的企鹅与地毯 */
+.home-shell .scene::after { content:""; position:absolute; inset:0; z-index:2; pointer-events:none; background:radial-gradient(115% 95% at 54% 58%,transparent 58%,#80502c29 100%),linear-gradient(180deg,#fff4dc1a 0,transparent 30%,transparent 78%,#7d4f2c1c 100%); }
+/* 企鹅脚下的暖色接触阴影，把角色“放”进地毯里 */
+.home-shell .scene-character::before { content:""; position:absolute; z-index:-1; left:12%; right:12%; top:88.5%; height:9%; border-radius:50%; background:radial-gradient(closest-side,#7a4d2c3d,#7a4d2c14 60%,transparent); pointer-events:none; }
+
+/* 窗边光束与浮尘 */
+.room-light { position:absolute; inset:0; z-index:0; width:100%; height:100%; pointer-events:none; mix-blend-mode:screen; opacity:.75; }
+.room-beams { animation:room-beam-breathe 11s ease-in-out infinite alternate; }
+.room-pool { opacity:.8; }
+.room-motes circle { opacity:0; animation:room-mote-drift 9s ease-in-out infinite; transform-box:fill-box; }
+@keyframes room-beam-breathe { from { opacity:.72; } to { opacity:1; } }
+@keyframes room-mote-drift { 0% { opacity:0; transform:translate(0,0); } 25% { opacity:.9; } 75% { opacity:.7; } 100% { opacity:0; transform:translate(14px,-18px); } }
+.scene.is-paused .room-light * { animation-play-state:paused; }
+
+/* 右上：今天的企鹅 + 互动 + 重逢/离线便签，一条可滚动的纸页栏 */
+.home-shell .home-side { position:absolute; top:12px; right:14px; z-index:3; display:flex; flex-direction:column; gap:12px; width:calc(var(--home-side-w) + 16px); max-height:calc(100svh - 24px); padding:12px 8px 22px; overflow:hidden auto; scrollbar-width:none; -webkit-mask-image:linear-gradient(180deg,#000 calc(100% - 22px),transparent); mask-image:linear-gradient(180deg,#000 calc(100% - 22px),transparent); }
+.home-shell .home-side::-webkit-scrollbar { display:none; }
+.home-shell .home-status { position:relative; flex:none; padding:20px 20px 17px; border:1px solid var(--sx-paper-edge); border-radius:22px; background:radial-gradient(120% 70% at 12% 0,#fffdf8,transparent 62%),linear-gradient(180deg,#fffaf2f7,#fbefdef2); box-shadow:inset 0 0 0 3px #fffbf280,0 18px 32px -22px #7a4a2a8c,0 2px 6px #9a6a4614; color:var(--sx-ink); }
+.home-status-tape { position:absolute; top:-9px; left:28px; width:66px; height:19px; transform:rotate(-4deg); background-color:var(--sx-gingham); background-image:repeating-linear-gradient(90deg,transparent 0 9px,#f8efb866 9px 17px),repeating-linear-gradient(0deg,transparent 0 8px,#f8efb866 8px 15px); clip-path:polygon(0 8%,2% 30%,0 52%,2% 76%,0 100%,100% 96%,98% 72%,100% 48%,98% 24%,100% 0); opacity:.92; pointer-events:none; }
+.home-status-head { display:flex; align-items:flex-end; justify-content:space-between; gap:8px; }
+.home-shell .home-status .section-kicker { display:block; color:#97a466; font-size:10px; font-weight:700; letter-spacing:.24em; }
+.home-shell .home-status h2 { display:flex; align-items:center; gap:6px; margin:7px 0 0; font-family:var(--sx-font-serif); font-size:20px; font-weight:700; letter-spacing:.05em; line-height:1.2; }
+.sprout-mark { width:22px; height:22px; flex:none; fill:none; stroke:var(--sx-leaf); stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
+.sprout-mark .leaf { fill:#e1e9b3; }
+/* 企鹅从便签的折线后探出半个脑袋：直接复用正面母版，只裁出头部 */
+.home-status-avatar { position:relative; flex:none; width:60px; height:46px; margin:-12px -4px 0 0; overflow:hidden; }
+.home-status-avatar svg { display:block; margin:2px auto 0; }
+.home-status-avatar::after { content:""; position:absolute; left:-4px; right:-4px; bottom:0; height:2px; border-radius:2px; background:var(--sx-paper-edge); }
+.home-shell .home-status-state { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin:14px 0 0; color:var(--sx-ink-soft); font-size:13px; }
+.state-pill { padding:3px 12px 4px; border:1px solid var(--sx-sage-edge); border-radius:999px; background:linear-gradient(180deg,var(--sx-sage-hi),var(--sx-sage-lo)); color:var(--sx-sage-ink); font-size:13px; font-weight:650; letter-spacing:.04em; }
+.home-shell .home-status-desc { margin:13px 0 0; padding-top:12px; border-top:1px dashed #e4cfb6; color:#5f4a3a; font-family:var(--sx-font-hand); font-size:15px; line-height:1.85; letter-spacing:.02em; }
+
+.home-shell .behavior-controls { display:grid; flex:none; grid-template-columns:repeat(3,1fr); gap:10px; margin:0; }
+.home-shell .behavior-controls button { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; min-height:74px; padding:11px 4px 9px; border:1px solid var(--sx-tag-edge); border-radius:18px; background:linear-gradient(180deg,#fffaf2f7,#f8e9d5f2); box-shadow:inset 0 0 0 2px #fffbf270,0 12px 20px -14px #7a4a2a99,0 1px 3px #9a6a461a; color:var(--sx-ink); font-family:var(--sx-font-serif); font-size:13.5px; font-weight:700; letter-spacing:.06em; line-height:1.2; cursor:pointer; transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease; }
+.home-shell .behavior-controls button:hover { transform:translateY(-2px); border-color:var(--sx-sage-edge); background:linear-gradient(180deg,#fffcf6,#f9edda); box-shadow:inset 0 0 0 2px #fffbf280,0 16px 22px -14px #7a4a2aa6,0 1px 3px #9a6a461a; }
+.home-shell .behavior-controls button:active { transform:translateY(1px) scale(.97); box-shadow:inset 0 0 0 2px #fffbf280,0 4px 8px -6px #7a4a2a99; }
+.home-shell .behavior-controls button:focus-visible { outline:2px solid var(--sx-leaf); outline-offset:3px; }
+.home-shell .behavior-controls button.is-responding { border-color:var(--sx-sage-edge); background:linear-gradient(180deg,var(--sx-sage-hi),var(--sx-sage-lo)); color:var(--sx-sage-ink); }
+.interaction-icon { width:30px; height:30px; fill:none; stroke:#7d8d43; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; transition:transform .25s ease; }
+.interaction-icon .fill { fill:#fde3b6; }
+.behavior-controls button:hover .interaction-icon { transform:rotate(-6deg) scale(1.06); }
+.behavior-controls button.is-responding .interaction-icon .fill { fill:#fff6dc; }
+
+/* 动作播报只给读屏；企鹅回应心情时才以一句手写小字出现 */
+.home-shell .behavior-status { position:absolute; width:1px; height:1px; margin:0; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+.home-shell .behavior-status.is-feedback { position:static; width:auto; height:auto; overflow:visible; clip-path:none; align-self:center; padding:6px 16px; border:1px solid var(--sx-paper-edge); border-radius:999px; background:#fffaf2f0; box-shadow:0 8px 16px -12px #7a4a2a80; color:var(--sx-ink-soft); font-family:var(--sx-font-hand); font-size:14px; animation:home-note-in .4s ease-out both; }
+@keyframes home-note-in { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:none; } }
+
+/* 重逢信笺与离线小记：和状态便签同一种纸 */
+.home-notes { display:flex; flex-direction:column; gap:12px; }
+.home-notes:empty { display:none; }
+.home-shell .companion-profile { position:relative; margin:0; padding:17px 18px 15px; border:1px solid var(--sx-paper-edge); border-radius:20px; background:linear-gradient(180deg,#fffaf2f7,#fbf0e1f2); box-shadow:inset 0 0 0 3px #fffbf270,0 16px 28px -22px #7a4a2a8c; color:var(--sx-ink); }
+.home-shell .companion-profile .section-kicker { color:#97a466; font-size:10px; font-weight:700; letter-spacing:.22em; }
+.home-shell .companion-profile .section-heading h2 { margin:6px 0 0; font-family:var(--sx-font-serif); font-size:16px; font-weight:700; letter-spacing:.04em; }
+.home-shell .companion-profile .section-heading>span { color:#c9d39f; font-size:20px; }
+.home-shell .reunion-panel { border-color:#d9e2b4; background:radial-gradient(120% 60% at 90% 0,#f6f8e4,transparent 60%),linear-gradient(180deg,#fffcf3f9,#f9f1e1f4); }
+.home-shell .reunion-message { margin:12px 0 0; color:#5f4a3a; font-family:var(--sx-font-hand); font-size:15px; line-height:1.8; }
+.home-shell .reunion-question { margin:8px 0 0; font-size:15px; }
+.home-shell .reunion-answer-label { margin:12px 0 6px; }
+.home-shell .reunion-answer { border-color:#ead8c2; border-radius:12px; background:#fffdf8 repeating-linear-gradient(180deg,transparent 0 26px,#f0e2d0 26px 27px); line-height:27px; padding:4px 12px; font-family:var(--sx-font-hand); font-size:15px; }
+.home-shell .reunion-answer:focus { outline:2px solid #c8d48f; outline-offset:1px; }
+.home-shell .reunion-actions button { padding:7px 18px; border-color:var(--sx-tag-edge); background:linear-gradient(180deg,#fffaf2,#f8ead6); color:var(--sx-ink); font-weight:650; cursor:pointer; }
+.home-shell .reunion-actions button:first-child:not(:disabled) { border-color:var(--sx-sage-edge); background:linear-gradient(180deg,var(--sx-sage-hi),var(--sx-sage-lo)); color:var(--sx-sage-ink); }
+.home-shell .reunion-actions button:disabled { cursor:not-allowed; opacity:.65; }
+.home-shell .profile-list { gap:6px; margin-top:12px; }
+.home-shell .profile-list li { padding:7px 12px 7px 26px; border-radius:10px; background:#f7ecdc99; color:#5f4a3a; font-size:13px; line-height:1.65; }
+.home-shell .profile-list li::before { left:10px; color:#a3b46e; }
+.home-shell .companion-profile details { margin-top:10px; color:var(--sx-ink-soft); font-size:12.5px; }
+.home-shell .companion-profile summary { cursor:pointer; }
+.home-shell .profile-note { margin-top:10px; font-size:11.5px; line-height:1.6; }
+.home-shell .profile-note[role=alert] { color:#a2563f; }
+
+@media (min-width:701px) and (max-height:780px) {
+  .home-shell .home-status { padding:16px 18px 14px; }
+  .home-shell .home-status-desc { margin-top:10px; padding-top:9px; font-size:14px; line-height:1.7; }
+  .home-shell .behavior-controls button { min-height:64px; padding:8px 4px 7px; }
+  .interaction-icon { width:26px; height:26px; }
 }
-.home-shell .scene { width:100%; aspect-ratio:auto; }
+
+@media (max-width:700px) {
+  .home-shell { --home-side-w:auto; padding-bottom:var(--mobile-nav-height); }
+  /* 手机：插画在上、纸页在下，状态与互动不再压在企鹅身上 */
+  .home-shell .scene { --camera-inset-left:0px; --camera-inset-right:0px; height:clamp(320px,56svh,500px); min-height:0; }
+  .home-shell .scene::after { background:radial-gradient(130% 100% at 50% 45%,transparent 60%,#80502c24 100%),linear-gradient(180deg,transparent 80%,#f3e2cc99 100%); }
+  .home-shell .home-side { position:relative; top:auto; right:auto; width:auto; max-height:none; margin:-30px 10px 0; padding:0 4px 18px; gap:10px; overflow:visible; -webkit-mask-image:none; mask-image:none; }
+  .home-shell .home-status { padding:16px 16px 14px; }
+  .home-status-tape { left:50%; margin-left:-33px; }
+  .home-shell .home-status h2 { font-size:18px; }
+  .home-status-avatar { width:54px; height:41px; }
+  .home-status-avatar svg { width:58px; height:auto; }
+  .home-shell .home-status-state { margin-top:10px; }
+  .home-shell .home-status-desc { margin-top:10px; padding-top:9px; font-size:14px; line-height:1.7; }
+  .home-shell .behavior-controls { gap:8px; }
+  .home-shell .behavior-controls button { flex-direction:row; gap:6px; min-height:48px; padding:8px 4px; border-radius:16px; font-size:13px; }
+  .interaction-icon { width:24px; height:24px; }
+}
+
+@media (prefers-reduced-motion:reduce) {
+  .room-beams, .room-motes circle { animation:none; }
+  .room-motes circle { opacity:.6; }
+  .home-shell .behavior-controls button, .interaction-icon { transition:none; }
+  .home-shell .behavior-status.is-feedback { animation:none; }
+}
 /* Memories scrapbook: presentation only; dimensions remain subject to visual review. */
 .memories-shell { color:#5a3b2b; background:radial-gradient(ellipse at 65% 40%,#fff9ef,#f9e9d9 90%); }
 .memories-shell .main-content { padding:25px 24px 28px; }
