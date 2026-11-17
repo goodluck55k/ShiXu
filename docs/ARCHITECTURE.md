@@ -2,7 +2,7 @@
 
 > 状态：V1 架构基线。标注「已实现」的以 `main` 分支代码为准；「阶段 N 规划」表示尚未合入。产品范围见 [PRODUCT_SPEC](PRODUCT_SPEC.md)，性格与行为参数见 [COMPANION_SPEC](COMPANION_SPEC.md)。
 >
-> 存档结构为 `schemaVersion` 4（STO-05，PR #35 已合入）；v1/v2/v3 读取时迁移。本文档版本与存档版本无关。截至本版，`main` 已含 `schemaVersion` 4、五维 `personality-v2` 台账与迁移（PR #18）、主导行为引擎（PR #19）、离线自主生活（PR #20）、久别重逢（PR #22）、AI 情绪识别复核（PR #23）与待处理重逢问候持久化/确认（PR #35）。阶段七的原创企鹅正面母版（PR #27）、九种组合表情（PR #28）、侧背面与基础动作（PR #30）、特殊动作视觉（PR #31）与特殊行为正式接入（PR #32）均已合入。特殊行为配置已开启，真实长期自然触发待进一步验收；生活空间与正式 UI 尚未开发。当前整体进度以 [ROADMAP](ROADMAP.md) §1.1 为准。
+> 存档结构为 `schemaVersion` 4（STO-05，PR #35 已合入）；v1/v2/v3 读取时迁移。本文档版本与存档版本无关。截至本版，`main` 已含 `schemaVersion` 4、五维 `personality-v2` 台账与迁移（PR #18）、主导行为引擎（PR #19）、离线自主生活（PR #20）、久别重逢（PR #22）、AI 情绪识别复核（PR #23）与待处理重逢问候持久化/确认（PR #35）。阶段七的原创企鹅正面母版（PR #27）、九种组合表情（PR #28）、侧背面与基础动作（PR #30）、特殊动作视觉（PR #31）与特殊行为正式接入（PR #32）均已合入。特殊行为配置已开启，真实长期自然触发待进一步验收；生活空间与正式 UI 尚未开发。许愿屋独立开发包（PR #43，`feature/wish-house`）新增独立 `wishes` 领域模块与 `shixu.wishes.v1` 存储，不修改 `Snapshot` v4；代码已实现并等待用户功能验收。当前整体进度以 [ROADMAP](ROADMAP.md) §1.1 为准。
 
 ## 1. 架构原则
 
@@ -26,7 +26,8 @@
 | 离线生活 | `offlineLife` | 按离线窗口生成有限生活事件 | `OfflineLifeState`、`OfflineLifeEvent`、`OfflineLifeRuleConfig`、`planOfflineLife` | 事件历史（通过快照持有） | `offline-life-v1` |
 | 久别重逢 | `reunion` | 判断长期未访问、生成问候、记录触发窗口与待处理问候 | `ReunionState`、`ReunionRuleConfig`、`evaluateReunion` | 已触发窗口与待处理问候（通过快照持有） | `reunion-v1` |
 | 角色展示 | `character` | 按视图渲染企鹅、组合表情、动作与生活空间 | `CharacterView`、`AppearanceConfig` | 无（仅运行时展示状态） | 表情/动作/图层映射（阶段七） |
-| 存储 | `storage` | 版本化存档、加载、保存、恢复、迁移入口 | `StoragePort`、`LoadResult`、`SaveResult` | localStorage 键 | 迁移表 |
+| 愿望 | `wishes` | 愿望创建、手动完成、纯文本校验、独立集合 | `Wish`、`WishCollection`、`createPendingWish`、`addWish`、`completeWishInCollection`、`validateWishCollection` | 愿望集合（独立 localStorage，不在快照内） | `WISH_SCHEMA_VERSION = 1` |
+| 存储 | `storage` | 版本化存档、加载、保存、恢复、迁移入口 | `StoragePort`、`LoadResult`、`SaveResult`；`WishStoragePort`、`WishLoadResult`、`WishSaveResult` | localStorage 键 | 迁移表；愿望独立版本 |
 | 装扮（V2） | `decoration` | 饰品状态、解锁、穿戴 | 仅预留读取与外观扩展点 | V2 自行持有 | V2 定义 |
 
 ### 2.1 依赖方向
@@ -48,6 +49,9 @@ graph TD
   R -. 可选只读离线事件 .-> O
   APP --> C[角色展示]
   C -. 只读 CharacterView/Appearance .-> P
+  APP --> W[愿望]
+  APP --> WS[愿望存储]
+  WS --> W
   V2[V2 饰品模块] -. 只读快照与已落盘事件 .-> P
   V2 -. 提供外观 .-> C
 ```
@@ -56,6 +60,9 @@ graph TD
 - 离线生活模块只读 `dominantId`，不读贡献账本、不写性格分数。
 - 久别重逢模块只读 `dominantId` 与可选离线事件，不写性格、不写日记。
 - 角色展示模块不导入性格、行为、离线或存储模块，只接收视图数据。
+- 愿望模块不导入日记、情绪、性格、行为、离线、重逢或快照迁移逻辑；不读写 `Snapshot`，不调用 AI。
+- 愿望存储只处理 `WishCollection` 的读取、修订检查、写入与恢复，不决定完成状态、不生成动画。
+- 许愿屋展示层只接收愿望视图与一次性动画信号，不直接调用 localStorage 或修改 `Snapshot`。
 - 存储模块不导入规则模块，不决定分数、奖励、行为或离线事件。
 - 页面不直接调用 `localStorage`，不直接修改 `Snapshot`。
 - V2 模块不得写 `PersonalityState`，不得修改行为、离线或重逢规则。
@@ -91,6 +98,11 @@ graph TD
 | `src/config/reunion.ts` | 阶段五已实现（PR #22） | `ReunionRuleConfig` |
 | 阶段七角色/表情/场景配置 | 部分以组件内视觉常量实现；正式场景配置未创建 | 颜色、姿态与动作节奏暂为角色组件常量；正式生活空间配置的文件名、版本与参数待任务卡确认 |
 | `src/lib/storage/{port,localStorageAdapter}.ts` | 已实现 | 存储接口与浏览器实现 |
+| `src/domain/wishes.ts` | 已实现（PR #43） | 愿望类型、创建/完成纯函数、集合校验 |
+| `src/lib/storage/wishStorage.ts` | 已实现（PR #43） | 独立 `shixu.wishes.v1` 读取/保存/重置、修订检查、Web Locks 写入互斥、损坏/未来版本保护 |
+| `src/application/useWishHouse.ts`、`src/application/wishTypes.ts` | 已实现（PR #43） | 愿望加载、创建、完成、冲突、恢复、一次性完成动画信号、开发样例内存隔离 |
+| `src/components/wishes/*` | 已实现（PR #43） | 许愿屋页面、玻璃杯、愿望板、输入、存储提示与稳定槽位；不改其他三页 |
+| `scripts/wishTests.ts`、`scripts/run-wish-tests.cjs` | 已实现（PR #43） | 愿望领域/存储/槽位专项测试工具；不进入生产构建 |
 | `src/components/character/CharacterRenderer.tsx` | 已实现（临时姿态/表情/动画载体） | 已接入原创企鹅正面母版（PR #27）、九种组合表情（PR #28）、侧背/基础动作（PR #30）与特殊动作（PR #31）；正式场景尚未实现 |
 | `src/components/character/{PenguinFront,PenguinFace,PenguinPoses}.tsx`、`specialMotion.ts` | 已实现（PR #27 / #28 / #30 / #31） | 正面母版、组合表情、侧背面与基础动作、特殊动作视觉；`drink` 使用啤酒瓶；`SPECIAL_MOTION_MS=8000` |
 | `src/components/character/` 正式场景组件 | 规划，未创建 | 企鹅小屋、生活空间与正式 UI 组件；具体文件与资源路径由后续任务卡确认，不得把规划路径当作已有文件 |
@@ -413,6 +425,32 @@ interface SnapshotV4 {
 - 旧 `DecorationState`、`HabitProgress`、`WorldTrace` 类型可暂时保留为兼容类型，但不得进入 V1 业务逻辑。
 - `character` 不再保存 `totalXp`/`stage`；它们只在 `legacy.character` 中兼容保留。
 
+### 4.6 愿望（独立于快照；PR #43 已实现）
+
+```ts
+type WishStatus = "pending" | "completed";
+
+interface Wish {
+  id: string;                 // 稳定唯一标识
+  text: string;               // 原始文本，纯文本渲染
+  status: WishStatus;
+  createdAt: number;
+  completedAt: number | null; // pending 必须为 null
+}
+
+interface WishCollection {
+  schemaVersion: 1;           // 当前唯一受支持版本
+  revision: number;           // 非负整数；成功写入后 +1
+  wishes: Wish[];
+}
+```
+
+- 愿望是独立业务数据，不写入 `Snapshot` v4；不参与日记、情绪、五维性格、主导、行为、离线生活、重逢或回忆。
+- 创建时只能为 `pending`；只有用户手动完成才写 `completedAt`；重复完成与未知 ID 为无副作用 no-op。
+- 每条愿望 ID 唯一；文本只校验非空白，不裁剪原文、不设产品字数上限；渲染层必须按纯文本输出。
+- 集合校验区分 `corrupt` 与 `unsupported-version`；不可读数据保留原始 `raw`，不得静默覆盖。
+- 许愿屋展示只消费 `WishView` 与一次性 `{ wishId, nonce }` 动画信号；可见纸团/星星与真实愿望 ID 一一对应，视觉上限不改变板与计数的真实总数。
+
 ## 5. 模块接口与领域事件
 
 | 接口 | 模块 | 状态 | 说明 |
@@ -433,6 +471,11 @@ interface SnapshotV4 {
 | `migrateSnapshotV2toV3(v2)` | storage | 阶段二 | 新增；只做结构转换，不调用计分规则 |
 | `migrateSnapshotV3toV4(v3)` | storage | 已实现（PR #35） | 补 `reunion.pending = null`；不猜造历史问候，不改日记与触发标记 |
 | `StoragePort.load/save/readRaw/reset` | storage | 已实现，保存结果扩展 `corrupt` / `unsupported-version` | 函数签名不变；`Snapshot` 为 v4，v1/v2/v3 读取时内存迁移；保存前发现现有存档不可读时返回对应状态与原始 `raw` |
+| `createPendingWish(id, text, createdAt)` | wishes | 已实现（PR #43） | 创建 `pending` 愿望；非空白文本、非空 ID、有限时间 |
+| `addWish(collection, wish)` | wishes | 已实现（PR #43） | 添加唯一 ID 的愿望，不改修订号 |
+| `completeWishInCollection(collection, id, completedAt)` | wishes | 已实现（PR #43） | 仅 pending → completed；重复完成 no-op |
+| `validateWishCollection(value)` | wishes | 已实现（PR #43） | 区分损坏与未来版本；字段、状态、时间、重复 ID 校验 |
+| `WishStoragePort.load/save/reset/readRaw` | storage | 已实现（PR #43） | 独立 `shixu.wishes.v1`；修订检查、Web Locks、损坏/未来版本保留原文；不接触 `Snapshot` |
 
 ### 5.1 V1 领域事件
 
@@ -517,9 +560,44 @@ AI 识别（阶段六复核）：
 
 行为循环：可见时由应用层按 `tickInterval` 用显式种子与序号调用 `selectBehavior`，把 `BehaviorDecision` 映射为 `CharacterView` 交给角色层；不写存档。页面隐藏时暂停；关闭网页不运行后台 Agent。
 
+### 5.3 愿望流程（PR #43）
+
+加载：
+
+1. 读取 `shixu.wishes.v1`；`missing` → 空集合；`ready` → 真实集合。
+2. `corrupt` / `unsupported-version` → 保留原始 `raw`，进入恢复状态，禁止继续保存；`unavailable` → 提示存储不可用。
+
+创建：
+
+1. 校验非空白文本；应用层生成稳定 ID 与 `createdAt`。
+2. `createPendingWish` + `addWish` 构造候选集合。
+3. `WishStoragePort.save(candidate, expectedRevision)`。
+4. 只有 `saved` 才更新列表、清空已保存输入；失败保留草稿与旧列表，不显示成功反馈。
+
+完成：
+
+1. 确认愿望仍为 `pending`；应用层生成 `completedAt`。
+2. `completeWishInCollection` 构造候选；保存成功后才更新正式集合。
+3. 成功时发出一次性 `{ wishId, nonce }` 给展示层；动画只消费该信号，不写存储、不再次完成。
+4. 失败、冲突、损坏、额度不足时保持待完成，不播放成功动画。
+
+冲突与恢复：
+
+1. `storage` 事件命中愿望键时暂停本页创建/完成，提示重新加载。
+2. 保存返回 `conflict` 时同样暂停；重新加载读取最新集合。
+3. 支持 Web Locks 的浏览器用 `shixu.wishes.lock` 串行化读取-比较-写入；不支持时退回修订检查，不宣称绝对事务。
+4. 损坏/未来版本可导出原始数据；重置只在用户确认且当前 `raw` 仍等于所见内容时执行。
+
+开发样例：
+
+- 仅开发环境 `?preview=sample`；样例集合只在内存运行，不调用愿望存储；生产构建忽略该参数。
+
 ## 6. 本地持久化与迁移
 
 - 键：`shixu.snapshot.v1`（保持不变，值内区分版本）。
+- 愿望使用独立键 `shixu.wishes.v1`，值为 `{ schemaVersion: 1, revision, wishes }`；不进入 `Snapshot`，也不参与快照迁移链。读取损坏或未来版本时保留原始 `raw`，提供导出与显式重置，不静默覆盖。
+- 愿望保存前校验候选集合、读取现有集合、比较 `revision`，成功才写入 `revision + 1`。支持 Web Locks 时使用 `shixu.wishes.lock` 串行化跨标签页的读取-比较-写入；不支持时退回修订检查与 `storage` 事件，这一回退不是绝对原子事务。
+- 愿望重置仅在用户确认、且当前 `raw` 仍匹配用户看到的原始内容时写入空集合；其他标签页已更新时返回冲突，不盲写。
 - V1 本地存档按**单活动标签页正式写入**设计。`expectedRevision` 校验与 `storage` 事件可发现多数跨标签页冲突并提示重新加载，但“读取当前修订→写入”不是原子事务，也没有加锁、合并或最后写入仲裁；多标签页同时提交时仍可能出现覆盖或需要人工恢复。不得把当前实现描述为完整的多标签并发控制。
 - `appliedEventIds` 当前不裁剪，随正式事件与会话次数增长；这是已知快照增长问题，尚未修复。
 - 加载结果：`missing`、`ready`、`unsupported-version`、`corrupt`、`unavailable`；同一套 schema 校验用于读取与写入前检查。
@@ -566,6 +644,7 @@ AI 识别（阶段六复核）：
 - 阶段七目标：日记保存后不强制跳转，用户主动回 `/` 时才展示仍有效的反馈；仅已确认并正式保存的 `joy` 可在该反馈中出现爱心，其他情绪、主导性格和普通互动不能独立触发爱心。跨页面反馈已按 `saveFeedbackTtlMs`（候选 300000 毫秒，待产品验收）过滤并按 `reunion.pending` 门控；仍不改变存档契约。详见 [交互规格](STAGE7_UI_INTERACTION_SPEC.md)。
 - 保存日记成功后的一次性反馈由应用层已有的 `lastConfirmedSave` 门控触发，渲染层负责企鹅短暂中断、转身/看向用户、表情/动作与恢复；不得重复触发，不得在保存失败时播放。可见性、TTL 与重逢优先门控已实现；具体动作、时长与正式视觉序列仍属阶段七待确认设计，见 [STAGE7_DESIGN](STAGE7_DESIGN.md) §C。
 - 尊重 `prefers-reduced-motion`；页面隐藏时暂停动画与行为调度。
+- 许愿屋复用 `PenguinPose` 的只读坐姿，不读取企鹅行为状态、不触发行为/离线/重逢；愿望数据不改变角色表现。
 - 阶段七不得引入服装、饰品、家具、商店或货币系统；V2 饰品只能通过 `AppearanceConfig`/图层白名单扩展，渲染层不判定解锁。
 - 现有静态占位渲染与临时场景属于阶段七之前的临时载体，不得当作定稿视觉继续美化。
 
@@ -574,4 +653,4 @@ AI 识别（阶段六复核）：
 - 新增/修改公共类型必须同步本文、[COMPANION_SPEC](COMPANION_SPEC.md) 与调用方；不同步视为未完成。
 - 存档结构变化必须提供迁移函数、失败路径与最小验证（旧档读取、正文/情绪不变、重复保存幂等、离线窗口不重复、重逢不重复）。
 - V1 不引入 V2 业务字段；V2 接入时新增独立字段与迁移，不允许复用 `legacy` 执行业务。
-- 演示前检查：手选主流程、AI 降级、刷新恢复、损坏存档提示、纠正替换、主导行为确定性、离线事件幂等、重逢只触发一次且待处理问候跨刷新/重开不丢失、长时间离线不增加 `low_mood`。
+- 演示前检查：手选主流程、AI 降级、刷新恢复、损坏存档提示、纠正替换、主导行为确定性、离线事件幂等、重逢只触发一次且待处理问候跨刷新/重开不丢失、长时间离线不增加 `low_mood`、愿望创建/完成/刷新、愿望保存失败与跨标签页冲突、愿望样例隔离。

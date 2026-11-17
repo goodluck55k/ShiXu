@@ -7,13 +7,14 @@ import { EMOTION_NAMES, type Entry } from "@/domain/types";
 export interface NavItem {
   href: string;
   label: string;
-  icon: "home" | "diary" | "memories";
+  icon: "home" | "diary" | "memories" | "wishes";
 }
 
 export const APP_NAV: NavItem[] = [
   { href: "/", label: "企鹅小屋", icon: "home" },
   { href: "/diary", label: "心情日记", icon: "diary" },
   { href: "/memories", label: "回忆碎片", icon: "memories" },
+  { href: "/wishes", label: "许愿屋", icon: "wishes" },
 ];
 
 type ReadingProgress = { page: number; total: number };
@@ -48,6 +49,9 @@ function NavIcon({ icon }: { icon: NavItem["icon"] }) {
   }
   if (icon === "diary") {
     return <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4.2 16.1 5.3 11.7l8.2-8.2 3 3-8.2 8.2Z" /><path d="m12.4 4.6 3 3" /></svg>;
+  }
+  if (icon === "wishes") {
+    return <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.9l2.2 4.4 4.9.7-3.5 3.4.8 4.8L10 14l-4.4 2.2.8-4.8L2.9 8l4.9-.7Z" /></svg>;
   }
   return <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.4C8 4.1 6.6 4.7 5.4 5.6v10c1.2-.9 2.6-1.5 4.6-1.2" /><path d="M10 4.4c2-.3 3.4.3 4.6 1.2v10c-1.2-.9-2.6-1.5-4.6-1.2" /><path d="M10 4.4v10" /></svg>;
 }
