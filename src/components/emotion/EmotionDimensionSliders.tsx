@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import type { EmotionDimensions } from "@/domain/types";
 
 const DIMENSIONS: { key: keyof EmotionDimensions; name: string; low: string; high: string }[] = [
@@ -19,14 +20,14 @@ export function EmotionDimensionSliders({
   onChange: (dimensions: EmotionDimensions) => void;
 }) {
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 dimension-list">
       {DIMENSIONS.map(({ key, name, low, high }) => (
-        <div key={key}>
-          <div className="flex items-baseline justify-between text-sm">
+        <div key={key} className="dimension-row">
+          <div className="dimension-head flex items-baseline justify-between text-sm">
             <label htmlFor={`dimension-${key}`} className="font-medium text-stone-700">
               {name}
             </label>
-            <span className="tabular-nums text-stone-500">{value[key].toFixed(2)}</span>
+            <span className="dimension-value tabular-nums text-stone-500">{value[key].toFixed(2)}</span>
           </div>
           <input
             id={`dimension-${key}`}
@@ -36,10 +37,12 @@ export function EmotionDimensionSliders({
             step={0.05}
             disabled={disabled}
             value={value[key]}
+            aria-valuetext={`${name} ${value[key].toFixed(2)}（${low} 0 — ${high} 1）`}
+            style={{ "--fill": `${value[key] * 100}%` } as CSSProperties}
             onChange={(event) => onChange({ ...value, [key]: Number(event.target.value) })}
-            className="w-full accent-teal-600 disabled:opacity-50"
+            className="dimension-range w-full accent-teal-600 disabled:opacity-50"
           />
-          <div className="flex justify-between text-xs text-stone-400">
+          <div className="dimension-ends flex justify-between text-xs text-stone-400">
             <span>{low}</span>
             <span>{high}</span>
           </div>

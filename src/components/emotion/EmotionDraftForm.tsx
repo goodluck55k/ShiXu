@@ -125,23 +125,84 @@ export function EmotionDraftForm() {
 
   return (
     <section aria-label="写日记" className="diary-form">
-      <textarea disabled={state.saving} value={text} onChange={event => changeText(event.target.value)} placeholder="今天发生了什么？有什么想轻轻记下的……" rows={7} aria-label="日记正文" className="diary-input" />
-      {ai.error && <div role="alert" className="save-error"><p>{ai.error.message}</p><p>草稿已保留，可手动选择心情后保存。</p></div>}
-      {suggestion && (
-        <div role="status" className="form-hint">
-          <p>AI 建议：{EMOTION_NAMES[suggestion.analysis.label]}（置信度 {suggestion.analysis.confidence.toFixed(2)}）。{suggestionHints.join("")}{isDemo ? "（演示数据，非真实模型结果）" : ""}</p>
-          {adopted === null
-            ? <button type="button" className="text-button" disabled={busy} onClick={adoptSuggestion}>{unknownSuggestion ? "仍采纳「说不清」" : "采纳建议"}</button>
-            : <p>已采纳 AI 建议；修改下方心情或细调后会按手动纠正保存。</p>}
+      <div className="diary-sheet">
+        <span className="diary-sheet-tape" aria-hidden="true" />
+        <textarea disabled={state.saving} value={text} onChange={event => changeText(event.target.value)} placeholder="今天发生了什么？有什么想轻轻记下的……" rows={7} aria-label="日记正文" className="diary-input" />
+      </div>
+      <div className="mood-card">
+        <div className="emotion-heading">
+          <h2><MoodHeadingIcon />今天的心情是？</h2>
+          <button type="button" className="ai-suggestion-button" disabled={!canAnalyze} onClick={requestSuggestion} aria-busy={ai.loading}>
+            <SparkleIcon />{ai.loading ? "AI 识别中…" : "让 AI 建议心情"}
+          </button>
         </div>
-      )}
-      <div className="emotion-heading"><h2>今天的心情是？</h2><button type="button" className="ai-suggestion-button" disabled={!canAnalyze} onClick={requestSuggestion}>{ai.loading ? "AI 识别中…" : "✧ 让 AI 建议心情"}</button></div>
-      <EmotionCategoryPicker value={label} disabled={busy} onSelect={selectLabel} />
-      <details className="dimensions"><summary>细调一下这种感觉 <span>（可选）</span></summary>{label === null ? <p>先选择一种心情，再调整细节。</p> : <div><p>已选「{EMOTION_NAMES[label]}」，可以按自己的感觉调整。</p><EmotionDimensionSliders value={dimensions} disabled={busy} onChange={changeDimensions} /></div>}</details>
+        {ai.error && <div role="alert" className="save-error ai-error"><p>{ai.error.message}</p><p>草稿已保留，可手动选择心情后保存。</p></div>}
+        {suggestion && (
+          <div role="status" className="form-hint ai-note">
+            <span className="ai-note-tag" aria-hidden="true">AI 的小建议 · 仅供参考</span>
+            <p>AI 建议：<b>{EMOTION_NAMES[suggestion.analysis.label]}</b>（置信度 {suggestion.analysis.confidence.toFixed(2)}）。{suggestionHints.join("")}{isDemo ? "（演示数据，非真实模型结果）" : ""}</p>
+            {adopted === null
+              ? <button type="button" className="text-button" disabled={busy} onClick={adoptSuggestion}>{unknownSuggestion ? "仍采纳「说不清」" : "采纳建议"}</button>
+              : <p>已采纳 AI 建议；修改下方心情或细调后会按手动纠正保存。</p>}
+          </div>
+        )}
+        <EmotionCategoryPicker value={label} disabled={busy} onSelect={selectLabel} appearance="sticker" />
+        <details className="dimensions">
+          <summary><SlidersIcon />细调一下这种感觉 <span>（可选）</span><ChevronIcon /></summary>
+          {label === null ? <p>先选择一种心情，再调整细节。</p> : <div><p>已选「{EMOTION_NAMES[label]}」，可以按自己的感觉调整。</p><EmotionDimensionSliders value={dimensions} disabled={busy} onChange={changeDimensions} /></div>}
+        </details>
+      </div>
       {state.saveError && <div role="alert" className="save-error"><p>{state.saveError}</p><p>草稿已保留，本次未保存。</p>{state.pending && !state.tabConflict && <button type="button" onClick={() => void handleRetry()} disabled={state.saving} className="text-button">重试保存这一条</button>}</div>}
-      <button type="button" disabled={!canConfirm} onClick={() => void handleConfirm()} className="save-button">{state.saving ? "保存中…" : "保存今天的心情"} <span aria-hidden="true">↗</span></button>
-      {label === null && text.trim().length > 0 && <p className="form-hint">请先选择一个心情再保存。</p>}
-      {state.savedNotice && !state.saveError && <p role="status" className="form-hint">{state.savedNotice === "temporary" ? "已记录（仅本次会话，刷新后不保留）" : "已保存到本地"}　<Link href="/">回小屋看看 →</Link></p>}
+      <button type="button" disabled={!canConfirm} onClick={() => void handleConfirm()} className="save-button" aria-busy={state.saving}><SaveIcon /><span>{state.saving ? "保存中…" : "保存今天的心情"}</span></button>
+      {label === null && text.trim().length > 0 && <p className="form-hint save-hint">请先选择一个心情再保存。</p>}
+      {state.savedNotice && !state.saveError && <p role="status" className="form-hint saved-note"><span className="saved-stamp" aria-hidden="true">✓</span>{state.savedNotice === "temporary" ? "已记录（仅本次会话，刷新后不保留）" : "已保存到本地"}　<Link href="/">回小屋看看 →</Link></p>}
     </section>
+  );
+}
+
+function MoodHeadingIcon() {
+  return (
+    <svg className="mood-heading-icon" viewBox="0 0 32 32" aria-hidden="true">
+      <circle cx="16" cy="16" r="12.5" fill="#fde3bf" stroke="#d98a4e" strokeWidth="2" />
+      <circle cx="12" cy="14" r="1.6" fill="#7a4a2c" /><circle cx="20" cy="14" r="1.6" fill="#7a4a2c" />
+      <path d="M11.5 19c2.6 2.6 6.4 2.6 9 0" fill="none" stroke="#7a4a2c" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function SparkleIcon() {
+  return (
+    <svg className="btn-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M11 3c.6 4.4 2.6 6.4 7 7-4.4.6-6.4 2.6-7 7-.6-4.4-2.6-6.4-7-7 4.4-.6 6.4-2.6 7-7z" fill="#f2c94c" stroke="#a7802a" strokeWidth="1.3" strokeLinejoin="round" />
+      <path d="M19 15c.3 1.7 1 2.4 2.7 2.7-1.7.3-2.4 1-2.7 2.7-.3-1.7-1-2.4-2.7-2.7 1.7-.3 2.4-1 2.7-2.7z" fill="#a9c27a" />
+    </svg>
+  );
+}
+
+function SlidersIcon() {
+  return (
+    <svg className="btn-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <circle cx="9" cy="7" r="2.3" fill="#fffaf1" stroke="currentColor" strokeWidth="1.8" />
+      <circle cx="15" cy="12" r="2.3" fill="#fffaf1" stroke="currentColor" strokeWidth="1.8" />
+      <circle cx="8" cy="17" r="2.3" fill="#fffaf1" stroke="currentColor" strokeWidth="1.8" />
+    </svg>
+  );
+}
+
+function ChevronIcon() {
+  return (
+    <svg className="dimensions-chevron" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function SaveIcon() {
+  return (
+    <svg className="btn-icon save-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M5 4h11l3 3v12a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinejoin="round" />
+      <path d="M8 4v5h7V4M8 20v-6h8v6" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinejoin="round" />
+    </svg>
   );
 }
