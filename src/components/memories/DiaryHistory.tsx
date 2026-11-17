@@ -1,4 +1,5 @@
 "use client";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useApp } from "@/application/AppProvider";
 import { EntryEmotionCorrection } from "@/components/emotion/EntryEmotionCorrection";
@@ -8,6 +9,8 @@ import { PenguinFront } from "@/components/character/PenguinFront";
 import { formatDateTime } from "@/lib/format";
 
 const SOURCE_NAMES: Record<EmotionSource, string> = { ai: "AI 建议", manual: "手动选择", corrected: "手动纠正" };
+const LEAVE_CONFIRM = "正文还有未保存的修改，确定要离开吗？离开后这次修改会丢失。";
+const LEAVE_UNLOAD = "正文还有未保存的修改，离开后这次修改会丢失。";
 type FlipDirection = "prev" | "next";
 type FlipState = { direction: FlipDirection; from: Entry; to: Entry; duration: number; settling: boolean };
 const FLIP_SETTLE = 150;
@@ -118,6 +121,41 @@ export function DiaryHistory({ entries }: { entries: Entry[] }) {
      lockRef.current = false;
    };
  }, [clearTimers, finishFlipNow]);
+ // 未保存正文：刷新或关闭页面时走浏览器原生离开提醒（提示文案由浏览器控制）。
+ useEffect(() => {
+  if (!draftDirty) return;
+  const onBeforeUnload = (event: BeforeUnloadEvent) => {
+    event.preventDefault();
+    event.returnValue = LEAVE_UNLOAD;
+    return LEAVE_UNLOAD;
+  };
+  window.addEventListener("beforeunload", onBeforeUnload);
+  return () => window.removeEventListener("beforeunload", onBeforeUnload);
+ }, [draftDirty]);
+ // 未保存正文：拦截应用内链接导航，确认放弃才离开；取消则保留草稿和当前页。
+ const router = useRouter();
+ useEffect(() => {
+  if (!draftDirty) return;
+  const onClick = (event: MouseEvent) => {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    const anchor = event.target instanceof Element ? event.target.closest("a[href]") : null;
+    if (!(anchor instanceof HTMLAnchorElement)) return;
+    if (anchor.target && anchor.target !== "_self") return;
+    if (anchor.hasAttribute("download")) return;
+    const href = anchor.getAttribute("href");
+    if (!href || href.startsWith("#")) return;
+    let destination: URL;
+    try { destination = new URL(href, window.location.href); } catch { return; }
+    if (destination.origin !== window.location.origin) return;
+    if (destination.pathname === window.location.pathname && destination.search === window.location.search) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (!window.confirm(LEAVE_CONFIRM)) return;
+    router.push(`${destination.pathname}${destination.search}${destination.hash}`);
+  };
+  document.addEventListener("click", onClick, true);
+  return () => document.removeEventListener("click", onClick, true);
+ }, [draftDirty, router]);
  useEffect(() => {
    if (!selected) return;
    if (previousIdRef.current === null) { previousIdRef.current = selected.id; return; }
