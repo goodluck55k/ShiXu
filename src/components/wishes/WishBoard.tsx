@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { WishActionResult } from "@/application/wishTypes";
+import type { WishCompletionNotice } from "@/application/useWishHouse";
 import type { WishDecorIcon, WishStatus, WishView } from "./wishView";
 import { BoardSprig } from "./WishDecor";
 
@@ -22,12 +24,72 @@ function WishIcon({ icon }: { icon?: WishDecorIcon }) {
   }
 }
 
-/** Hand-journal wish board. Displays the wishes it is given; completion actions arrive in round two. */
-export function WishBoard({ wishes }: { wishes: WishView[] }) {
+function formatCompletedAt(completedAt: number | null): { label: string; dateTime: string } | null {
+  if (completedAt === null) return null;
+  const date = new Date(completedAt);
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return {
+    label: `${date.getFullYear()}.${month}.${day} 完成`,
+    dateTime: date.toISOString(),
+  };
+}
+
+function shorten(text: string, max = 24): string {
+  return text.length > max ? `${text.slice(0, max)}…` : text;
+}
+
+export function WishBoard({
+  wishes,
+  loading,
+  readable,
+  canWrite,
+  saving,
+  busyWishId,
+  completionNotice,
+  onComplete,
+}: {
+  wishes: WishView[];
+  loading: boolean;
+  readable: boolean;
+  canWrite: boolean;
+  saving: boolean;
+  busyWishId: string | null;
+  completionNotice: WishCompletionNotice | null;
+  onComplete: (wishId: string) => Promise<WishActionResult>;
+}) {
   const [tab, setTab] = useState<WishStatus>("pending");
-  const pending = wishes.filter((w) => w.status === "pending");
-  const completed = wishes.filter((w) => w.status === "completed");
+  const [completeError, setCompleteError] = useState<string | null>(null);
+  const [dismissedNonce, setDismissedNonce] = useState(0);
+  const submittingRef = useRef(false);
+  const pending = wishes.filter((wish) => wish.status === "pending");
+  const completed = wishes.filter((wish) => wish.status === "completed");
   const list = tab === "pending" ? pending : completed;
+
+  useEffect(() => {
+    if (!completionNotice) return;
+    const timer = window.setTimeout(() => setDismissedNonce(completionNotice.nonce), 6000);
+    return () => window.clearTimeout(timer);
+  }, [completionNotice]);
+
+  async function handleComplete(wish: WishView) {
+    if (saving || !canWrite || submittingRef.current) return;
+    submittingRef.current = true;
+    setCompleteError(null);
+    if (completionNotice) setDismissedNonce(completionNotice.nonce);
+    try {
+      const result = await onComplete(wish.id);
+      if (!result.ok) setCompleteError(result.reason);
+    } finally {
+      submittingRef.current = false;
+    }
+  }
+
+  const visibleCompletion = completionNotice && completionNotice.nonce !== dismissedNonce ? completionNotice : null;
+  const feedback = completeError ?? (
+    visibleCompletion ? `「${shorten(visibleCompletion.text)}」已经完成，变成了一颗星星。` : null
+  );
+
   return (
     <section className="wish-board" aria-label="愿望面板">
       <span className="wish-board-clip" aria-hidden="true">
@@ -38,28 +100,67 @@ export function WishBoard({ wishes }: { wishes: WishView[] }) {
           <button type="button" role="tab" id="wish-tab-pending" aria-selected={tab === "pending"} aria-controls="wish-list" className={tab === "pending" ? "wish-tab active" : "wish-tab"} onClick={() => setTab("pending")}>待完成（{pending.length}）</button>
           <button type="button" role="tab" id="wish-tab-completed" aria-selected={tab === "completed"} aria-controls="wish-list" className={tab === "completed" ? "wish-tab active" : "wish-tab"} onClick={() => setTab("completed")}>已完成（{completed.length}）</button>
         </div>
+        <div className="wish-board-feedback" role="status" aria-live="polite">
+          {feedback && (
+            <p className={completeError ? "wish-board-notice error" : "wish-board-notice success"} role={completeError ? "alert" : undefined}>
+              {feedback}
+            </p>
+          )}
+        </div>
         <div className="wish-list-wrap" id="wish-list" role="tabpanel" tabIndex={0} aria-labelledby={tab === "pending" ? "wish-tab-pending" : "wish-tab-completed"}>
-          {list.length > 0 ? (
+          {loading ? (
+            <div className="wish-empty">
+              <span aria-hidden="true">✧</span>
+              <p>正在打开许愿杯…</p>
+              <small>愿望只保存在这台设备里。</small>
+            </div>
+          ) : !readable ? (
+            <div className="wish-empty">
+              <span aria-hidden="true">✧</span>
+              <p>愿望暂时无法显示。</p>
+              <small>请查看上方的恢复提示。</small>
+            </div>
+          ) : list.length > 0 ? (
             <ul className="wish-list">
-              {list.map((wish) => (
-                <li key={wish.id} className={wish.status === "completed" ? "wish-item done" : "wish-item"}>
-                  <span className="wish-status" aria-hidden="true">
-                    {wish.status === "completed"
-                      ? <svg viewBox="0 0 22 22"><circle cx="11" cy="11" r="9.4" fill="#dbe39e" stroke="#8b9c50" strokeWidth="1.6" /><path d="m6.6 11.4 3 3 5.8-6.4" fill="none" stroke="#52612c" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                      : <svg viewBox="0 0 22 22"><circle cx="11" cy="11" r="9.4" fill="#fffdf4" stroke="#c9a25e" strokeWidth="1.8" /></svg>}
-                  </span>
-                  <span className="wish-text">{wish.text}</span>
-                  <span className="wish-heart" aria-hidden="true">♡</span>
-                  <WishIcon icon={wish.icon} />
-                  <span className="wish-sr">{wish.status === "completed" ? "已完成" : "待完成"}</span>
-                </li>
-              ))}
+              {list.map((wish) => {
+                const completedAt = wish.status === "completed" ? formatCompletedAt(wish.completedAt) : null;
+                const busy = busyWishId === wish.id;
+                return (
+                  <li key={wish.id} data-wish-id={wish.id} className={wish.status === "completed" ? "wish-item done" : "wish-item"}>
+                    <span className="wish-status" aria-hidden="true">
+                      {wish.status === "completed"
+                        ? <svg viewBox="0 0 22 22"><circle cx="11" cy="11" r="9.4" fill="#dbe39e" stroke="#8b9c50" strokeWidth="1.6" /><path d="m6.6 11.4 3 3 5.8-6.4" fill="none" stroke="#52612c" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                        : <svg viewBox="0 0 22 22"><circle cx="11" cy="11" r="9.4" fill="#fffdf4" stroke="#c9a25e" strokeWidth="1.8" /></svg>}
+                    </span>
+                    <span className="wish-text">
+                      <span className="wish-text-body">{wish.text}</span>
+                      {completedAt && <time className="wish-time" dateTime={completedAt.dateTime}>{completedAt.label}</time>}
+                    </span>
+                    {wish.icon && <WishIcon icon={wish.icon} />}
+                    <span className="wish-heart" aria-hidden="true">♡</span>
+                    {wish.status === "pending" && (
+                      <button
+                        type="button"
+                        className="wish-done"
+                        data-wish-id={wish.id}
+                        disabled={!canWrite || saving}
+                        aria-busy={busy}
+                        aria-label={`标记愿望「${wish.text}」为已完成`}
+                        onClick={() => void handleComplete(wish)}
+                      >
+                        {busy ? "完成中…" : "完成"}
+                      </button>
+                    )}
+                    <span className="wish-sr">{wish.status === "completed" ? "已完成" : "待完成"}</span>
+                  </li>
+                );
+              })}
             </ul>
           ) : (
             <div className="wish-empty">
               <span aria-hidden="true">✧</span>
-              <p>{tab === "pending" ? "还没有写下愿望。" : "还没有完成的愿望。"}</p>
-              <small>{tab === "pending" ? "在下方写下第一个小小愿望吧。" : "慢慢来，每一个愿望都值得等待。"}</small>
+              <p>{tab === "pending" ? (completed.length > 0 ? "待完成的小愿望都完成啦。" : "还没有写下愿望。") : "还没有完成的愿望。"}</p>
+              <small>{tab === "pending" ? (completed.length > 0 ? "新的小愿望也可以放进许愿杯里。" : "在下方写下第一个小小愿望吧。") : "慢慢来，每一个愿望都值得等待。"}</small>
             </div>
           )}
         </div>

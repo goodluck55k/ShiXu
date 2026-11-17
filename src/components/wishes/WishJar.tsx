@@ -1,34 +1,15 @@
-import { MAX_VISIBLE_BALLS, MAX_VISIBLE_STARS } from "./wishView";
+"use client";
 
-type BallPalette = { base: string; light: string; dark: string; line: string };
-
-const PALETTES: Record<string, BallPalette> = {
-  pink: { base: "#f2bdb6", light: "#fae0db", dark: "#dd8f86", line: "#c97c74" },
-  green: { base: "#c8dc9e", light: "#e7f1cd", dark: "#99b871", line: "#82a058" },
-  cream: { base: "#f7ebcf", light: "#fdf8e9", dark: "#e0c99f", line: "#c9ad7f" },
-  peach: { base: "#f6d9b4", light: "#fdeed8", dark: "#e5b988", line: "#cba06c" },
-  yellow: { base: "#f6df9f", light: "#fcf0cd", dark: "#e6c47e", line: "#cfa961" },
-};
-
-// Fixed composition slots (candidate layout, subject to visual review).
-const BALL_SLOTS = [
-  { x: 150, y: 488, s: 1.22, r: -8, p: "pink" },
-  { x: 238, y: 512, s: 1.28, r: 6, p: "cream" },
-  { x: 316, y: 484, s: 1.16, r: -14, p: "green" },
-  { x: 180, y: 420, s: 1.1, r: 12, p: "green" },
-  { x: 272, y: 428, s: 1.12, r: -5, p: "pink" },
-  { x: 340, y: 428, s: 0.95, r: 18, p: "peach" },
-  { x: 128, y: 430, s: 0.88, r: 20, p: "peach" },
-  { x: 226, y: 368, s: 0.95, r: -10, p: "yellow" },
-];
-
-const STAR_SLOTS = [
-  { x: 240, y: 58, s: 1.0, r: -12 },
-  { x: 156, y: 116, s: 0.72, r: 14 },
-  { x: 314, y: 122, s: 0.8, r: -20 },
-  { x: 116, y: 50, s: 0.5, r: 8 },
-  { x: 338, y: 42, s: 0.55, r: -6 },
-];
+import { useEffect, useState, type CSSProperties } from "react";
+import type { WishCelebrationSignal } from "@/application/wishTypes";
+import type { WishView } from "./wishView";
+import {
+  assignBallSlots,
+  assignStarSlots,
+  type BallLayoutItem,
+  type BallPalette,
+  type StarLayoutItem,
+} from "./wishLayout";
 
 function starPoints(radius: number) {
   const pts: string[] = [];
@@ -53,13 +34,21 @@ function PaperBall({ palette }: { palette: BallPalette }) {
   );
 }
 
-function WishStar({ x, y, s, r, delay }: { x: number; y: number; s: number; r: number; delay: number }) {
+function WishStarShape({ delay }: { delay?: number }) {
   return (
-    <g transform={`translate(${x} ${y}) rotate(${r}) scale(${s})`}>
-      <circle className="wish-star-glow" style={{ animationDelay: `${delay}s` }} r="46" fill="url(#wish-glow)" />
+    <g>
+      <circle className="wish-star-glow" style={delay === undefined ? undefined : { animationDelay: `${delay}s` }} r="46" fill="url(#wish-glow)" />
       <polygon points={starPoints(30)} fill="url(#wish-star)" stroke="#f2bd45" strokeWidth="5" strokeLinejoin="round" />
       <polygon points={starPoints(19)} fill="#fff3c4" opacity=".55" />
       <path d="M-7 -12 L-2 -16" stroke="#fffbe0" strokeWidth="3" strokeLinecap="round" opacity=".9" />
+    </g>
+  );
+}
+
+function WishStar({ wishId, x, y, s, r, delay }: { wishId: string; x: number; y: number; s: number; r: number; delay: number }) {
+  return (
+    <g data-wish-id={wishId} data-wish-kind="star" transform={`translate(${x} ${y}) rotate(${r}) scale(${s})`}>
+      <WishStarShape delay={delay} />
     </g>
   );
 }
@@ -83,12 +72,122 @@ function LaceDoily() {
 
 const JAR_BODY = "M112 190 C108 214 106 228 112 244 C76 280 60 330 60 392 C60 470 96 536 150 556 C180 566 280 566 310 556 C364 536 400 470 400 392 C400 330 384 280 348 244 C354 228 352 214 348 190 A118 26 0 0 1 112 190 Z";
 
-/** Presentation-only glass wish jar: pending wishes are paper balls inside, completed wishes are stars above. */
-export function WishJar({ pending, completed }: { pending: number; completed: number }) {
-  const balls = BALL_SLOTS.slice(0, Math.min(pending, MAX_VISIBLE_BALLS));
-  const stars = STAR_SLOTS.slice(0, Math.min(completed, MAX_VISIBLE_STARS));
+interface ActiveRise {
+  nonce: number;
+  wishId: string;
+  from: BallLayoutItem | null;
+  start: { x: number; y: number };
+  to: { x: number; y: number; scale: number; rotation: number };
+  toVisible: boolean;
+}
+
+function deriveActiveRise(
+  celebration: WishCelebrationSignal | null,
+  pending: WishView[],
+  completed: WishView[],
+  starLayout: StarLayoutItem[],
+  reducedMotion: boolean,
+  finishedNonce: number,
+): ActiveRise | null {
+  if (!celebration || reducedMotion || celebration.nonce === finishedNonce) return null;
+  const completedWish = completed.find((wish) => wish.id === celebration.wishId);
+  if (!completedWish) return null;
+  // Rebuilding the pending list with the completed wish restores the exact ball
+  // layout that was on screen before this persisted completion.
+  const previousPending: WishView[] = [
+    ...pending,
+    { ...completedWish, status: "pending", completedAt: null },
+  ];
+  const from = assignBallSlots(previousPending).find((item) => item.wish.id === celebration.wishId) ?? null;
+  const target = starLayout.find((item) => item.wish.id === celebration.wishId) ?? null;
+  return {
+    nonce: celebration.nonce,
+    wishId: celebration.wishId,
+    from,
+    // A capped-out wish has no visible ball; rise from the mouth instead of borrowing another ball.
+    start: from ? { x: from.slot.x, y: from.slot.y } : { x: 230, y: 188 },
+    to: target
+      ? { x: target.slot.x, y: target.slot.y, scale: target.scale, rotation: target.rotation }
+      : { x: 232, y: 74, scale: 0.62, rotation: -8 },
+    toVisible: target !== null,
+  };
+}
+
+function useReducedMotion(): boolean {
+  const [reduced, setReduced] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+  );
+  useEffect(() => {
+    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const onChange = (event: MediaQueryListEvent) => setReduced(event.matches);
+    query.addEventListener("change", onChange);
+    return () => query.removeEventListener("change", onChange);
+  }, []);
+  return reduced;
+}
+
+/**
+ * Presentation-only glass wish jar. Every visible paper ball maps to one real
+ * pending wish id and every visible star maps to one real completed wish id.
+ * Completion motion is a transient overlay after persistence; it never writes.
+ */
+export function WishJar({
+  pending,
+  completed,
+  celebration,
+}: {
+  pending: WishView[];
+  completed: WishView[];
+  celebration: WishCelebrationSignal | null;
+}) {
+  const reducedMotion = useReducedMotion();
+  const ballLayout = assignBallSlots(pending);
+  const starLayout = assignStarSlots(completed);
+  const [finishedNonce, setFinishedNonce] = useState(0);
+  const activeRise = deriveActiveRise(celebration, pending, completed, starLayout, reducedMotion, finishedNonce);
+
+  useEffect(() => {
+    if (!activeRise) return;
+    // animationend 正常结束动画；该定时器防止动画事件缺失时留下半完成覆盖层。
+    const timer = window.setTimeout(() => setFinishedNonce(activeRise.nonce), 2000);
+    return () => window.clearTimeout(timer);
+  }, [activeRise]);
+
+  const hiddenStarId = activeRise?.toVisible ? activeRise.wishId : null;
+  const riseStyle = activeRise
+    ? ({
+        "--rise-from-x": `${activeRise.start.x}px`,
+        "--rise-from-y": `${activeRise.start.y}px`,
+        "--rise-mid-x": `${activeRise.start.x + (activeRise.to.x - activeRise.start.x) * 0.42 + 18}px`,
+        "--rise-mid-y": `${activeRise.start.y + (activeRise.to.y - activeRise.start.y) * 0.52}px`,
+        "--rise-to-x": `${activeRise.to.x}px`,
+        "--rise-to-y": `${activeRise.to.y}px`,
+      } as CSSProperties)
+    : undefined;
+  const ballStyle = activeRise?.from
+    ? ({
+        "--ball-start-scale": `${activeRise.from.scale}`,
+        "--ball-mid-scale": `${activeRise.from.scale * 0.6}`,
+        "--ball-end-scale": `${activeRise.from.scale * 0.28}`,
+        "--ball-start-rotate": `${activeRise.from.rotation}deg`,
+        "--ball-end-rotate": `${activeRise.from.rotation + 40}deg`,
+      } as CSSProperties)
+    : undefined;
+  const starStyle = activeRise
+    ? ({
+        "--star-end-scale": `${activeRise.to.scale}`,
+        "--star-start-rotate": `${activeRise.to.rotation}deg`,
+        "--star-end-rotate": `${activeRise.to.rotation + 20}deg`,
+      } as CSSProperties)
+    : undefined;
+
   return (
-    <svg viewBox="0 0 460 640" role="img" aria-label={`玻璃许愿杯：${pending} 个未完成愿望纸团，${completed} 颗已完成愿望星星`} className="wish-jar-svg">
+    <svg
+      viewBox="0 0 460 640"
+      role="img"
+      aria-label={`玻璃许愿杯：共 ${pending.length} 个未完成愿望，杯中显示 ${ballLayout.length} 个纸团；共 ${completed.length} 个已完成愿望，空中显示 ${starLayout.length} 颗星星`}
+      className="wish-jar-svg"
+    >
       <defs>
         <linearGradient id="wish-glass-edge" x1="0" y1="0" x2="1" y2="0">
           <stop offset="0" stopColor="#ffffff" stopOpacity=".52" />
@@ -144,12 +243,12 @@ export function WishJar({ pending, completed }: { pending: number; completed: nu
 
       <g clipPath="url(#wish-jar-clip)">
         <ellipse cx="230" cy="540" rx="150" ry="26" fill="#b98a55" opacity=".16" />
-        {balls.map((b, i) => (
-          <g key={i} transform={`translate(${b.x} ${b.y}) rotate(${b.r}) scale(${b.s})`}>
-            <PaperBall palette={PALETTES[b.p]} />
+        {ballLayout.map((ball) => (
+          <g key={ball.wish.id} data-wish-id={ball.wish.id} data-wish-kind="ball" transform={`translate(${ball.slot.x} ${ball.slot.y}) rotate(${ball.rotation}) scale(${ball.scale})`}>
+            <PaperBall palette={ball.palette} />
           </g>
         ))}
-        {pending === 0 && completed === 0 && <ellipse cx="230" cy="500" rx="120" ry="40" fill="#fff6e0" opacity=".22" />}
+        {pending.length === 0 && completed.length === 0 && <ellipse cx="230" cy="500" rx="120" ry="40" fill="#fff6e0" opacity=".22" />}
       </g>
 
       {/* front glass: refraction veil, highlights and thick base */}
@@ -199,12 +298,16 @@ export function WishJar({ pending, completed }: { pending: number; completed: nu
       </g>
 
       {/* completed wishes: warm stars rising from the mouth */}
-      {stars.length > 0 && (
+      {starLayout.length > 0 && (
         <g>
           <path d="M232 176 C242 142 226 112 240 86" fill="none" stroke="#f7cf6f" strokeWidth="2.6" strokeDasharray="1 7" strokeLinecap="round" opacity=".85" />
           <path d="M252 178 C278 156 292 148 306 140" fill="none" stroke="#f7cf6f" strokeWidth="2.2" strokeDasharray="1 7" strokeLinecap="round" opacity=".7" />
           <path d="M212 178 C196 158 178 146 166 136" fill="none" stroke="#f7cf6f" strokeWidth="2.2" strokeDasharray="1 7" strokeLinecap="round" opacity=".7" />
-          {stars.map((s, i) => <WishStar key={i} {...s} delay={i * 0.7} />)}
+          {starLayout.map((star) =>
+            star.wish.id === hiddenStarId ? null : (
+              <WishStar key={star.wish.id} wishId={star.wish.id} x={star.slot.x} y={star.slot.y} s={star.scale} r={star.rotation} delay={star.delay} />
+            ),
+          )}
           <g stroke="#f2c14e" strokeWidth="2.4" strokeLinecap="round" opacity=".9">
             <path d="M368 108 v14 M361 115 h14" />
             <path d="M104 150 v10 M99 155 h10" />
@@ -212,6 +315,30 @@ export function WishJar({ pending, completed }: { pending: number; completed: nu
           </g>
           <g fill="#f7cf6f">
             <circle cx="352" cy="170" r="2.6" /><circle cx="128" cy="104" r="2.2" /><circle cx="206" cy="40" r="2.4" /><circle cx="388" cy="140" r="2" />
+          </g>
+        </g>
+      )}
+
+      {/* transient completion motion: paper ball rises and becomes a warm star */}
+      {activeRise && (
+        <g
+          key={activeRise.nonce}
+          className="wish-rise"
+          style={riseStyle}
+          aria-hidden="true"
+          data-wish-id={activeRise.wishId}
+          data-wish-kind="rise"
+          onAnimationEnd={(event) => {
+            if (event.target === event.currentTarget) setFinishedNonce(activeRise.nonce);
+          }}
+        >
+          {activeRise.from && (
+            <g className="wish-rise-ball" style={ballStyle}>
+              <PaperBall palette={activeRise.from.palette} />
+            </g>
+          )}
+          <g className={activeRise.toVisible ? "wish-rise-star" : "wish-rise-star ephemeral"} style={starStyle}>
+            <WishStarShape />
           </g>
         </g>
       )}
