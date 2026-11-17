@@ -361,21 +361,21 @@ body { background:radial-gradient(circle at 80% 0,#fffaf0 0,transparent 38%),var
 }
 @media (max-width:700px) {
   .wishes-shell .main-content { padding:18px 14px 26px; }
-  .mobile-wish-brand { display:block; font:24px Georgia,'Songti SC',serif; color:#72883f; margin:0 0 12px 4px; }
+  .mobile-wish-brand { display:block; font:24px Georgia,'Songti SC',serif; color:#72883f; margin:0 0 6px 4px; }
   .mobile-wish-brand b { color:#543a2a; }
   .mobile-wish-brand small { font-size:14px; }
   .wish-header { margin-bottom:10px; }
   .wish-header h1 { font-size:30px; }
   .wish-header p:not(.eyebrow) { font-size:12.5px; line-height:1.65; max-width:80%; }
   .wish-corner-leaves { width:108px; right:-8px; top:-8px; }
-  .wish-scene { aspect-ratio:375/290; border-width:4px; border-radius:20px; }
+  .wish-scene { aspect-ratio:375/260; border-width:4px; border-radius:20px; }
   .wish-jar { left:auto; right:1%; bottom:2%; width:56%; }
   .wish-penguin { left:2%; bottom:5%; width:37%; }
   .wish-decor.note { left:2%; top:6%; width:27%; }
   .wish-decor.books-left,.wish-decor.daisies,.wish-decor.cup,.wish-decor.books-right { display:none; }
-  .wish-board { position:relative; top:auto; right:auto; width:100%; min-width:0; margin:24px 0 0; }
+  .wish-board { position:relative; top:auto; right:auto; width:100%; min-width:0; margin:18px 0 0; }
   .wish-board-clip { width:34px; top:-23px; }
-  .wish-list-wrap { max-height:264px; }
+  .wish-list-wrap { max-height:158px; }
   .wish-item { padding:9px 6px; }
   .wish-composer { position:static; margin:12px 0 0; padding:10px; flex-wrap:wrap; }
   .wish-pencil { width:26px; height:26px; }

@@ -11,6 +11,9 @@ export function NoteCard() {
             <stop offset="0" stopColor="#fff8e6" /><stop offset="1" stopColor="#f0dcb4" />
           </linearGradient>
         </defs>
+        <path d="M20 202 Q112 208 205 197 L212 208 L18 216 Z" fill="#d5b88b" opacity=".16" />
+        <path d="M185 207 Q200 202 208 191 L212 208 Z" fill="#fff9e8" opacity=".7" />
+        <g stroke="#c4a77c" strokeWidth=".7" opacity=".16"><path d="M27 43 Q91 40 154 38 M30 183 Q102 180 179 176 M34 192 Q110 188 182 185" /></g>
         <rect x="86" y="8" width="52" height="18" rx="2" fill="#e9d9a8" opacity=".9" transform="rotate(2 112 17)" />
         <g fill="#8a6a48" fontFamily="'KaiTi','Songti SC',serif" fontSize="17">
           <text x="34" y="66">一个一个小愿望，</text>

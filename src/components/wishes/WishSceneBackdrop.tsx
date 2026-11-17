@@ -47,6 +47,13 @@ export function WishSceneBackdrop() {
           <circle cx="120" cy="470" r="52" fill="#c3d996" opacity=".5" />
           <ellipse cx="360" cy="220" rx="180" ry="110" fill="#fffbe8" opacity=".6" />
         </g>
+        <g opacity=".28" fill="#86a765" filter="url(#ws-bokeh)">
+          <path d="M105 490 Q135 340 215 245 Q180 355 105 490 M135 387 Q95 355 94 310 Q150 326 135 387 M160 340 Q167 280 220 261 Q218 316 160 340" />
+          <path d="M560 500 Q530 340 450 240 Q492 359 560 500 M531 385 Q574 350 579 305 Q522 328 531 385 M505 335 Q493 280 448 260 Q451 310 505 335" />
+        </g>
+        <g fill="#9cb97b" opacity=".22">
+          <path d="M116 305 Q125 248 176 226 Q172 279 116 305 Z M513 235 Q544 180 596 188 Q570 238 513 235 Z M410 420 Q449 373 486 385 Q461 430 410 420 Z" />
+        </g>
         <path d="M86 60 L300 60 L180 530 L86 530 Z" fill="#fffdf0" opacity=".35" />
       </g>
       <g fill="#c98d5a" stroke="#a96f3f" strokeWidth="2">
@@ -63,6 +70,8 @@ export function WishSceneBackdrop() {
         <path d="M692 0 C724 110 712 240 726 380 C736 480 722 560 734 620" />
         <path d="M726 0 C752 120 742 260 754 400 C762 500 750 570 760 620" />
       </g>
+      <path d="M675 0 Q714 180 711 360 T728 620 L750 620 Q731 420 742 240 T709 0 Z" fill="#fff9e9" opacity=".26" />
+      <path d="M750 0 Q773 210 762 350 T775 620" fill="none" stroke="#ae875f" strokeWidth="12" opacity=".08" />
 
       {/* sunbeams across the room */}
       <path d="M250 90 L640 640 L880 640 L430 70 Z" fill="url(#ws-beam)" opacity=".5" />
@@ -83,6 +92,13 @@ export function WishSceneBackdrop() {
       </g>
       <ellipse cx="700" cy="560" rx="520" ry="70" fill="#ffe9b8" opacity=".38" />
       <ellipse cx="500" cy="640" rx="360" ry="56" fill="#fff3cf" opacity=".28" />
+      <path d="M10 520 L340 520 L590 800 L380 800 Z M385 515 L500 515 L770 800 L690 800 Z" fill="#fff0cb" opacity=".12" />
+      <g fill="none" stroke="#8e603b" opacity=".16" strokeLinecap="round">
+        <path d="M10 540 Q180 529 340 541 T690 539 M720 548 Q930 535 1130 547 T1400 543 M40 608 Q240 596 420 608 T780 606 M850 617 Q1080 602 1390 614 M15 685 Q250 672 485 683 T900 683 M780 764 Q1050 750 1390 763" strokeWidth="2" />
+        <path d="M80 550 Q190 545 290 551 M565 621 Q680 614 780 620 M1020 692 Q1180 684 1300 690 M260 760 Q400 753 540 759" />
+      </g>
+      <ellipse cx="300" cy="602" rx="125" ry="18" fill="#704a30" opacity=".14" />
+      <ellipse cx="615" cy="612" rx="185" ry="20" fill="#704a30" opacity=".13" />
 
       {/* hanging leaves, top-left */}
       <g>
@@ -100,6 +116,7 @@ export function WishSceneBackdrop() {
           <path d="M130 70 Q150 52 168 68 Q154 88 130 70 Z" />
           <path d="M140 130 Q160 116 176 132 Q160 150 140 130 Z" />
         </g>
+        <g fill="none" stroke="#617f45" strokeWidth="1" opacity=".45"><path d="M40 29 Q39 48 34 61 M92 51 Q94 70 94 88 M150 81 Q155 102 156 119 M70 40 Q89 37 104 35 M130 70 Q149 69 164 68" /></g>
       </g>
     </svg>
   );

@@ -44,15 +44,11 @@ function PaperBall({ palette }: { palette: BallPalette }) {
   return (
     <g>
       <ellipse cx="0" cy="34" rx="34" ry="8" fill="#a97c4e" opacity=".16" />
-      <path d="M-38 -6 L-24 -32 L2 -40 L30 -26 L40 2 L26 30 L-2 38 L-30 24 Z" fill={palette.base} stroke={palette.line} strokeWidth="2" strokeLinejoin="round" />
-      <path d="M-24 -32 L2 -40 L6 -8 L-16 -6 Z" fill={palette.light} />
-      <path d="M2 -40 L30 -26 L40 2 L6 -8 Z" fill={palette.light} opacity=".55" />
-      <path d="M40 2 L26 30 L4 12 L6 -8 Z" fill={palette.dark} opacity=".5" />
-      <path d="M26 30 L-2 38 L4 12 Z" fill={palette.base} />
-      <path d="M-2 38 L-30 24 L-16 -6 L4 12 Z" fill={palette.light} opacity=".6" />
-      <path d="M-30 24 L-38 -6 L-16 -6 Z" fill={palette.dark} opacity=".35" />
-      <path d="M-16 -6 L6 -8 L4 12 M6 -8 L2 -40 M4 12 L-2 38 M-16 -6 L-24 -32" fill="none" stroke={palette.line} strokeWidth="1.1" opacity=".55" strokeLinejoin="round" />
-      <path d="M-20 -26 L-4 -32" stroke="#ffffff" strokeWidth="2.4" strokeLinecap="round" opacity=".65" />
+      <path d="M-37 -8 Q-40 -20 -29 -27 Q-25 -38 -12 -36 Q-3 -43 8 -37 Q22 -39 28 -29 Q39 -25 37 -13 Q43 -3 36 7 Q38 19 27 25 Q20 36 8 34 Q-2 41 -13 34 Q-26 36 -30 25 Q-40 20 -36 9 Q-42 1 -37 -8 Z" fill={palette.base} stroke={palette.line} strokeWidth="1.2" strokeOpacity=".55" />
+      <path d="M-33 7 Q-28 22 -17 25 Q-4 35 8 29 Q23 31 33 12 Q29 31 8 34 Q-2 41 -13 34 Q-29 35 -33 24 Z" fill={palette.dark} opacity=".28" />
+      <path d="M-30 -18 Q-22 -34 -9 -30 Q1 -37 13 -29 Q24 -30 29 -19 Q18 -24 9 -17 Q-5 -24 -14 -15 Q-24 -20 -30 -18 Z" fill={palette.light} opacity=".7" />
+      <path d="M-29 -13 Q-18 -9 -15 0 Q-9 -5 -3 -3 M-15 0 Q-22 8 -19 17 M-4 -26 Q-1 -17 7 -14 Q3 -8 8 -3 M23 -20 Q18 -12 22 -6 Q15 -2 16 5 M-8 24 Q-1 18 1 11 Q8 15 14 12 M27 7 Q21 10 20 18" fill="none" stroke={palette.line} strokeWidth="1.25" opacity=".46" strokeLinecap="round" />
+      <path d="M-25 -23 Q-18 -28 -11 -25 M-9 3 Q-3 0 2 3 M12 -22 Q17 -24 21 -20 M-13 20 Q-8 17 -5 19" fill="none" stroke="#fffdf4" strokeWidth="2" opacity=".55" strokeLinecap="round" />
     </g>
   );
 }
@@ -144,6 +140,7 @@ export function WishJar({ pending, completed }: { pending: number; completed: nu
       {/* back wall of the glass */}
       <path d={JAR_BODY} fill="url(#wish-glass-edge)" stroke="#bfae97" strokeWidth="3" strokeOpacity=".9" />
       <path d={JAR_BODY} fill="#fff8ec" opacity=".14" />
+      <path d="M119 256 C88 301 73 356 80 416 C85 466 105 513 144 542 M341 255 C376 307 389 360 380 420 C374 470 355 511 320 539" fill="none" stroke="#997b60" strokeWidth="7" opacity=".13" filter="url(#wish-soft)" />
 
       <g clipPath="url(#wish-jar-clip)">
         <ellipse cx="230" cy="540" rx="150" ry="26" fill="#b98a55" opacity=".16" />
@@ -166,6 +163,8 @@ export function WishJar({ pending, completed }: { pending: number; completed: nu
         <path d="M168 300 L186 282 M176 316 L200 292" stroke="#ffffff" strokeWidth="4" strokeLinecap="round" opacity=".5" />
       </g>
       <path d={JAR_BODY} fill="none" stroke="#ffffff" strokeWidth="2" strokeOpacity=".75" />
+      <path d="M138 539 Q230 579 322 539 M151 549 Q230 575 309 549" fill="none" stroke="#a9896c" strokeWidth="4" opacity=".25" />
+      <path d="M152 552 Q230 570 308 552" fill="none" stroke="#fff9ea" strokeWidth="3" opacity=".65" />
 
       {/* thick glass rim */}
       <ellipse cx="230" cy="197" rx="120" ry="27" fill="none" stroke="#cbb79e" strokeWidth="2.4" opacity=".55" />

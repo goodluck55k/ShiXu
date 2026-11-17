@@ -38,7 +38,7 @@ export function WishBoard({ wishes }: { wishes: WishView[] }) {
           <button type="button" role="tab" id="wish-tab-pending" aria-selected={tab === "pending"} aria-controls="wish-list" className={tab === "pending" ? "wish-tab active" : "wish-tab"} onClick={() => setTab("pending")}>待完成（{pending.length}）</button>
           <button type="button" role="tab" id="wish-tab-completed" aria-selected={tab === "completed"} aria-controls="wish-list" className={tab === "completed" ? "wish-tab active" : "wish-tab"} onClick={() => setTab("completed")}>已完成（{completed.length}）</button>
         </div>
-        <div className="wish-list-wrap" id="wish-list" role="tabpanel" aria-labelledby={tab === "pending" ? "wish-tab-pending" : "wish-tab-completed"}>
+        <div className="wish-list-wrap" id="wish-list" role="tabpanel" tabIndex={0} aria-labelledby={tab === "pending" ? "wish-tab-pending" : "wish-tab-completed"}>
           {list.length > 0 ? (
             <ul className="wish-list">
               {list.map((wish) => (
