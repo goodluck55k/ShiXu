@@ -2,7 +2,7 @@
 
 > 状态：V1 架构基线。标注「已实现」的以 `main` 分支代码为准；「阶段 N 规划」表示尚未合入。产品范围见 [PRODUCT_SPEC](PRODUCT_SPEC.md)，性格与行为参数见 [COMPANION_SPEC](COMPANION_SPEC.md)。
 >
-> 存档结构为 `schemaVersion` 4（STO-05，PR #35 已合入）；v1/v2/v3 读取时迁移。本文档版本与存档版本无关。截至本版，`main` 已含 `schemaVersion` 4、五维 `personality-v2` 台账与迁移（PR #18）、主导行为引擎（PR #19）、离线自主生活（PR #20）、久别重逢（PR #22）、AI 情绪识别复核（PR #23）与待处理重逢问候持久化/确认（PR #35）。阶段七的原创企鹅正面母版（PR #27）、九种组合表情（PR #28）、侧背面与基础动作（PR #30）、特殊动作视觉（PR #31）与特殊行为正式接入（PR #32）均已合入。特殊行为配置已开启，真实长期自然触发待进一步验收；生活空间与正式 UI 尚未开发。许愿屋独立开发包（PR #43，`feature/wish-house`）新增独立 `wishes` 领域模块与 `shixu.wishes.v1` 存储，不修改 `Snapshot` v4；代码已实现并等待用户功能验收。当前整体进度以 [ROADMAP](ROADMAP.md) §1.1 为准。
+> 存档结构为 `schemaVersion` 4（STO-05，PR #35 已合入）；v1/v2/v3 读取时迁移。本文档版本与存档版本无关。截至本版，`main` 已含 `schemaVersion` 4、五维 `personality-v2` 台账与迁移（PR #18）、主导行为引擎（PR #19）、离线自主生活（PR #20）、久别重逢（PR #22）、AI 情绪识别复核（PR #23）与待处理重逢问候持久化/确认（PR #35）。阶段七的原创企鹅正面母版（PR #27）、九种组合表情（PR #28）、侧背面与基础动作（PR #30）、特殊动作视觉（PR #31）、特殊行为正式接入（PR #32）、生活空间与三页正式 UI（PR #38）及回忆手帐翻页（PR #41）均已合入。特殊行为配置已开启，真实长期自然触发待进一步验收；完整体验、移动端与跨设备验收未完成。许愿屋独立开发包（PR #43）新增独立 `wishes` 领域模块与 `shixu.wishes.v1` 存储，不修改 `Snapshot` v4，已合入 `main`。正式数据仅保存在浏览器 localStorage，没有登录、数据库或云同步。阶段八已于 2026-11-17 开始 S8-00 启动审计，真实百炼联调与 Qoder Sites 公网部署尚未完成。当前整体进度以 [ROADMAP](ROADMAP.md) §1.1 为准。
 
 ## 1. 架构原则
 
@@ -75,7 +75,7 @@ graph TD
 
 | 路径 | 状态 | 责任 |
 | --- | --- | --- |
-| `src/app/{layout,page}.tsx`、`src/app/companion/page.tsx`、`src/app/memories/page.tsx` | 已实现（临时路由） | 当前 `/` 为日记、`/companion` 为陪伴、`/memories` 为回忆；正式 `/` 小屋、`/diary` 日记与 `/companion` 兼容尚未实施 |
+| `src/app/{layout,page}.tsx`、`src/app/{diary,memories,wishes}/page.tsx`、`src/app/companion/page.tsx` | 已实现（阶段七/许愿屋） | `/` 企鹅小屋、`/diary` 心情日记、`/memories` 回忆手帐（含真实翻页）、`/wishes` 许愿屋；`/companion` 重定向到 `/`；四页已合入 `main`，移动端、断点与跨设备体验待验收 |
 | `src/app/character-preview/*` | 已实现（仅开发预览） | 角色、表情、侧背面/动作与特殊行为模拟预览；不属于正式产品导航，不写正式存档 |
 | `src/app/api/emotion/route.ts` | 已实现 | 服务端情绪识别入口 |
 | `src/application/AppProvider.tsx` | 已实现，阶段二至五扩展 | 状态编排、保存、会话启动、恢复、跨标签页冲突、待处理问候投递与确认（PR #35 已合入）；问候本身持久化在快照中；保存反馈的“已开始展示”标记由 Provider 持有，不进入快照 |
@@ -96,16 +96,16 @@ graph TD
 | `src/config/behavior.ts` | 阶段三已实现（PR #19） | `BehaviorRuleConfig` |
 | `src/config/offlineLife.ts` | 阶段四已实现（PR #20） | `OfflineLifeRuleConfig` |
 | `src/config/reunion.ts` | 阶段五已实现（PR #22） | `ReunionRuleConfig` |
-| 阶段七角色/表情/场景配置 | 部分以组件内视觉常量实现；正式场景配置未创建 | 颜色、姿态与动作节奏暂为角色组件常量；正式生活空间配置的文件名、版本与参数待任务卡确认 |
+| 阶段七角色/表情/场景配置 | 视觉常量位于角色组件；场景布局位于 `roomLayout.ts` | 颜色、姿态与动作节奏暂为角色组件常量；房间区域、目的地映射与路径为 `roomLayout.ts` 常量；独立版本化场景配置未创建 |
 | `src/lib/storage/{port,localStorageAdapter}.ts` | 已实现 | 存储接口与浏览器实现 |
 | `src/domain/wishes.ts` | 已实现（PR #43） | 愿望类型、创建/完成纯函数、集合校验 |
 | `src/lib/storage/wishStorage.ts` | 已实现（PR #43） | 独立 `shixu.wishes.v1` 读取/保存/重置、修订检查、Web Locks 写入互斥、损坏/未来版本保护 |
 | `src/application/useWishHouse.ts`、`src/application/wishTypes.ts` | 已实现（PR #43） | 愿望加载、创建、完成、冲突、恢复、一次性完成动画信号、开发样例内存隔离 |
 | `src/components/wishes/*` | 已实现（PR #43） | 许愿屋页面、玻璃杯、愿望板、输入、存储提示与稳定槽位；不改其他三页 |
 | `scripts/wishTests.ts`、`scripts/run-wish-tests.cjs` | 已实现（PR #43） | 愿望领域/存储/槽位专项测试工具；不进入生产构建 |
-| `src/components/character/CharacterRenderer.tsx` | 已实现（临时姿态/表情/动画载体） | 已接入原创企鹅正面母版（PR #27）、九种组合表情（PR #28）、侧背/基础动作（PR #30）与特殊动作（PR #31）；正式场景尚未实现 |
+| `src/components/character/CharacterRenderer.tsx` | 已实现（姿态/表情/动画载体） | 已接入原创企鹅正面母版（PR #27）、九种组合表情（PR #28）、侧背/基础动作（PR #30）、特殊动作（PR #31）与四页正式界面（PR #38）；移动端与跨设备体验待验收 |
 | `src/components/character/{PenguinFront,PenguinFace,PenguinPoses}.tsx`、`specialMotion.ts` | 已实现（PR #27 / #28 / #30 / #31） | 正面母版、组合表情、侧背面与基础动作、特殊动作视觉；`drink` 使用啤酒瓶；`SPECIAL_MOTION_MS=8000` |
-| `src/components/character/` 正式场景组件 | 规划，未创建 | 企鹅小屋、生活空间与正式 UI 组件；具体文件与资源路径由后续任务卡确认，不得把规划路径当作已有文件 |
+| `src/components/character/{CompanionScreen,RoomScene}.tsx`、`roomLayout.ts` | 已实现（PR #38） | 企鹅小屋、生活空间与正式 UI 场景；区域坐标、目的地与安全路径；移动端细节与跨设备体验待验收 |
 | `src/components/character/OfflineLifePanel.tsx` | 阶段四已实现（PR #20） | 只读已落盘离线事件，区分本次与历史；不写日记/回忆/分数 |
 | `src/components/character/ReunionPanel.tsx` | 阶段五已实现（PR #22）；可靠投递已合入（PR #35） | 只渲染快照中已提交且未处理的问候；回应/跳过走正式保存，成功后才清除，失败保留可重试 |
 | `src/application/useBehaviorRuntime.ts` | 阶段三已实现（PR #19） | 行为调度、隐藏暂停、互动、保存后一次性反馈、低动态降级；不写存档 |
@@ -425,7 +425,7 @@ interface SnapshotV4 {
 - 旧 `DecorationState`、`HabitProgress`、`WorldTrace` 类型可暂时保留为兼容类型，但不得进入 V1 业务逻辑。
 - `character` 不再保存 `totalXp`/`stage`；它们只在 `legacy.character` 中兼容保留。
 
-### 4.6 愿望（独立于快照；PR #43 已实现）
+### 4.6 愿望（独立于快照；PR #43 已合入）
 
 ```ts
 type WishStatus = "pending" | "completed";
@@ -633,7 +633,7 @@ AI 识别（阶段六复核）：
 
 ## 7. 角色渲染
 
-- 正式角色为**原创黑白企鹅**，使用 React + SVG 自行实现；正面母版（PR #27）、九种组合表情（PR #28）、侧面/背面与基础动作（PR #30）、特殊行为 `smoke` / `drink` 的临时道具视觉（PR #31）均已合入，并已接入 `CharacterRenderer` 的临时场景；`drink` 使用深绿色啤酒瓶。正式生活空间与正式 UI 尚未开发；当前页面仍是阶段七前的临时载体。阶段七的概念稿不是仓库已有资源。
+- 正式角色为**原创黑白企鹅**，使用 React + SVG 自行实现；正面母版（PR #27）、九种组合表情（PR #28）、侧面/背面与基础动作（PR #30）、特殊行为 `smoke` / `drink` 的临时道具视觉（PR #31）均已合入，并已接入四页正式界面（PR #38；回忆手帐翻页 PR #41）；`drink` 使用深绿色啤酒瓶。正式生活空间与三页 UI 已合入 `main`，移动端、断点、动效与跨设备体验仍待验收。阶段七的概念稿不是仓库已有资源。
 - 视觉基准（已确认）：圆润幼态、经典黑白配色、橘黄色嘴巴和小脚、不添加腮红、简洁柔和治愈；不复制第三方角色造型。
 - 表情系统参考 React Kawaii 的组件化结构自行实现：身体与面部职责分离，眼睛、嘴巴等部位独立控制，按当前状态组合表情，保持不同表情下的形象一致，并为后续过渡动画预留扩展点。React Kawaii 不是运行时依赖。
 - 动作表现参考 Penguin-Pet 的自主活动与状态切换思路，但不引入 Electron/桌面宠物框架；动作仍由现有行为引擎的 `BehaviorDecision` 决定，渲染层只做映射。
@@ -654,3 +654,4 @@ AI 识别（阶段六复核）：
 - 存档结构变化必须提供迁移函数、失败路径与最小验证（旧档读取、正文/情绪不变、重复保存幂等、离线窗口不重复、重逢不重复）。
 - V1 不引入 V2 业务字段；V2 接入时新增独立字段与迁移，不允许复用 `legacy` 执行业务。
 - 演示前检查：手选主流程、AI 降级、刷新恢复、损坏存档提示、纠正替换、主导行为确定性、离线事件幂等、重逢只触发一次且待处理问候跨刷新/重开不丢失、长时间离线不增加 `low_mood`、愿望创建/完成/刷新、愿望保存失败与跨标签页冲突、愿望样例隔离。
+- 公开部署必须核实 Qoder Sites 对 Next.js 16 App Router、`/api/emotion` Route Handler、服务端环境变量与常驻进程状态的兼容性；当前限流/并发/预算为单进程内存计数，多实例或无状态环境需由平台层补齐。公开数据仅存浏览器 localStorage，不提供登录或跨设备同步。

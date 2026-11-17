@@ -1,4 +1,4 @@
 # ShiXu
 拾绪（ShiXu）｜一款融合 AI 情绪识别、情感陪伴与虚拟角色养成的互动式 Web 应用。用户写下真实的日记、确认自己的心情，系统按确定性规则慢慢塑造一只原创企鹅的五维性格，只让当前主导性格通过表情、动作、自主行为、离线生活与久别重逢表现出来；保存日记后，企鹅会短暂回应，再回到自己的生活。快乐化作成长的印记，悲伤被温柔收藏，让每一份情绪都有归处，让每一次表达都成为陪伴与成长的开始。
 
-> 当前仓库仍是功能验证阶段的临时界面；原创企鹅正面母版、九种组合表情、侧面/背面、基础动作与抽烟/喝酒特殊动作视觉均已合入，连续低落特殊行为已按定稿规则接入并开启（`specialBehaviorEnabled=true`）。正式企鹅小屋、生活空间、保存反馈的正式视觉序列与正式 UI（含 `/diary`）尚未完成；真实长期存档自然触发后的跨浏览器、跨设备体验仍待进一步验证。当前项目已暂停新增功能开发，正在进行阶段性仓库审查与修复；完整进度与分支/PR 状态以 [ROADMAP](docs/ROADMAP.md) 为准，产品方向与开发边界见 [PRODUCT_SPEC](docs/PRODUCT_SPEC.md) 与 [STAGE7_DESIGN](docs/STAGE7_DESIGN.md)。
+> 当前 `main` 已包含四页正式界面：企鹅小屋 `/`、心情日记 `/diary`、回忆手帐 `/memories`（含真实翻页）与许愿屋 `/wishes`；阶段七三页正式 UI（PR #38）、回忆手帐翻页（PR #41）与许愿屋真实愿望（PR #43）均已合并。原创企鹅正面母版、九种组合表情、侧面/背面、基础动作与抽烟/喝酒特殊动作视觉均已合入，连续低落特殊行为已按定稿规则接入并开启（`specialBehaviorEnabled=true`）。正式体验的移动端、跨浏览器与跨设备验收仍未完成；数据仅保存在浏览器 localStorage（`Snapshot` v4 与独立的 `shixu.wishes.v1`），没有登录、数据库或云同步。阶段八已开始启动审计，真实百炼 API 联调与 Qoder Sites 公网部署尚未完成。完整进度与分支/PR 状态以 [ROADMAP](docs/ROADMAP.md) 为准，阶段八任务见 [STAGE8_TASK_CARD](docs/STAGE8_TASK_CARD.md)，产品方向与开发边界见 [PRODUCT_SPEC](docs/PRODUCT_SPEC.md) 与 [STAGE7_DESIGN](docs/STAGE7_DESIGN.md)。
