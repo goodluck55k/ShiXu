@@ -24,9 +24,9 @@ function sumTolerance(optionCount: number): number {
 
 function scoreTolerance(levels: number): number {
   const maxIndex = levels - 1;
-  // 每个概率的舍入误差不超过半个最小单位，加权后累计为 0.005 × Σ索引；
-  // 返回的 score 自身也可能按两位小数舍入，再加半个单位。
-  return (maxIndex * levels * PROBABILITY_QUANTUM) / 2 + PROBABILITY_QUANTUM / 2 + PROBABILITY_EPSILON;
+  // 每个概率的舍入误差不超过半个最小单位，加权后累计为 0.005 × Σ索引 = 0.005 × levels × maxIndex / 2；
+  // 返回的 score 自身也可能按两位小数舍入，再加半个单位。三级 Score 为 0.015 + 0.005 = 0.02。
+  return (maxIndex * levels * PROBABILITY_QUANTUM) / 4 + PROBABILITY_QUANTUM / 2 + PROBABILITY_EPSILON;
 }
 
 export interface NativeChoiceAnswer {
@@ -108,9 +108,9 @@ function validateChoiceAnswer(value: unknown): { ok: true; answer: NativeChoiceA
   if (probError) return { ok: false, reason: probError };
   const probabilities = value.probabilities as Record<EmotionLabel, number>;
   const max = Math.max(...EMOTION_LABELS.map((label) => probabilities[label]));
-  // 模型按未舍入分布取 argmax，两位小数舍入可能让极接近的选项反超 0.01；
-  // 因此只拒绝与最高值相差超过一个概率单位的 choice。
-  if (probabilities[value.choice as EmotionLabel] < max - PROBABILITY_QUANTUM - PROBABILITY_EPSILON) {
+  // 必须选中最高概率项之一；两位小数舍入产生的并列（同为最高值）视为合法，
+  // 低于最高值的选项一律拒绝。
+  if (probabilities[value.choice as EmotionLabel] < max - PROBABILITY_EPSILON) {
     return { ok: false, reason: "answers.label.choice 不是最高概率选项" };
   }
   return {

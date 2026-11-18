@@ -110,12 +110,34 @@ function nativeTests() {
     assert.equal(quantizedAnalysis.valence, 0.985);
   }
 
-  // 未舍入分布的 argmax 与两位小数后的最高值可能相差 0.01，应允许这种舍入反转。
-  const nearTie = structuredClone(VALID_NATIVE);
-  nearTie.answers.label.probabilities = {
+  // 正常舍入产生的并列：同为最高值的选项均可接受。
+  const tie = structuredClone(VALID_NATIVE);
+  tie.answers.label.probabilities = {
+    joy: 0.35, calm: 0.35, sadness: 0.3, anxiety: 0, anger: 0, tired: 0, mixed: 0, neutral: 0, unknown: 0,
+  };
+  assert.equal(validateNativeResponse(tie, MODEL).ok, true, "并列最高概率应被接受");
+
+  // 低于最高值一个概率单位的 choice 不属于正常舍入并列，必须拒绝。
+  const belowMax = structuredClone(VALID_NATIVE);
+  belowMax.answers.label.probabilities = {
     joy: 0.34, calm: 0.35, sadness: 0.3, anxiety: 0, anger: 0, tired: 0, mixed: 0, neutral: 0, unknown: 0,
   };
-  assert.equal(validateNativeResponse(nearTie, MODEL).ok, true, "一个概率单位内的舍入反转应被接受");
+  const belowMaxValidation = validateNativeResponse(belowMax, MODEL);
+  assert.equal(belowMaxValidation.ok, false, "低于最高概率的 choice 应被拒绝");
+  if (!belowMaxValidation.ok) {
+    assert.equal(belowMaxValidation.reason, "answers.label.choice 不是最高概率选项");
+  }
+
+  // 三级 Score 容差为 0.02（概率加权舍入 0.015 + score 自身舍入 0.005）。
+  const scoreEdge = structuredClone(VALID_NATIVE);
+  scoreEdge.answers.valence = {
+    ...scoreEdge.answers.valence,
+    score: 1.52,
+    probabilities: { "0": 0, "1": 0.5, "2": 0.5 },
+  };
+  assert.equal(validateNativeResponse(scoreEdge, MODEL).ok, true, "0.02 的 Score 舍入误差应被接受");
+  scoreEdge.answers.valence.score = 1.53;
+  assert.equal(validateNativeResponse(scoreEdge, MODEL).ok, false, "超过 0.02 的 Score 偏差应被拒绝");
 
   const rejects: Array<[string, unknown]> = [
     ["未知顶层字段", { ...VALID_NATIVE, extra: true }],
