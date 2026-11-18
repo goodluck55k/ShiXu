@@ -1,6 +1,6 @@
 # 任务卡：阶段八 S8-03 部署兼容性预检
 
-> 状态（2026-11-18）：**预检完成，Windows RSC 404 已修复；S8-03E 已将静态站点内部导航改为平台支持的 `.html` 文件链接（干净 URL 需平台 rewrite，见第 10 节）；未重新发布**。本分支只做 Qoder Sites 兼容性探针与最小构建适配；未创建公网站点、未创建付费云资源、未调用真实模型。
+> 状态（2026-11-18）：**预检完成，Windows RSC 404 已修复；S8-03E 复核确认 Qoder Sites 没有 rewrite/redirect、目录索引或无扩展名映射，`/diary` 等干净 URL 无法由应用产物修复；已采用 `.html` 规范链接作为平台真实支持的最小可用方案（见第 10、11 节）；未重新发布**。本分支只做 Qoder Sites 兼容性探针与最小构建适配；未创建公网站点、未创建付费云资源、未调用真实模型。
 >
 > 分支：`feature/stage8-deploy`（基于 `origin/main` `9c2d3da`）；PR 指向 `main`，保持 Draft，是否合并由用户决定。
 
@@ -166,3 +166,49 @@ Next.js 16 静态导出在 Windows 上把 RSC 分段文件写成了嵌套目录�
 - 干净 URL（`/diary`）在当前 Qoder Sites 上无法由应用产物修复；需要平台提供 URL rewrite/redirect 或目录索引能力。若后续平台开放，可恢复 SPA 导航并移除 `.html` 适配。
 - `/diary/` 等尾斜杠路径仍由平台返回首页，应用不生成此类链接。
 - 移动端、跨浏览器与真实设备仍未验证。
+
+## 11. S8-03E 复核：Qoder Sites 生产路由能力（2026-11-18）
+
+### 11.1 源码级托管契约
+
+本轮不再依赖 ESA Pages 文档推断，直接核对本机 Qoder 安装的 Sites Skills 与打包器实现：
+
+- `prepare_site` 入参只有 `spa` 布尔值，且 `additionalProperties: false`；不存在 rewrite、redirect、目录索引、自定义错误页或按路径规则等参数。
+- 本地 `qoder.sites` 扩展打包器（`extensions/qoder.sites/dist/node/main.cjs` 的 `buildPackage`）无条件写入以下托管配置，应用无法覆盖：
+
+  ```json
+  {"formatVersion":2,"web":{"root":"web","hosting":{"index_document":"index.html","subdirectory_index":{"enabled":false,"missing_file_rule":"no_such_key"},"error_document_response_code":404}}}
+  ```
+
+  `spa=true` 时只会额外写入 `error_document: "index.html"` 并把错误响应码改为 200，即所有未知路径返回首页且状态 200。
+- Skills 文档同样写明：目录索引始终关闭；`spa: true` 生成 `index.html` 错误兜底；工具参数不执行构建命令或任意 rewrite。
+- 该行为与阿里云 OSS 静态网站托管在“未开通子目录首页 + 文件 404 规则 NoSuchKey”下的语义一致：对象请求 `/diary` 严格按 key 命中，不存在即 404；目录请求 `/diary/` 返回根 `index.html`。这解释了实测 `/diary/` 为 200 但内容是首页。
+
+### 11.2 方案复核
+
+| 方案 | 复核结果 |
+| --- | --- |
+| 平台原生 rewrite/redirect | 不存在对应入参或宿主配置入口。唯一平台兜底 `spa: true` 会把未知路径变成 200 首页，明确排除 |
+| `trailingSlash: true` + 目录索引 | 目录索引在打包器内硬编码关闭，应用无法打开；`/diary/` 实测返回首页 |
+| 静态路由文件别名（根级无扩展名文件） | 平台可按精确 key 命中 `diary`，但存在两项未证实/阻塞条件：① `diary` 文件与 RSC 分段目录 `diary/` 在磁盘同名冲突，必须删除分段目录；② 无扩展名对象的 Content-Type 由上传/存储侧决定，Qoder 未公开也未验证，若为 `application/octet-stream` 浏览器会下载而非渲染；③ 验证必须再次私有 draft/发布。按本轮“不盲改未证实能力”的约束不采用 |
+| 最小客户端导航适配 | 采用：子页面内部导航改为 `.html` 文件链接并整页导航；不使用 SPA fallback，未知路径仍为 404 |
+
+### 11.3 结论与验收边界
+
+- 在当前 Qoder Sites 托管契约下，`/diary`、`/memories`、`/wishes` **无法返回各自页面**；这是平台路由限制，不是应用路由或构建错误。
+- 已交付的最小替代方案是 `.html` 规范链接：四页可通过 `/diary.html`、`/memories.html`、`/wishes.html` 直接访问、刷新与整页跳转；未知路径与 `/character-preview` 仍返回 404。
+- 要满足“干净 URL”验收，需要平台提供 rewrite/redirect/目录索引之一；或在用户授权后准备一次私有 draft，验证无扩展名别名的实际 Content-Type。
+- 本轮未执行 `prepare_site`/`publish_site`，未修改或删除现有私有站点。
+
+### 11.4 本轮本地复核
+
+- `npm run build:export` 通过；日志 `[build-static] normalized 6 RSC segment file(s)`；`out/` 无 `character-preview*` 产物。
+- 精确 key 服务（模拟 `index_document`、关闭目录索引、`NoSuchKey` 404、`/subdir/` 回落根首页）：`/`、`/diary.html`、`/memories.html`、`/wishes.html` 200；`/diary`、`/memories`、`/wishes`、`/unknown-xyz`、`/character-preview` 404；`/diary/` 200 首页；RSC 分段 200；JS/CSS/SVG/WebP 200。
+- 浏览器：四页导航、直接访问、刷新均正常；活动导航与 `home-shell`/`memories-shell`/`wishes-shell` 正确；水合后可交互；控制台无消息；从 `.html` 页点击品牌返回 `/` 时 `/index.txt?_rsc=` 200，无 404。
+- 以上为本地精确 key 模拟，**不是真实托管验收**。
+
+### 11.5 决策点
+
+1. 接受 `.html` 规范 URL（当前分支），发布后复验四页直接访问、刷新与导航。
+2. 授权准备一次私有 draft，验证无扩展名别名（`web/diary`、`web/memories`、`web/wishes`）的 Content-Type；若为 `text/html` 再实现干净 URL，否则回退 `.html`。
+3. 等待平台提供 rewrite/redirect 或目录索引能力。
