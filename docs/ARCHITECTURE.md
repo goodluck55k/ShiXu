@@ -2,7 +2,7 @@
 
 > 状态：V1 架构基线。标注「已实现」的以 `main` 分支代码为准；「阶段 N 规划」表示尚未合入。产品范围见 [PRODUCT_SPEC](PRODUCT_SPEC.md)，性格与行为参数见 [COMPANION_SPEC](COMPANION_SPEC.md)。
 >
-> 存档结构为 `schemaVersion` 4（STO-05，PR #35 已合入）；v1/v2/v3 读取时迁移。本文档版本与存档版本无关。截至本版，`main` 已含 `schemaVersion` 4、五维 `personality-v2` 台账与迁移（PR #18）、主导行为引擎（PR #19）、离线自主生活（PR #20）、久别重逢（PR #22）、AI 情绪识别复核（PR #23）与待处理重逢问候持久化/确认（PR #35）。阶段七的原创企鹅正面母版（PR #27）、九种组合表情（PR #28）、侧背面与基础动作（PR #30）、特殊动作视觉（PR #31）、特殊行为正式接入（PR #32）、生活空间与三页正式 UI（PR #38）及回忆手帐翻页（PR #41）均已合入。特殊行为配置已开启，真实长期自然触发待进一步验收；完整体验、移动端与跨设备验收未完成。许愿屋独立开发包（PR #43）新增独立 `wishes` 领域模块与 `shixu.wishes.v1` 存储，不修改 `Snapshot` v4，已合入 `main`。正式数据仅保存在浏览器 localStorage，没有登录、数据库或云同步。阶段八已于 2026-11-17 开始 S8-00 启动审计，真实百炼联调与 Qoder Sites 公网部署尚未完成。当前整体进度以 [ROADMAP](ROADMAP.md) §1.1 为准。
+> 存档结构为 `schemaVersion` 4（STO-05，PR #35 已合入）；v1/v2/v3 读取时迁移。本文档版本与存档版本无关。截至本版，`main` 已含 `schemaVersion` 4、五维 `personality-v2` 台账与迁移（PR #18）、主导行为引擎（PR #19）、离线自主生活（PR #20）、久别重逢（PR #22）、AI 情绪识别复核（PR #23）与待处理重逢问候持久化/确认（PR #35）。阶段七的原创企鹅正面母版（PR #27）、九种组合表情（PR #28）、侧背面与基础动作（PR #30）、特殊动作视觉（PR #31）、特殊行为正式接入（PR #32）、生活空间与三页正式 UI（PR #38）及回忆手帐翻页（PR #41）均已合入。特殊行为配置已开启，真实长期自然触发待进一步验收；完整体验、移动端与跨设备验收未完成。许愿屋独立开发包（PR #43）新增独立 `wishes` 领域模块与 `shixu.wishes.v1` 存储，不修改 `Snapshot` v4，已合入 `main`。正式数据仅保存在浏览器 localStorage，没有登录、数据库或云同步。阶段八已于 2026-11-17 开始 S8-00 启动审计，S8-03 已完成 Qoder Sites 静态托管与 `.html` 路由适配，S8-03G 已本地实现 AI Edge Function（未部署、未真实调用）；真实百炼联调仍未完成。当前整体进度以 [ROADMAP](ROADMAP.md) §1.1 为准。
 
 ## 1. 架构原则
 
@@ -81,7 +81,10 @@ graph TD
 | `src/application/AppProvider.tsx` | 已实现，阶段二至五扩展 | 状态编排、保存、会话启动、恢复、跨标签页冲突、待处理问候投递与确认（PR #35 已合入）；问候本身持久化在快照中；保存反馈的“已开始展示”标记由 Provider 持有，不进入快照 |
 | `src/application/useEmotionAnalysis.ts` | 已实现，阶段六扩展 | AI 建议请求、会话失效、过期响应丢弃、客户端超时与降级 |
 | `src/lib/ai/client.ts` | 阶段六新增 | 浏览器侧识别会话、三元组关联、严格 analysis/analysisMeta 校验、HTTP 错误映射；不导入服务端 Provider |
-| `src/lib/ai/server/{config,provider,native,questions,protection}.ts` | 已实现，阶段六复核 | 配置读取、百炼 System One 调用与显式映射、固定错误分类、进程内频率/并发/预算保护 |
+| `src/lib/ai/endpoint.ts` | S8-03G 新增 | 静态导出请求 `/functions/v1/app`，常规 Next.js 请求 `/api/emotion` |
+| `src/lib/ai/server/{config,provider}.ts` | 阶段六实现；S8-03G 改为适配层 | Node 配置读取与 `server-only` 边界；Provider 实际逻辑在 `functions/shared` |
+| `functions/index.ts`、`functions/config.ts` | S8-03G 新增 | Qoder Sites 单一 Edge Function 入口；`Deno.env` 读取 Secret，`AI_EDGE_ENABLED` 默认关闭 |
+| `functions/shared/*.ts` | S8-03G 新增，唯一 AI 核心 | 情绪标签/Analysis、envelope 契约、五问、原生校验映射、Provider、实例内保护与请求处理；Next 与 Edge 共用 |
 | `src/domain/types.ts` | 已实现，阶段二扩展 | 公共类型与契约 |
 | `src/domain/emotions.ts` | 已实现 | 手选默认 VAD、规范化 |
 | `src/domain/rules.ts` | 已实现，阶段二至五扩展 | 领域事件、原子结算、会话启动入口 |
@@ -557,6 +560,7 @@ AI 识别（阶段六复核）：
 5. 建议只保存在运行时内存；用户显式采纳后才写入草稿/纠正草稿。修改建议按 `source=corrected`、`confidence=null` 保存；无建议的手选按 `source=manual`；接受原建议才为 `source=ai`。
 6. 已保存记录重识别额外绑定 `entryId`、`Entry.revision` 与正文；确认纠正前再次核对，过期结果丢弃。纠正仍走既有 `CORRECT_EMOTION` 替换贡献，不重复计分。
 7. 服务端只返回规范化结果和可选 `analysisMeta`；原生 answers、概率、usage、错误详情、Key 不进入响应、日志或存档。
+8. S8-03G 起，静态导出构建请求 `/functions/v1/app`（Qoder Sites Edge Function），常规 Next.js 仍请求 `/api/emotion`；两者共享 `functions/shared` 的请求校验、五问、映射、严格输出校验与 envelope。Edge 真实调用默认关闭，必须显式启用并配置 Secret；实例内频率/并发/预算不是全局配额。
 
 行为循环：可见时由应用层按 `tickInterval` 用显式种子与序号调用 `selectBehavior`，把 `BehaviorDecision` 映射为 `CharacterView` 交给角色层；不写存档。页面隐藏时暂停；关闭网页不运行后台 Agent。
 
@@ -654,4 +658,5 @@ AI 识别（阶段六复核）：
 - 存档结构变化必须提供迁移函数、失败路径与最小验证（旧档读取、正文/情绪不变、重复保存幂等、离线窗口不重复、重逢不重复）。
 - V1 不引入 V2 业务字段；V2 接入时新增独立字段与迁移，不允许复用 `legacy` 执行业务。
 - 演示前检查：手选主流程、AI 降级、刷新恢复、损坏存档提示、纠正替换、主导行为确定性、离线事件幂等、重逢只触发一次且待处理问候跨刷新/重开不丢失、长时间离线不增加 `low_mood`、愿望创建/完成/刷新、愿望保存失败与跨标签页冲突、愿望样例隔离。
-- 公开部署必须核实 Qoder Sites 对 Next.js 16 App Router、`/api/emotion` Route Handler、服务端环境变量与常驻进程状态的兼容性；当前限流/并发/预算为单进程内存计数，多实例或无状态环境需由平台层补齐。公开数据仅存浏览器 localStorage，不提供登录或跨设备同步。
+- Qoder Sites 托管为静态产物 + 单个 Edge Function，不运行 Next.js Node 服务或 `/api/emotion` Route Handler；S8-03 已用 `.html` 规范链接完成静态四页托管，S8-03G 已本地实现 `/functions/v1/app` AI 入口但未部署、未真实调用。公开部署不得把单进程/单实例内存计数描述为全局限流或预算；Edge 真实模型调用默认关闭，需显式 Secret 与低预算窗口，可靠全局预算仍待平台能力或持久化原子计数。
+- 公开数据仅存浏览器 localStorage，不提供登录或跨设备同步。

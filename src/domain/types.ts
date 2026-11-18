@@ -1,16 +1,8 @@
-export const EMOTION_LABELS = [
-  "joy",
-  "calm",
-  "sadness",
-  "anxiety",
-  "anger",
-  "tired",
-  "mixed",
-  "neutral",
-  "unknown",
-] as const;
+import type { Analysis, AnalysisMeta, EmotionDimensions, EmotionLabel } from "../../functions/shared/emotion-types";
 
-export type EmotionLabel = (typeof EMOTION_LABELS)[number];
+// 情绪标签与 AI 契约字段是与 Edge Function 共用的唯一定义，避免两个运行时漂移。
+export { EMOTION_LABELS } from "../../functions/shared/emotion-types";
+export type { Analysis, AnalysisMeta, EmotionDimensions, EmotionLabel } from "../../functions/shared/emotion-types";
 
 export const EMOTION_NAMES: Record<EmotionLabel, string> = {
   joy: "开心",
@@ -26,30 +18,10 @@ export const EMOTION_NAMES: Record<EmotionLabel, string> = {
 
 export type EmotionSource = "ai" | "manual" | "corrected";
 
-export interface EmotionDimensions {
-  valence: number;
-  arousal: number;
-  dominance: number;
-  intensity: number;
-}
-
 export interface EmotionReading extends EmotionDimensions {
   label: EmotionLabel;
   confidence: number | null;
   source: EmotionSource;
-}
-
-export interface Analysis extends EmotionDimensions {
-  schemaVersion: 1;
-  label: EmotionLabel;
-  confidence: number;
-}
-
-export interface AnalysisMeta {
-  provider: string;
-  model: string;
-  mappingVersion: string;
-  dimensionSources: Record<string, string>;
 }
 
 export interface EmotionCorrection {

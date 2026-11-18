@@ -10,7 +10,7 @@
 - 当前仓库可通过 `output: "export"` 导出 `/`、`/diary`、`/memories`、`/wishes` 四页；`/api/emotion` 是 Node Route Handler，**不能随静态导出发布**。
 - 无真实 Key 时手选保存闭环在静态产物中可用；AI 按钮会进入固定错误提示并保留草稿。
 - Windows 构建的 RSC 分段 404 已通过构建后路径归一化修复；本地四页导航与全部 RSC 分段请求均为 200。
-- 推荐先发布**不含 AI 的静态站点**；真实百炼联调受 S8-02 凭证阻挡，AI Edge Function 移植另行评估。
+- 推荐先发布**不含 AI 的静态站点**；真实百炼联调受 S8-02 凭证阻挡。AI Edge Function 已在 S8-03G 本地实现（默认关闭、未部署），是否随站点启用需用户单独授权。
 
 ## 2. 平台约束（2026-11-18 核实）
 
@@ -87,6 +87,7 @@ Next.js 16 静态导出在 Windows 上把 RSC 分段文件写成了嵌套目录�
   - 不能直接用现有 `server-only`、`process.env` 与单进程 `protection.ts`；
   - Edge 实例级内存计数不等于全局限流/预算，公开前需平台层或持久化存储补齐。
 - S8-02 真实账号与计费仍未核实，AI 不在本站点首发的验收范围内。
+- S8-03G 已把上述 Provider 逻辑移植为 `functions/` 下的 Edge Function，并与 Next Route 共用 `functions/shared` 核心；真实调用默认关闭，未部署、未配置 Secrets、未发起真实请求。详见 [S8-03G 任务卡](STAGE8_S8-03G_EDGE_AI_TASK_CARD.md)。
 
 ## 7. 推荐部署操作（待用户授权）
 

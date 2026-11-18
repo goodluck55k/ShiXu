@@ -7,7 +7,7 @@ import {
   mapNativeToAnalysis,
   validateAnalysisStrict,
   validateNativeResponse,
-} from "../src/lib/ai/server/native";
+} from "../functions/shared/native.ts";
 
 // 阶段六服务端回归：Provider 请求结构、原生响应校验映射、413/429/503/504、
 // 超时覆盖响应体读取、密钥不出日志。运行需 react-server 条件以加载 server-only。

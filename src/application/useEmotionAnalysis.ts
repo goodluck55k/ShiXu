@@ -9,6 +9,7 @@ import {
   type EmotionSuggestion,
 } from "@/lib/ai/client";
 import { EMOTION_API_ERROR_MESSAGES } from "@/lib/ai/contract";
+import { emotionApiEndpoint } from "@/lib/ai/endpoint";
 import { createId } from "./ids";
 
 // AI 识别会话（docs/AI_CONTRACT.md §1、§3）：成功与失败响应只在三元组全匹配
@@ -65,7 +66,7 @@ export function useEmotionAnalysis() {
     setSuggestionSession(null);
     setError(null);
     try {
-      const response = await fetch("/api/emotion", {
+      const response = await fetch(emotionApiEndpoint(), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
