@@ -117,6 +117,21 @@ async function main() {
   const outcome = evaluateEmotionResponse(result.json, result.status, session);
   assert.equal(outcome.kind, "success");
 
+  // 2b. 百炼 probabilities 两位小数的量化形态：概率和 0.99 仍应成功映射。
+  const quantized = structuredClone(VALID_NATIVE);
+  quantized.answers.label.probabilities = {
+    joy: 0.5, calm: 0.49, sadness: 0, anxiety: 0, anger: 0, tired: 0, mixed: 0, neutral: 0, unknown: 0,
+  };
+  quantized.answers.valence = {
+    ...quantized.answers.valence,
+    score: 1.97,
+    probabilities: { "0": 0, "1": 0.01, "2": 0.98 },
+  };
+  result = await postJson(apiBody(), makeConfig(), { provider: async () => quantized });
+  assert.equal(result.status, 200);
+  assert.equal((result.json.analysis as Record<string, unknown>).label, "joy");
+  assert.equal((result.json.analysis as Record<string, unknown>).valence, 0.985);
+
   // 3. 严格响应校验：未知字段 / 篡改概率均进入手选降级。
   result = await postJson(apiBody(), makeConfig(), {
     provider: async () => ({ ...VALID_NATIVE, extra: true }),

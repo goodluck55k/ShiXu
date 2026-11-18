@@ -28,6 +28,16 @@ const STATUS_BY_CODE: Record<EmotionApiErrorCode, number> = {
 
 type RequestEcho = Partial<Pick<EmotionApiRequest, "requestId" | "entryId" | "inputRevision">>;
 
+// 失败诊断只记录固定分类、固定原因和上游 HTTP 状态码；
+// 不记录日记正文、API Key、原生响应体或原生概率/分数。
+type DiagnosticCategory = "provider-json" | "native-validation" | "analysis-mapping" | "provider";
+
+interface FailureDiagnostic {
+  category: DiagnosticCategory;
+  detail?: string;
+  upstreamStatus?: number;
+}
+
 export interface EmotionHandlerDeps {
   config: EmotionRuntimeConfig;
   protection: EmotionProtection;
@@ -110,6 +120,7 @@ export async function handleEmotionRequest(request: Request, deps: EmotionHandle
   const startedAt = now();
   let logCode = "ok";
   let echo: RequestEcho = {};
+  let diagnostic: FailureDiagnostic | null = null;
 
   const finish = (response: Response, code: string): Response => {
     logCode = code;
@@ -151,9 +162,16 @@ export async function handleEmotionRequest(request: Request, deps: EmotionHandle
       const native = await provider(req.text, config.provider);
       const expectedModel = config.provider.mode === "mock" ? MOCK_MODEL_NAME : config.provider.modelName;
       const validated = validateNativeResponse(native, expectedModel);
-      if (!validated.ok) return finish(failure("AI_INVALID_OUTPUT", echo), "AI_INVALID_OUTPUT");
+      if (!validated.ok) {
+        // Provider 已返回 2xx，失败发生在原生响应校验。
+        diagnostic = { category: "native-validation", detail: validated.reason, upstreamStatus: 200 };
+        return finish(failure("AI_INVALID_OUTPUT", echo), "AI_INVALID_OUTPUT");
+      }
       const mapped = validateAnalysisStrict(mapNativeToAnalysis(validated.native));
-      if (!mapped.ok) return finish(failure("AI_INVALID_OUTPUT", echo), "AI_INVALID_OUTPUT");
+      if (!mapped.ok) {
+        diagnostic = { category: "analysis-mapping", detail: mapped.reason, upstreamStatus: 200 };
+        return finish(failure("AI_INVALID_OUTPUT", echo), "AI_INVALID_OUTPUT");
+      }
       const analysisMeta = buildAnalysisMeta(
         config.provider.mode === "mock" ? MOCK_PROVIDER_NAME : "bailian",
         expectedModel,
@@ -170,15 +188,31 @@ export async function handleEmotionRequest(request: Request, deps: EmotionHandle
       return finish(jsonResponse(200, body), "ok");
     } catch (error) {
       const code = error instanceof ProviderError ? providerErrorCode(error.kind) : "AI_UPSTREAM_ERROR";
+      if (error instanceof ProviderError) {
+        diagnostic = {
+          category: error.reason === "response-json" ? "provider-json" : "provider",
+          detail: error.reason === "response-json" ? undefined : error.reason ?? error.kind,
+          upstreamStatus: error.upstreamStatus,
+        };
+      } else {
+        diagnostic = { category: "provider", detail: "unexpected-error" };
+      }
       return finish(failure(code, echo), code);
     } finally {
       protection.release();
     }
   } catch {
     // 读取请求体等意外失败也返回固定错误码，不把异常详情、密钥或正文写回客户端或日志。
+    diagnostic = { category: "provider", detail: "unexpected-error" };
     return finish(failure("AI_UPSTREAM_ERROR", echo), "AI_UPSTREAM_ERROR");
   } finally {
-    // 只记录结果码与耗时；不打印日记正文、密钥与模型原始内容
-    log(`[emotion] code=${logCode} durationMs=${now() - startedAt}`);
+    // 只记录结果码、耗时与固定诊断分类；不打印日记正文、密钥与模型原始内容。
+    const parts = [`[emotion] code=${logCode}`, `durationMs=${now() - startedAt}`];
+    if (diagnostic) {
+      if (diagnostic.upstreamStatus !== undefined) parts.push(`upstream=${diagnostic.upstreamStatus}`);
+      parts.push(`reason=${diagnostic.category}`);
+      if (diagnostic.detail) parts.push(`detail=${diagnostic.detail}`);
+    }
+    log(parts.join(" "));
   }
 }

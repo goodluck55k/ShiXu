@@ -11,12 +11,22 @@ import type { EmotionProviderConfig } from "./types.ts";
 
 export type ProviderErrorKind = "timeout" | "unavailable" | "upstream" | "input-too-long" | "invalid-output";
 
+export interface ProviderErrorDetails {
+  // 固定诊断原因（如 response-json / upstream-http / network），不携带上游正文。
+  reason?: string;
+  upstreamStatus?: number;
+}
+
 export class ProviderError extends Error {
   readonly kind: ProviderErrorKind;
+  readonly reason?: string;
+  readonly upstreamStatus?: number;
 
-  constructor(kind: ProviderErrorKind) {
+  constructor(kind: ProviderErrorKind, details: ProviderErrorDetails = {}) {
     super(EMOTION_API_ERROR_MESSAGES[providerErrorCode(kind)]);
     this.kind = kind;
+    this.reason = details.reason;
+    this.upstreamStatus = details.upstreamStatus;
   }
 }
 
@@ -84,7 +94,7 @@ function classifyUpstreamError(status: number, body: unknown): ProviderErrorKind
 // 超时覆盖获取响应头与读取响应体的完整过程；超时只报固定错误码，不自动重试。
 export async function requestEmotionNative(text: string, config: EmotionProviderConfig): Promise<unknown> {
   if (config.mode === "mock") return mockNativeResponse(text);
-  if (!config.apiKey || !config.baseUrl) throw new ProviderError("unavailable");
+  if (!config.apiKey || !config.baseUrl) throw new ProviderError("unavailable", { reason: "missing-config" });
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), config.timeoutMs);
@@ -106,18 +116,23 @@ export async function requestEmotionNative(text: string, config: EmotionProvider
       } catch {
         body = null;
       }
-      if (controller.signal.aborted) throw new ProviderError("timeout");
-      throw new ProviderError(classifyUpstreamError(response.status, body));
+      if (controller.signal.aborted) throw new ProviderError("timeout", { reason: "timeout" });
+      throw new ProviderError(classifyUpstreamError(response.status, body), {
+        reason: "upstream-http",
+        upstreamStatus: response.status,
+      });
     }
     try {
       return (await response.json()) as unknown;
     } catch {
-      if (controller.signal.aborted) throw new ProviderError("timeout");
-      throw new ProviderError("invalid-output");
+      if (controller.signal.aborted) throw new ProviderError("timeout", { reason: "timeout" });
+      throw new ProviderError("invalid-output", { reason: "response-json", upstreamStatus: response.status });
     }
   } catch (error) {
     if (error instanceof ProviderError) throw error;
-    throw new ProviderError(controller.signal.aborted ? "timeout" : "upstream");
+    throw new ProviderError(controller.signal.aborted ? "timeout" : "upstream", {
+      reason: controller.signal.aborted ? "timeout" : "network",
+    });
   } finally {
     clearTimeout(timer);
   }

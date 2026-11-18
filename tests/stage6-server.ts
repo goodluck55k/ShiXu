@@ -91,6 +91,54 @@ function nativeTests() {
   });
   assert.equal(validateAnalysisStrict(analysis).ok, true);
 
+  // 百炼 probabilities 为两位小数：和可能为 0.99/1.01，score 由未舍入概率算出。
+  // 校验必须接受这种量化结果，同时保留对明显非法分布的拒绝。
+  const quantized = structuredClone(VALID_NATIVE);
+  quantized.answers.label.probabilities = {
+    joy: 0.5, calm: 0.49, sadness: 0, anxiety: 0, anger: 0, tired: 0, mixed: 0, neutral: 0, unknown: 0,
+  };
+  quantized.answers.valence = {
+    ...quantized.answers.valence,
+    score: 1.97,
+    probabilities: { "0": 0, "1": 0.01, "2": 0.98 },
+  };
+  const quantizedValidation = validateNativeResponse(quantized, MODEL);
+  assert.equal(quantizedValidation.ok, true, "两位小数概率应被接受");
+  if (quantizedValidation.ok) {
+    const quantizedAnalysis = mapNativeToAnalysis(quantizedValidation.native);
+    assert.equal(quantizedAnalysis.label, "joy");
+    assert.equal(quantizedAnalysis.valence, 0.985);
+  }
+
+  // 正常舍入产生的并列：同为最高值的选项均可接受。
+  const tie = structuredClone(VALID_NATIVE);
+  tie.answers.label.probabilities = {
+    joy: 0.35, calm: 0.35, sadness: 0.3, anxiety: 0, anger: 0, tired: 0, mixed: 0, neutral: 0, unknown: 0,
+  };
+  assert.equal(validateNativeResponse(tie, MODEL).ok, true, "并列最高概率应被接受");
+
+  // 低于最高值一个概率单位的 choice 不属于正常舍入并列，必须拒绝。
+  const belowMax = structuredClone(VALID_NATIVE);
+  belowMax.answers.label.probabilities = {
+    joy: 0.34, calm: 0.35, sadness: 0.3, anxiety: 0, anger: 0, tired: 0, mixed: 0, neutral: 0, unknown: 0,
+  };
+  const belowMaxValidation = validateNativeResponse(belowMax, MODEL);
+  assert.equal(belowMaxValidation.ok, false, "低于最高概率的 choice 应被拒绝");
+  if (!belowMaxValidation.ok) {
+    assert.equal(belowMaxValidation.reason, "answers.label.choice 不是最高概率选项");
+  }
+
+  // 三级 Score 容差为 0.02（概率加权舍入 0.015 + score 自身舍入 0.005）。
+  const scoreEdge = structuredClone(VALID_NATIVE);
+  scoreEdge.answers.valence = {
+    ...scoreEdge.answers.valence,
+    score: 1.52,
+    probabilities: { "0": 0, "1": 0.5, "2": 0.5 },
+  };
+  assert.equal(validateNativeResponse(scoreEdge, MODEL).ok, true, "0.02 的 Score 舍入误差应被接受");
+  scoreEdge.answers.valence.score = 1.53;
+  assert.equal(validateNativeResponse(scoreEdge, MODEL).ok, false, "超过 0.02 的 Score 偏差应被拒绝");
+
   const rejects: Array<[string, unknown]> = [
     ["未知顶层字段", { ...VALID_NATIVE, extra: true }],
     ["模型不匹配", { ...VALID_NATIVE, model: "other-model" }],
@@ -380,13 +428,31 @@ async function main() {
     assertCorrelated(result.json, body);
     assert.ok(elapsed >= 14000, `超时应接近 15 秒，实际 ${elapsed}ms`);
 
-    // 9. 日志只含结果码与耗时：不含 Key、正文或原生响应。
+    // 9. 日志只含结果码、耗时与固定诊断分类：不含 Key、正文、model 或原生响应。
     const joined = logs.join("\n");
     assert.ok(logs.length > 0);
     assert.equal(joined.includes("test-key"), false);
     assert.equal(joined.includes("今天终于完成作业"), false);
     assert.equal(joined.includes("decision-model-preview"), false);
-    assert.ok(logs.every((line) => /^\[emotion\] code=\S+ durationMs=\d+$/.test(line)));
+    assert.equal(joined.includes("not-json"), false);
+    assert.ok(
+      logs.some((line) => line.includes("reason=provider-json") && line.includes("upstream=200")),
+      "非 JSON 响应应记录 provider-json 诊断",
+    );
+    assert.ok(
+      logs.some(
+        (line) =>
+          line.includes("reason=native-validation") &&
+          line.includes("upstream=200") &&
+          line.includes("detail=原生响应含未知字段"),
+      ),
+      "原生校验失败应记录固定原因与上游状态码",
+    );
+    const invalidLogLines = logs.filter(
+      (line) =>
+        !/^\[emotion\] code=\S+ durationMs=\d+( upstream=\d+)?( reason=[a-z-]+( detail=.+)?)?$/.test(line),
+    );
+    assert.equal(invalidLogLines.length, 0, `日志格式不符：${invalidLogLines.join(" | ")}`);
   } finally {
     console.info = originalInfo;
     upstreamMode = "valid";

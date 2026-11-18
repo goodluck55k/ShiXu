@@ -132,7 +132,7 @@ TypeSafe 与 Cloudflare 仅作为历史参考或后续可选适配，**不是默
 | confidence | label 及四个 Score 的 confidence 最小值；无需再问一个“置信度”问题 |
 | schemaVersion / source | 应用固定为 1 / ai；手选或人工调整按第 4 节标记 |
 
-先验证响应为对象、model 与所用固定版本匹配、answers 恰含五个约定问题且 type 匹配。Choice 选项/probabilities 的键集必须匹配请求选项；Score 的 legend/probabilities 键集须为当前级数索引，legend 与所发描述对应。所有概率与 confidence 为 0–1 有限数，各概率分布和应在 1 ± 0.001 内，Score 在 0–2 且与概率加权值的差不超过 0.001；Choice 必须为最高概率选项之一。不以字符串数字或越界截取伪造有效结果。校验厂商白名单字段，允许约定的 model / usage 元信息，不误用内部 Analysis 字段白名单拒绝合法原生响应；未知答案或操作字段拒绝。
+先验证响应为对象、model 与所用固定版本匹配、answers 恰含五个约定问题且 type 匹配。Choice 选项/probabilities 的键集必须匹配请求选项；Score 的 legend/probabilities 键集须为当前级数索引，legend 与所发描述对应。所有概率与 confidence 为 0–1 有限数。百炼 probabilities 按两位小数返回，2026-10-12 实测 20 条中 9 条概率和为 0.99 或 1.01，因此概率和按舍入误差留容差：`|sum - 1| ≤ 选项数 × 0.005`（九项 Choice 为 0.045，三级 Score 为 0.015），不再要求精确 1 ± 0.001。Score 在 0–2，且与两位小数概率加权值的差不超过 0.02（概率舍入的累计误差加上 score 自身舍入）。Choice 必须为最高概率选项之一；两位小数舍入产生的并列（同为最高值）予以接受，低于最高值的选项拒绝。仍拒绝明显的非法分布、越界分数和非最高概率的 choice；不以字符串数字或越界截取伪造有效结果。校验厂商白名单字段，允许约定的 model / usage 元信息，不误用内部 Analysis 字段白名单拒绝合法原生响应；未知答案或操作字段拒绝。
 
 仅逐字段构造 Analysis，再构造 EmotionReading；严禁展开原生对象合入状态。当前默认五个答案缺失任一即失败手选，不静默补数；无需为了维度缺失多轮调用。需要确定性默认值时使用第 4 节手选表并由用户确认，source=manual/corrected、confidence=null，明确显示“手动默认值”，不得标成模型直接输出。
 
@@ -166,6 +166,7 @@ Qoder Sites 的托管模型是静态产物 + 单个 Edge Function；函数入口
 - **Secret**：只经 `Deno.env.get` 读取，不使用 `NEXT_PUBLIC_`，不进入静态产物、响应、日志或前端。Secret 名称通过 `prepare_site.secretNames` 声明，值只在 Portal 专用输入中填写。
 - **输入限制**：正文默认 30,000 字符（`AI_MAX_INPUT_CHARS`）；Edge 请求体默认 1 MiB、最多收紧到 4 MiB（`AI_EDGE_MAX_BODY_BYTES`）；超限 413 / INPUT_TOO_LONG，不截断正文。
 - **超时与降级**：15 秒覆盖响应头与响应体读取；超时 504 / AI_TIMEOUT；不自动重试。上游 401/403/404 → 503，413 → 413，其余失败与非法输出 → 502。
+- **失败诊断**：JSON 解析失败、原生响应校验失败、内部映射失败和其余 Provider 失败分别记录固定分类（`provider-json` / `native-validation` / `analysis-mapping` / `provider`）、固定原因与上游 HTTP 状态码；不记录 API Key、日记正文、完整原生响应或原生概率/分数数值。
 - **实例内保护**：默认 10 次/分钟、2 并发、100 次调用预算；超限 429 或 503。这些计数只存在于单个 Edge 实例内存，冷启动重置且多实例不共享，**不是全局预算**。
 - **平台现状**：截至 2026-11-18，Qoder Sites Skills 与打包器未提供应用可声明的按路由限流、全局并发或调用预算；站点访问控制与同源写入检查不等于费用上限。可靠全局预算需要 Function backend 数据库的原子计数，属于后续授权项，本轮未实现。
 - **客户端选择**：静态导出构建请求 `/functions/v1/app`；本地/自托管 Next.js 仍请求 `/api/emotion`。两者返回格式与错误码完全一致，客户端会话、三元组与确认逻辑不变。
@@ -217,7 +218,7 @@ Qoder Sites 的托管模型是静态产物 + 单个 Edge Function；函数入口
 - 服务端 AI 模块不导入游戏写入模块；客户端不能导入服务端 provider。使用 server-only 边界隔离厂商适配器。
 - API Key 用 `MODEL_API_KEY`；可选 `MODEL_BASE_URL`、`MODEL_NAME`、`BAILIAN_WORKSPACE_ID` 仅服务端读取，不加 NEXT_PUBLIC_。Key 与服务地址配置不进入响应、浏览器存储和日志；仅非敏感的规范化 provider/model 及映射来源信息可按 analysisMeta 返回与保存。百炼为默认提供方，TypeSafe/Cloudflare 仅作历史参考或后续可选适配，隔离规则见第 2.1 节。
 - AI 只输出情绪建议。隐藏性格评分、成长结算与自主行为均由本地确定性规则决定；V2 饰品一旦实现，其解锁、回收、再获得与穿戴资格同样只由本地确定性规则决定；模型不得输出可直接执行的成长或饰品指令，也不得因为一次识别结果直接改变正式状态。
-- 默认仅记录错误码和耗时；不打印日记正文和模型原始内容。日记正文作为纯文本显示，不执行 HTML、脚本或模型指令。
+- 默认仅记录错误码和耗时；失败时额外记录固定分类、固定原因与上游 HTTP 状态码。不打印日记正文、API Key、完整原生响应或原生概率/分数数值；日记正文作为纯文本显示，不执行 HTML、脚本或模型指令。
 
 ## 6. 最小契约验收
 
@@ -226,3 +227,5 @@ Qoder Sites 的托管模型是静态产物 + 单个 Edge Function；函数入口
 阶段六完成记录（2026-11-13）：三元组匹配、新旧成功/失败响应隔离、严格 analysis/analysisMeta 校验、`needsConfirmation`、低置信度与 `unknown` 提醒、采纳/修改来源区分、保存后重识别绑定正文与修订号、纠正替换均已由 `tests/stage6-client.ts` 与浏览器主流程冒烟覆盖；服务端 Provider 映射、非法原生响应、400/413/429/502/503/504、预算与并发、15 秒体读取超时、日志脱敏由 `tests/stage6-server.ts` 覆盖。`AI_PROVIDER_MODE=mock` 只用于测试/演示且页面明确标注“演示数据”；默认真实 Provider。8–12 条真实中文样例未执行，原因如实记录为缺少 `MODEL_API_KEY` 与 `BAILIAN_WORKSPACE_ID`。
 
 阶段八 S8-03G 完成记录（2026-11-18）：Edge 入口、默认关闭、共享 AI 核心、静态/常规端点选择已本地实现；`tests/stage8-edge-ai.ts` 使用模拟上游与注入 Provider 覆盖正常建议、客户端确认、严格校验、五类 Provider 错误、默认关闭、缺 Key、413/429/503、并发、超时、405/400 与端点选择；阶段六服务端/客户端回归复跑通过。未执行 `deno check`、Edge 实际部署、真实百炼调用或平台 Secrets 配置，相关能力继续标记未验证；未把实例内存计数描述为全局预算。
+
+真实响应兼容修复（2026-11-18）：首次真实百炼请求返回 502 / AI_INVALID_OUTPUT。按官方协议与实测证据核对，原校验要求概率和精确 1 ± 0.001、score 与加权值差不超过 0.001，而百炼 probabilities（以及由未舍入概率算出的 score）实际按两位小数返回；这是最可能直接误杀真实响应的原因。本轮已将两处容差改为按两位小数舍入误差上限推导（Choice 概率和 0.045、三级 Score 概率和 0.015、Score 加权差 0.02），Choice 恢复为必须选中最高概率项之一、仅接受正常舍入产生的并列；字段集合、legend、model 回显、范围与非法分布校验保持不变；同时增加固定分类诊断（`provider-json` / `native-validation` / `analysis-mapping` / `provider`）、固定原因与上游 HTTP 状态码日志，不记录正文、Key 或完整原生响应。本轮未发起真实百炼请求，修复后的真实响应、model 回显与其余协议细节仍待一次授权调用验证。
