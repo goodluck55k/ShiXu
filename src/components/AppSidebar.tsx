@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { EMOTION_NAMES, type Entry } from "@/domain/types";
+import { appHref, normalizeAppPath, requiresFullPageNavigation } from "@/lib/appPaths";
 
 export interface NavItem {
   href: string;
@@ -41,6 +42,14 @@ export function useReportReadingProgress(page: number, total: number) {
     setProgress({ page, total });
   }, [page, setProgress, total]);
   useEffect(() => () => setProgress?.(null), [setProgress]);
+}
+
+// 静态导出子页面没有无扩展名路由，只能整页跳到 .html 文件；其余场景保留客户端导航。
+function AppLink({ href, className, children, current }: { href: string; className?: string; children: ReactNode; current?: boolean }) {
+  const ariaCurrent = current ? "page" as const : undefined;
+  return requiresFullPageNavigation(href)
+    ? <a href={appHref(href)} className={className} aria-current={ariaCurrent}>{children}</a>
+    : <Link href={href} className={className} aria-current={ariaCurrent}>{children}</Link>;
 }
 
 /* ---------- 纯装饰 SVG：均为静态视觉元素，不承载任何功能 ---------- */
@@ -207,13 +216,14 @@ function ProgressCard({ total, progress, onMemoriesPage }: { total: number; prog
       : <>
           <div className="sidebar-progress-row"><div className="sidebar-progress-bar" aria-hidden="true"><i style={{ width: "0%" }} /></div></div>
           <p>已珍藏 {total} 篇回忆</p>
-          <small>{total > 0 ? <Link className="sidebar-progress-link" href="/memories">到回忆碎片慢慢翻阅 →</Link> : "从第一篇回忆开始记录吧"}</small>
+          <small>{total > 0 ? <AppLink className="sidebar-progress-link" href="/memories">到回忆碎片慢慢翻阅 →</AppLink> : "从第一篇回忆开始记录吧"}</small>
         </>}
   </section>;
 }
 
 export function AppSidebar({ pathname, entries }: { pathname: string; entries: Entry[] }) {
   const progress = useReadingProgress();
+  const routePath = normalizeAppPath(pathname);
   return <aside className="sidebar" aria-label="站点目录">
     <PaperEdgeDefs />
     <span className="sidebar-tape" aria-hidden="true" />
@@ -229,17 +239,17 @@ export function AppSidebar({ pathname, entries }: { pathname: string; entries: E
       </div>
       <nav aria-label="主导航" className="nav-list">
         {APP_NAV.map((link) => {
-          const active = pathname === link.href;
-          return <Link key={link.href} href={link.href} aria-current={active ? "page" : undefined} className={active ? "nav-link active" : "nav-link"}>
+          const active = routePath === link.href;
+          return <AppLink key={link.href} href={link.href} current={active} className={active ? "nav-link active" : "nav-link"}>
             <span className="nav-icon" aria-hidden="true"><NavIcon icon={link.icon} /></span>
             <span className="nav-label">{link.label}</span>
             {active && <CloverSticker />}
-          </Link>;
+          </AppLink>;
         })}
       </nav>
       <div className="sidebar-extras">
         <MonthNotes entries={entries} />
-        <ProgressCard total={entries.length} progress={progress} onMemoriesPage={pathname === "/memories"} />
+        <ProgressCard total={entries.length} progress={progress} onMemoriesPage={routePath === "/memories"} />
       </div>
       <div className="sidebar-note">
         <CloverStamp />

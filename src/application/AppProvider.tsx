@@ -11,8 +11,9 @@ import {
   type ReactNode,
 } from "react";
 import { MANUAL_EMOTION_DEFAULTS } from "@/domain/emotions";
-import type { EmotionDimensions, EmotionLabel } from "@/domain/types";
+import { EMOTION_LABELS, type EmotionDimensions, type EmotionLabel, type EmotionReading } from "@/domain/types";
 import { applyGameEvent, createInitialSnapshot } from "@/domain/rules";
+import { BEHAVIOR_V2 } from "@/config/behavior";
 import { OFFLINE_LIFE_V1 } from "@/config/offlineLife";
 import { REUNION_V1 } from "@/config/reunion";
 import { derivePersonality } from "@/domain/personality";
@@ -22,7 +23,6 @@ import type {
   ActivityCheckpointEvent,
   Analysis,
   AnalysisMeta,
-  EmotionReading,
   GameContext,
   GameEvent,
   SessionStartedEvent,
@@ -93,7 +93,7 @@ const initialState: AppState = {
 };
 
 type Action =
-  | { type: "LOAD_DONE"; result: LoadResult }
+  | { type: "LOAD_DONE"; result: LoadResult; restoredSave: ConfirmedSaveContext | null }
   | { type: "SAVE_START"; pending: PendingOperation }
   | { type: "SAVE_OK"; snapshot: Snapshot; temporary: boolean }
   | { type: "SAVE_FAIL"; message: string; conflict: boolean }
@@ -115,7 +115,7 @@ function reducer(state: AppState, action: Action): AppState {
         tabConflict: false,
         saveError: null,
         savedNotice: null,
-        lastConfirmedSave: null,
+        lastConfirmedSave: action.restoredSave,
         loadId: state.loadId + 1,
       };
       const result = action.result;
@@ -310,9 +310,137 @@ function clearActivityRescue(): void {
   }
 }
 
+const DIARY_DRAFT_KEY = "shixu.diaryDraft";
+const PENDING_SAVE_FEEDBACK_KEY = "shixu.pendingSaveFeedback";
+
+type StoredDraft = { text: string; label: EmotionLabel | null; dimensions: EmotionDimensions };
+
+// 静态导出子页面只能整页跳转，草稿与保存反馈需在标签页内短暂存活；不是正式存档，不参与结算。
+function readStoredDraft(): StoredDraft | null {
+  try {
+    const raw = window.sessionStorage.getItem(DIARY_DRAFT_KEY);
+    if (raw === null) return null;
+    const data = JSON.parse(raw) as Record<string, unknown>;
+    const dimensions = data.dimensions as Record<string, unknown> | null | undefined;
+    if (typeof data.text !== "string" || !dimensions) return null;
+    if (
+      typeof dimensions.valence !== "number" || !Number.isFinite(dimensions.valence) ||
+      typeof dimensions.arousal !== "number" || !Number.isFinite(dimensions.arousal) ||
+      typeof dimensions.dominance !== "number" || !Number.isFinite(dimensions.dominance) ||
+      typeof dimensions.intensity !== "number" || !Number.isFinite(dimensions.intensity)
+    ) return null;
+    const label = typeof data.label === "string" && (EMOTION_LABELS as readonly string[]).includes(data.label)
+      ? data.label as EmotionLabel
+      : null;
+    return {
+      text: data.text,
+      label,
+      dimensions: {
+        valence: dimensions.valence,
+        arousal: dimensions.arousal,
+        dominance: dimensions.dominance,
+        intensity: dimensions.intensity,
+      },
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredDraft(draft: StoredDraft): void {
+  try {
+    if (draft.text.trim().length === 0 && draft.label === null) {
+      window.sessionStorage.removeItem(DIARY_DRAFT_KEY);
+      return;
+    }
+    window.sessionStorage.setItem(DIARY_DRAFT_KEY, JSON.stringify(draft));
+  } catch {
+    // 浏览器禁用会话存储时草稿只保留在当前内存。
+  }
+}
+
+function readPendingSaveFeedback(): ConfirmedSaveContext | null {
+  try {
+    const raw = window.sessionStorage.getItem(PENDING_SAVE_FEEDBACK_KEY);
+    if (raw === null) return null;
+    const data = JSON.parse(raw) as Record<string, unknown>;
+    const emotion = data.emotion as Record<string, unknown> | null | undefined;
+    const savedAt = data.savedAt;
+    const valid =
+      typeof data.eventId === "string" &&
+      typeof data.entryId === "string" &&
+      typeof savedAt === "number" && Number.isFinite(savedAt) &&
+      emotion !== null && typeof emotion === "object" &&
+      typeof emotion.label === "string" && (EMOTION_LABELS as readonly string[]).includes(emotion.label) &&
+      typeof emotion.valence === "number" && Number.isFinite(emotion.valence) &&
+      typeof emotion.arousal === "number" && Number.isFinite(emotion.arousal) &&
+      typeof emotion.dominance === "number" && Number.isFinite(emotion.dominance) &&
+      typeof emotion.intensity === "number" && Number.isFinite(emotion.intensity) &&
+      (emotion.confidence === null || typeof emotion.confidence === "number") &&
+      (emotion.source === "ai" || emotion.source === "manual" || emotion.source === "corrected");
+    // 过期、损坏或非本版本的投递直接丢弃，不排队补播。
+    if (!valid || !(Date.now() < (savedAt as number) + BEHAVIOR_V2.saveFeedbackTtlMs)) {
+      window.sessionStorage.removeItem(PENDING_SAVE_FEEDBACK_KEY);
+      return null;
+    }
+    return {
+      eventId: data.eventId as string,
+      entryId: data.entryId as string,
+      savedAt: savedAt as number,
+      emotion: {
+        label: emotion!.label as EmotionLabel,
+        valence: emotion!.valence as number,
+        arousal: emotion!.arousal as number,
+        dominance: emotion!.dominance as number,
+        intensity: emotion!.intensity as number,
+        confidence: (emotion!.confidence ?? null) as number | null,
+        source: emotion!.source as EmotionReading["source"],
+      },
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writePendingSaveFeedback(context: ConfirmedSaveContext): void {
+  try {
+    window.sessionStorage.setItem(PENDING_SAVE_FEEDBACK_KEY, JSON.stringify(context));
+  } catch {
+    // 无法持久化时仍保留当前内存中的一次性反馈。
+  }
+}
+
+function clearPendingSaveFeedback(): void {
+  try {
+    window.sessionStorage.removeItem(PENDING_SAVE_FEEDBACK_KEY);
+  } catch {
+    // 忽略
+  }
+}
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [draft, setDraft] = useState<{ text: string; label: EmotionLabel | null; dimensions: EmotionDimensions }>({ text: "", label: null, dimensions: MANUAL_EMOTION_DEFAULTS.neutral });
+  // 草稿只做标签页内恢复：静态导出整页跳转后仍能找回未保存正文，不写入正式存档。
+  const draftHydratedRef = useRef(false);
+  const skipDraftPersistRef = useRef(true);
+  useEffect(() => {
+    const stored = readStoredDraft();
+    // 会话存储只在客户端可读；挂载后恢复，避免预渲染首帧与客户端草稿不一致。
+    if (stored) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setDraft(stored);
+    }
+    draftHydratedRef.current = true;
+  }, []);
+  useEffect(() => {
+    if (!draftHydratedRef.current) return;
+    if (skipDraftPersistRef.current) {
+      skipDraftPersistRef.current = false;
+      return;
+    }
+    writeStoredDraft(draft);
+  }, [draft]);
   const savingRef = useRef(false);
   const [storage] = useState<StoragePort>(() => createLocalStorageAdapter());
   const sessionStartedRef = useRef(false);
@@ -338,9 +466,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     sessionStartedRef.current = false;
     saveFeedbackStartedRef.current = null;
     const result = await storage.load();
+    const restoredSave = readPendingSaveFeedback();
     pendingRef.current = null;
     sessionPendingRef.current = null;
-    dispatch({ type: "LOAD_DONE", result });
+    dispatch({ type: "LOAD_DONE", result, restoredSave });
   }, [storage]);
 
   useEffect(() => {
@@ -549,6 +678,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (result.status === "saved") {
           pendingRef.current = null;
           settlePendingSession(result.snapshot);
+          if (pending.event.type === "CONFIRM_ENTRY") {
+            writePendingSaveFeedback({
+              eventId: pending.event.eventId,
+              entryId: pending.event.entryId,
+              emotion: pending.event.emotion,
+              savedAt: pending.now,
+            });
+          }
           dispatch({ type: "SAVE_OK", snapshot: result.snapshot, temporary: false });
           return true;
         }
@@ -713,6 +850,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     pendingRef.current = null;
     sessionPendingRef.current = null;
     saveFeedbackStartedRef.current = null;
+    clearPendingSaveFeedback();
     dispatch({ type: "ENABLE_TEMP" });
   }, []);
 
@@ -722,6 +860,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
   const markSaveFeedbackStarted = useCallback((eventId: string) => {
     saveFeedbackStartedRef.current = eventId;
+    clearPendingSaveFeedback();
   }, []);
 
   const resetStorage = useCallback(async () => {
@@ -730,6 +869,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       pendingRef.current = null;
       sessionPendingRef.current = null;
       saveFeedbackStartedRef.current = null;
+      clearPendingSaveFeedback();
       sessionStartedRef.current = true;
       clearActivityRescue();
       dispatch({ type: "RESET_OK", snapshot: result.snapshot });
