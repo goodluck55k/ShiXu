@@ -152,6 +152,7 @@ V2 仅在 V1 稳定且用户明确批准后增加饰品装扮系统；V1 只保�
 | [ROADMAP](docs/ROADMAP.md) | 阶段依赖、分支、每阶段范围与验收、待确认边界 |
 | [STAGE7_DESIGN](docs/STAGE7_DESIGN.md) | 阶段七已确定方向、角色/表情/动作/保存反馈/UI 的设计参考与未定事项 |
 | [STAGE7_UI_INTERACTION_SPEC](docs/STAGE7_UI_INTERACTION_SPEC.md) | 阶段七正式页面、交互、反馈限制及待验收参数 |
+| [STAGE9_DESIGN](docs/STAGE9_DESIGN.md) | 阶段九企鹅生命感、本地台词气泡与场景融合的范围、原则与后续 AI 对话/语音规划 |
 | [WORKFLOW](docs/WORKFLOW.md) | GitHub / 任务卡 / 验证 / PR / 汇报流程 |
 | [MODULE_TASK_CARD](docs/MODULE_TASK_CARD.md) | 模块任务卡模板与示例 |
 | [REFERENCES](docs/REFERENCES.md) | 已阅读参考源码、角色/场景参考、提交记录与许可边界 |
