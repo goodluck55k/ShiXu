@@ -166,6 +166,7 @@ export function WishBoard({
             </div>
           )}
         </div>
+        <p className="wish-board-local-note">✧ 愿望只保存在这台设备里</p>
         <span className="wish-board-sprig" aria-hidden="true"><BoardSprig /></span>
       </div>
     </section>
