@@ -6,8 +6,6 @@ import { PenguinFront } from "@/components/character/PenguinFront";
 import { RoomPreview } from "./RoomPreview";
 import { SpecialSimulation } from "./SpecialSimulation";
 
-export const dynamic = "force-dynamic";
-
 const expressions = [
   ["neutral", "自然"], ["happy", "开心"], ["soft", "温柔"],
   ["sad", "失落"], ["wary", "担心"], ["angry", "不满"],
