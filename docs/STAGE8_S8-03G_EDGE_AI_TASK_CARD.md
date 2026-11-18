@@ -13,7 +13,7 @@
 - 阶段：阶段八 S8-03 的 AI 子项；不新增领域模块。
 - 模块：`emotion`（AI 情绪识别的部署适配）；仍只输出情绪建议，不接触性格、主导、行为、离线、重逢或存档写入。
 - 目标：让 Qoder Sites 静态部署版本通过 `/functions/v1/app` 调用百炼 `decision-model-preview`，复用现有 `EmotionApiRequest` / `Analysis` / envelope 契约与九类情绪、VAD、严格校验；本地 Next.js `/api/emotion` 保持可用。
-- 对应 PR：Draft PR（本分支创建后补链接）。
+- 对应 PR：Draft PR #55（`feature/stage8-edge-ai`），是否合并由用户决定。
 
 ### 输入与输出
 
