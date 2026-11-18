@@ -806,3 +806,30 @@ body { background:radial-gradient(circle at 80% 0,#fffaf0 0,transparent 38%),var
   .diary-bookmark { right:28px; bottom:-26px; height:42px; width:18px; }
 }
 @media (prefers-reduced-motion:reduce) { .diary-page .emotion-stickers .emotion-option,.diary-page .emotion-stickers .emotion-option:hover:not(:disabled),.diary-page .emotion-stickers .emotion-option[aria-pressed="true"] { transform:none; } }
+/* ================= 阶段九 PR ①：企鹅生命层与场景融合 =================
+   生命层（.penguin-life）包在动作层（.penguin-body）外，两层变换叠加：动作关键帧保持原样，
+   眨眼、呼吸、视线与歪头始终存在。全部为展示层，不影响行为调度与存档。 */
+.penguin-life { transform-box:fill-box; transform-origin:50% 96%; animation:penguin-life-breathe 3.8s ease-in-out infinite; animation-delay:var(--life-offset,0s); }
+.is-seated-view .penguin-life { animation-name:penguin-life-breathe-seated; animation-duration:4.6s; }
+.action-breathe .penguin-life,.action-walk .penguin-life,.action-bounce .penguin-life,.action-spin .penguin-life { animation:none; }
+@keyframes penguin-life-breathe { 50% { scale:calc(1 + .006 * var(--amp,1)) calc(1 + .013 * var(--amp,1)); } }
+@keyframes penguin-life-breathe-seated { 50% { scale:calc(1 + .01 * var(--amp,1)) calc(1 + .009 * var(--amp,1)); } }
+/* 不规则眨眼：一个周期里一次单眨、一次连眨；笑眼与困眼不眨，柔眼的弧线压平成一条线，像慢慢眨眼。 */
+.penguin-life [data-eye] { transform-box:fill-box; transform-origin:center; animation:penguin-blink-life 6.2s linear infinite; animation-delay:var(--life-offset,0s); }
+.penguin-life [data-eye="happy"],.penguin-life [data-eye="tired"] { animation:none; }
+@keyframes penguin-blink-life { 0%,28.5%,31.5%,76.5%,79%,81%,83.5%,100% { scale:1 1; } 30%,77.8%,82.3% { scale:1 .1; } }
+/* 视线：小屋场景写入 --look-x/--look-y（用户单位），脸部朝指针偏移；偶尔歪头。 */
+.penguin-life [data-part="gaze"] { transform-box:fill-box; transform-origin:50% 90%; transform:translate(calc(var(--look-x,0) * 1px),calc(var(--look-y,0) * 1px)); transition:transform .35s ease-out; animation:penguin-head-tilt 14s ease-in-out infinite; animation-delay:var(--life-offset,0s); }
+@keyframes penguin-head-tilt { 0%,58%,75%,100% { rotate:0deg; } 63%,70% { rotate:calc(-6deg * var(--amp,1)); } }
+/* 动作衔接：坐下/起身带轻微回弹；换朝向与停步时有落地的压缩回弹，而不是硬切。 */
+.standing-pose,.sitting-pose { transition:opacity .4s ease, translate .55s cubic-bezier(.34,1.5,.6,1); }
+.scene-character .character-svg { transform-origin:50% 94%; animation:penguin-settle .36s ease-out; }
+@keyframes penguin-settle { from { opacity:.55; scale:1.03 .95; } 60% { opacity:1; scale:.99 1.015; } to { opacity:1; scale:1 1; } }
+/* 挥手：先微微向反方向蓄力，身体同时轻倾，结束前有余韵。 */
+@keyframes penguin-wave { 0%,100% { rotate:0deg; } 12% { rotate:calc(10deg * var(--amp)); } 50% { rotate:calc(-58deg * var(--amp)); } 72% { rotate:calc(-44deg * var(--amp)); } }
+.action-wave .penguin-body { animation:penguin-wave-lean 3s ease-in-out both; }
+@keyframes penguin-wave-lean { 0%,100% { rotate:0deg; } 15%,82% { rotate:calc(-2.5deg * var(--amp)); } }
+/* 场景融合：暖色柔和投影；窗侧暖色边缘光与很淡的环境投影，只作用于小屋。 */
+.penguin-ground-shadow { filter:blur(2.5px); }
+.home-shell .scene-character .character-svg { filter:drop-shadow(-1.2px -.8px .6px #ffe8c07a) drop-shadow(0 3px 4px #6b432422); }
+@media (prefers-reduced-motion:reduce) { .penguin-life [data-part="gaze"] { transition:none; transform:none; } .scene-character .character-svg { animation:none; } }

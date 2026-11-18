@@ -21,10 +21,12 @@ export function CharacterRenderer({ view, direction, motionOff = false, sceneMod
     <g className="special-seated" transform="translate(22 111)"><PenguinPose seated special={special} expression={special === "drink" ? "tired" : "soft"} /></g>
     {special === "smoke" && <g className="smoke-layer" aria-hidden="true" fill="none" stroke="#a8a8a1" strokeWidth="3" strokeLinecap="round"><path d="M212 220 C204 210 218 205 212 195 C207 187 216 183 213 176" /><path d="M221 214 C216 207 225 202 221 195" opacity=".65" /></g>}
   </svg>;
-  return <svg viewBox="0 0 240 320" role="img" aria-label="陪伴企鹅" className={`character-svg penguin-action action-${animation}${pondering ? " is-pondering" : ""}${motionOff ? " motion-off" : ""}`} style={{ "--amp": String(amplitude) } as CSSProperties}>
+  return <svg viewBox="0 0 240 320" role="img" aria-label="陪伴企鹅" className={`character-svg penguin-action action-${animation}${pondering ? " is-pondering" : ""}${seated ? " is-seated-view" : ""}${motionOff ? " motion-off" : ""}`} style={{ "--amp": String(amplitude), "--life-offset": `${lifeOffset(view.behaviorId)}s` } as CSSProperties}>
     <g transform={offset}>
     {pondering && <g className="ponder-mark" aria-hidden="true"><text x="154" y="102" textAnchor="middle" fontSize="32" fontWeight="700" fill="#494139">?</text></g>}
-    <ellipse cx="120" cy="300" rx="66" ry="11" fill="#697d5b" opacity=".22" />
+    <ellipse className="penguin-ground-shadow" cx="120" cy="300" rx="66" ry="11" fill="#6b4a2e" opacity=".2" />
+    {/* Life layer: always-on breathing, blinking and gaze sit outside the action layer so both compose. */}
+    <g className="penguin-life">
     <g className={`penguin-body${seated ? " is-seated" : ""}`} transform="translate(22 111)">
       {turning ? <>
         <g className="turn-front"><PenguinPose expression={view.expression} /></g>
@@ -37,5 +39,13 @@ export function CharacterRenderer({ view, direction, motionOff = false, sceneMod
       </> : <PenguinPose direction={facing} expression={view.expression} />}
     </g>
     </g>
+    </g>
   </svg>;
+}
+
+/** Deterministic phase offset so blinks/tilts do not restart in lockstep after every behavior change. */
+function lifeOffset(id: string | undefined) {
+  let hash = 0;
+  for (const ch of id ?? "") hash = (hash * 31 + ch.charCodeAt(0)) % 997;
+  return -((hash % 70) / 10);
 }

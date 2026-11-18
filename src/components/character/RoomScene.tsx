@@ -78,6 +78,33 @@ export function RoomScene({ decision, view, paused, feedbackActive, showHearts, 
     return () => { window.cancelAnimationFrame(frame); cleanup(); setMotion(null); };
   }, [behaviorId, category, reason, paused, reunionPending, feedbackActive, decision]);
 
+  // Presentation-only gaze: the face leans a few units toward the pointer. Writes CSS variables
+  // directly so pointer movement never re-renders React or reaches behavior/state.
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    const penguin = penguinRef.current;
+    if (!viewport || !penguin) return;
+    const reset = () => { penguin.style.setProperty("--look-x", "0"); penguin.style.setProperty("--look-y", "0"); };
+    const motionPreference = window.matchMedia("(prefers-reduced-motion: reduce)");
+    if (paused || motionPreference.matches) { reset(); return; }
+    let frame = 0;
+    let pending: PointerEvent | null = null;
+    const apply = () => {
+      frame = 0;
+      if (!pending) return;
+      const box = penguin.getBoundingClientRect();
+      const dx = pending.clientX - (box.left + box.width / 2);
+      const dy = pending.clientY - (box.top + box.height * .3);
+      const reach = Math.max(box.width * 3, 1);
+      penguin.style.setProperty("--look-x", (Math.max(-1, Math.min(1, dx / reach)) * 4.5).toFixed(2));
+      penguin.style.setProperty("--look-y", (Math.max(-1, Math.min(1, dy / reach)) * 2.5).toFixed(2));
+    };
+    const move = (event: PointerEvent) => { if (event.pointerType === "touch") return; pending = event; if (!frame) frame = window.requestAnimationFrame(apply); };
+    viewport.addEventListener("pointermove", move);
+    viewport.addEventListener("pointerleave", reset);
+    return () => { window.cancelAnimationFrame(frame); viewport.removeEventListener("pointermove", move); viewport.removeEventListener("pointerleave", reset); reset(); };
+  }, [paused]);
+
   const walking = motion !== null && !paused && !reunionPending && !feedbackActive && category !== "interaction" && category !== "special";
   return <div className={`scene${paused ? " is-paused" : ""}`} ref={viewportRef} aria-label="企鹅的绘本小屋">
     <div className="room-canvas" ref={canvasRef}>

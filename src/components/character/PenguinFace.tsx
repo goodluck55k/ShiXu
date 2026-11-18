@@ -36,11 +36,13 @@ function EyeShape({ kind, x, mirror = false }: { kind: Eye; x: number; mirror?: 
 
 export function PenguinFace({ expression = "neutral" }: { expression?: string }) {
   const face = Object.hasOwn(FACES, expression) ? FACES[expression] : FACES.neutral;
-  return <g data-part="face">
+  // The gaze wrapper only carries presentation offsets (pointer gaze, idle head tilt);
+  // action keyframes keep animating the inner face group.
+  return <g data-part="gaze"><g data-part="face">
     <EyeShape kind={face.left} x={68} />
     <EyeShape kind={face.right} x={121} mirror />
     {face.beak === "down"
       ? <path data-part="beak" d="M85 57 Q94.5 51 104 57 Q102 62 94.5 61 Q87 62 85 57 Z" fill={BEAK} stroke={OUTLINE} strokeWidth="1.5" />
       : <ellipse data-part="beak" cx="94.5" cy="57" rx={face.beak === "small" ? 7.5 : 9.6} ry={face.beak === "small" ? 4.3 : 5.4} fill={BEAK} stroke={OUTLINE} strokeWidth="1.5" />}
-  </g>;
+  </g></g>;
 }
