@@ -100,3 +100,78 @@
 - 页面隐藏：翻到一半时触发 `visibilitychange`，提交目标页、纸页清除，无半翻状态。
 - 键盘 Enter 可翻页，焦点保留；动画期间正文层 `inert=true`，真实鼠标点击编辑按钮不会进入编辑态。
 - 未验证：实体设备、非零安全区、Safari/Firefox、屏幕阅读器、超大量记录性能。翻页手感与视觉仍需用户最终验收。
+
+## 第五轮：高保真概念图精修（2026-11-18）
+
+状态：代码与截图已提交到独立分支，**等待用户视觉验收**；Draft PR 不合并。基线仍为 [STAGE7_MEMORIES_SCRAPBOOK_APPROVED](STAGE7_MEMORIES_SCRAPBOOK_APPROVED.md) 中两张已确认概念图；本轮不重新设计页面，只对齐布局比例、纸张层次、便签拼贴、信纸与控件细节。页面结构、真实翻页、编辑/纠正与存档契约均未改变。
+
+### 1. 对照后优先修正的视觉差距
+
+| 优先级 | 概念图特征 | 本轮修正前 | 本轮处理 |
+| --- | --- | --- | --- |
+| 1 | 右页信纸铺满书页，操作按钮位于纸面下缘，阅读企鹅压在纸角 | 信纸按内容收缩，按钮悬在纸面中部，下方留出大片空白 | 书页高度随视口增长；信纸绝对铺满右页，按钮下沉；企鹅固定在右页底部；长正文在信纸内滚动，书页高度不变 |
+| 2 | 左页是胶带便签拼贴，没有工具型标题 | 显示「回忆索引 · 当前与相邻 / 第 X / Y 页」，列表滚动条明显 | 标题仅保留读屏文本、视觉隐藏；隐藏滚动条但保留滚动；便签增加企鹅贴纸、四叶草与粉色纸张层次；底部植物加大 |
+| 3 | 柔和木纹书封、叠页厚度、纸质页码书签 | 封面条纹对比偏强，页码是小标签 | 改为平滑木纹渐变与叠页边；翻页按钮加大；页码改为两端切角的纸书签；书脊底部增加格纹书签 |
+| 4 | 页头右上角有枝叶，标题字号更大 | 页头无枝叶，标题略小 | 新增原创枝叶 SVG；桌面标题 34–46px，移动端 32px；副标题与间距同步收敛 |
+| 5 | 右页是横线信纸 | 第四轮为避免横线穿字已改为文字下划线 | 使用与 `line-height:2.2em` 绑定的重复背景线，横线跟随真实行盒换行、不穿过文字；同时保留正文原样与纸内滚动 |
+| 6 | 手机端日期与来源同一行，底部有阅读进度纸卡 | 日期/来源换行；无进度纸卡 | 调整移动端字号与间距；新增「第 X / Y 页 · 还有 N 页待翻阅」纸卡；底部固定导航与翻页控件保持原有安全区间距 |
+
+### 2. 截图
+
+修改前（第四轮已提交截图）：
+
+- 桌面 1440×900：[before-desktop-1440](assets/memories-highfidelity/before-desktop-1440.png)
+- 手机 390：[before-mobile-390](assets/memories-highfidelity/before-mobile-390.png)
+
+修改后：
+
+- 桌面 1440×900：[after-desktop-1440](assets/memories-highfidelity/after-desktop-1440.png)
+- 桌面 1920×1080：[after-desktop-1920](assets/memories-highfidelity/after-desktop-1920.png)
+- 桌面长正文：[after-desktop-long](assets/memories-highfidelity/after-desktop-long.png)
+- 桌面编辑态：[after-desktop-edit](assets/memories-highfidelity/after-desktop-edit.png)
+- 桌面纠正展开：[after-desktop-correction](assets/memories-highfidelity/after-desktop-correction.png)
+- 手机 390 顶部：[after-mobile-390-top](assets/memories-highfidelity/after-mobile-390-top.png)
+- 手机 390 底部：[after-mobile-390-bottom](assets/memories-highfidelity/after-mobile-390-bottom.png)
+- 手机 375：[after-mobile-375](assets/memories-highfidelity/after-mobile-375.png)
+
+截图来自本地生产构建（独立 `distDir` 构建，未改动运行中的开发服务器）与 Chrome 无头浏览器；测试记录通过浏览器本地存档注入，仅用于视觉对照，不是产品种子数据。修改前截图沿用第四轮已入库的本地生产构建截图。
+
+### 3. 验证结果
+
+- 1440×900、1920×1080、390×844、375×812、360×800 实测 `overflowX=0`；桌面首屏在 1440×900 内完整显示书本与翻页控件。
+- 8 条真实结构记录：`1 / 8` → 下一页 → `2 / 8`，左页选中便签与右页全文同步；首尾页禁用逻辑未改。
+- 长正文在右页信纸内滚动，书页高度保持 900 视口内；编辑态正文框、保存/取消按钮可见；纠正展开时全文表单完整可见，书页临时增高并可滚动，阅读企鹅在该表单态隐藏。
+- 手机端顶部与书本下方翻页入口、底部三页导航保留；390/375/360 宽度无横向溢出，底部控件不被安全区遮挡。
+- `npm run typecheck`、`npm run lint`、生产构建通过。
+- 未验证：实体设备、非零安全区、Safari/Firefox、屏幕阅读器、超大量记录的性能；本轮未点击执行最终保存写入（保存逻辑与按钮未变更）。
+- 未改动：存档 Schema、五维评分、主导判定、企鹅行为、AI、离线生活/久别重逢、其他页面；未新增图片上传、饰品、商店等 V2 内容；导航保留现有四入口（含概念图之后新增的许愿屋）。
+
+
+### 4. PR 验收补充：信纸横线相位修复（2026-11-18）
+
+验收 PR #60 时发现横线仍会压字：横线间距本身已等于行高，问题在**相位**。`.memory-full-text` 保留了旧版 `padding-top:22px`，而背景默认 `background-origin:padding-box`，横线从 padding 盒顶端起算；正文内容盒在下方 22px，导致每根横线相对文字整体上移 22px，正好落在字形上半部。近景可见横线穿过“今天”“光”“的”等字。
+
+修复只涉及横线实现：
+
+- 为 `.memory-full-text` 与 `.flip-page-text` 增加 `background-origin:content-box; background-clip:content-box;`
+- 保持 `line-height:2.2`、`background-size:100% 2.2em`、纸张颜色与整体视觉不变；不改翻页、编辑、保存、数据或其他页面。
+
+验证（Chrome 无头浏览器 + 当前生产构建）：
+
+- 16px：文字行矩形间距 35.19px，横线间距 35.2px；20px：44px 对 44px；移动端 18px：39.6px 对 39.6px。
+- 桌面长正文滚动 180px 后，文字行矩形整体位移 180px，横线与文字的相对相位保持不变。
+- 桌面短正文、长正文（含长英文标识自动换行）、手机 390 短/长正文、20px/18px 字体、翻页动画均通过近景检查，无压线、穿线。
+- 编辑态由 `textarea` 取代横线正文，不对 textarea 应用横线，因此不存在压线；保存/取消与纠正入口保持可用。
+
+证据：
+
+- 桌面修复前：[line-align-before-desktop](assets/memories-highfidelity/line-align-before-desktop.png)
+- 桌面修复后：[line-align-after-desktop](assets/memories-highfidelity/line-align-after-desktop.png)
+- 桌面滚动后：[line-align-after-desktop-scrolled](assets/memories-highfidelity/line-align-after-desktop-scrolled.png)
+- 桌面 20px 字体：[line-align-after-font20](assets/memories-highfidelity/line-align-after-font20.png)
+- 桌面短正文：[line-align-after-short](assets/memories-highfidelity/line-align-after-short.png)
+- 手机修复前：[line-align-before-mobile](assets/memories-highfidelity/line-align-before-mobile.png)
+- 手机修复后：[line-align-after-mobile](assets/memories-highfidelity/line-align-after-mobile.png)
+- 手机 18px 字体：[line-align-after-mobile-font18](assets/memories-highfidelity/line-align-after-mobile-font18.png)
+
+截图说明：桌面“修复前”来自旧构建；手机“修复前”为在修复后构建中通过运行时样式还原旧 `background-origin:padding-box` 后截取，用于等价对照。测试记录为本地注入的 3 条结构记录，不是产品种子数据。
