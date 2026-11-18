@@ -146,3 +146,32 @@
 - 未验证：实体设备、非零安全区、Safari/Firefox、屏幕阅读器、超大量记录的性能；本轮未点击执行最终保存写入（保存逻辑与按钮未变更）。
 - 未改动：存档 Schema、五维评分、主导判定、企鹅行为、AI、离线生活/久别重逢、其他页面；未新增图片上传、饰品、商店等 V2 内容；导航保留现有四入口（含概念图之后新增的许愿屋）。
 
+
+### 4. PR 验收补充：信纸横线相位修复（2026-11-18）
+
+验收 PR #60 时发现横线仍会压字：横线间距本身已等于行高，问题在**相位**。`.memory-full-text` 保留了旧版 `padding-top:22px`，而背景默认 `background-origin:padding-box`，横线从 padding 盒顶端起算；正文内容盒在下方 22px，导致每根横线相对文字整体上移 22px，正好落在字形上半部。近景可见横线穿过“今天”“光”“的”等字。
+
+修复只涉及横线实现：
+
+- 为 `.memory-full-text` 与 `.flip-page-text` 增加 `background-origin:content-box; background-clip:content-box;`
+- 保持 `line-height:2.2`、`background-size:100% 2.2em`、纸张颜色与整体视觉不变；不改翻页、编辑、保存、数据或其他页面。
+
+验证（Chrome 无头浏览器 + 当前生产构建）：
+
+- 16px：文字行矩形间距 35.19px，横线间距 35.2px；20px：44px 对 44px；移动端 18px：39.6px 对 39.6px。
+- 桌面长正文滚动 180px 后，文字行矩形整体位移 180px，横线与文字的相对相位保持不变。
+- 桌面短正文、长正文（含长英文标识自动换行）、手机 390 短/长正文、20px/18px 字体、翻页动画均通过近景检查，无压线、穿线。
+- 编辑态由 `textarea` 取代横线正文，不对 textarea 应用横线，因此不存在压线；保存/取消与纠正入口保持可用。
+
+证据：
+
+- 桌面修复前：[line-align-before-desktop](assets/memories-highfidelity/line-align-before-desktop.png)
+- 桌面修复后：[line-align-after-desktop](assets/memories-highfidelity/line-align-after-desktop.png)
+- 桌面滚动后：[line-align-after-desktop-scrolled](assets/memories-highfidelity/line-align-after-desktop-scrolled.png)
+- 桌面 20px 字体：[line-align-after-font20](assets/memories-highfidelity/line-align-after-font20.png)
+- 桌面短正文：[line-align-after-short](assets/memories-highfidelity/line-align-after-short.png)
+- 手机修复前：[line-align-before-mobile](assets/memories-highfidelity/line-align-before-mobile.png)
+- 手机修复后：[line-align-after-mobile](assets/memories-highfidelity/line-align-after-mobile.png)
+- 手机 18px 字体：[line-align-after-mobile-font18](assets/memories-highfidelity/line-align-after-mobile-font18.png)
+
+截图说明：桌面“修复前”来自旧构建；手机“修复前”为在修复后构建中通过运行时样式还原旧 `background-origin:padding-box` 后截取，用于等价对照。测试记录为本地注入的 3 条结构记录，不是产品种子数据。

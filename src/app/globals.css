@@ -533,7 +533,7 @@ body { background:radial-gradient(circle at 80% 0,#fffaf0 0,transparent 38%),var
 .memories-page .memory-detail { background-image:none; }
 .memory-detail-heading time { font-size:22px; }
 .memories-page .memory-full-text { border-top:0; }
-.memories-page .memory-full-text, .flip-page-text { text-decoration:none; background-image:linear-gradient(to bottom,transparent calc(100% - 1px),#e0c6a9 calc(100% - 1px)); background-size:100% 2.2em; background-repeat:repeat-y; background-attachment:local; }
+.memories-page .memory-full-text, .flip-page-text { text-decoration:none; background-image:linear-gradient(to bottom,transparent calc(100% - 1px),#e0c6a9 calc(100% - 1px)); background-size:100% 2.2em; background-repeat:repeat-y; background-attachment:local; background-origin:content-box; background-clip:content-box; }
 .memories-page .memory-edit { margin:0; }
 .memory-action-row { display:flex; align-items:flex-start; flex-wrap:wrap; gap:10px; margin-top:2px; }
 .memory-action-row .correction { margin:0; }
