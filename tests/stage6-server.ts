@@ -91,6 +91,32 @@ function nativeTests() {
   });
   assert.equal(validateAnalysisStrict(analysis).ok, true);
 
+  // 百炼 probabilities 为两位小数：和可能为 0.99/1.01，score 由未舍入概率算出。
+  // 校验必须接受这种量化结果，同时保留对明显非法分布的拒绝。
+  const quantized = structuredClone(VALID_NATIVE);
+  quantized.answers.label.probabilities = {
+    joy: 0.5, calm: 0.49, sadness: 0, anxiety: 0, anger: 0, tired: 0, mixed: 0, neutral: 0, unknown: 0,
+  };
+  quantized.answers.valence = {
+    ...quantized.answers.valence,
+    score: 1.97,
+    probabilities: { "0": 0, "1": 0.01, "2": 0.98 },
+  };
+  const quantizedValidation = validateNativeResponse(quantized, MODEL);
+  assert.equal(quantizedValidation.ok, true, "两位小数概率应被接受");
+  if (quantizedValidation.ok) {
+    const quantizedAnalysis = mapNativeToAnalysis(quantizedValidation.native);
+    assert.equal(quantizedAnalysis.label, "joy");
+    assert.equal(quantizedAnalysis.valence, 0.985);
+  }
+
+  // 未舍入分布的 argmax 与两位小数后的最高值可能相差 0.01，应允许这种舍入反转。
+  const nearTie = structuredClone(VALID_NATIVE);
+  nearTie.answers.label.probabilities = {
+    joy: 0.34, calm: 0.35, sadness: 0.3, anxiety: 0, anger: 0, tired: 0, mixed: 0, neutral: 0, unknown: 0,
+  };
+  assert.equal(validateNativeResponse(nearTie, MODEL).ok, true, "一个概率单位内的舍入反转应被接受");
+
   const rejects: Array<[string, unknown]> = [
     ["未知顶层字段", { ...VALID_NATIVE, extra: true }],
     ["模型不匹配", { ...VALID_NATIVE, model: "other-model" }],
@@ -380,13 +406,31 @@ async function main() {
     assertCorrelated(result.json, body);
     assert.ok(elapsed >= 14000, `超时应接近 15 秒，实际 ${elapsed}ms`);
 
-    // 9. 日志只含结果码与耗时：不含 Key、正文或原生响应。
+    // 9. 日志只含结果码、耗时与固定诊断分类：不含 Key、正文、model 或原生响应。
     const joined = logs.join("\n");
     assert.ok(logs.length > 0);
     assert.equal(joined.includes("test-key"), false);
     assert.equal(joined.includes("今天终于完成作业"), false);
     assert.equal(joined.includes("decision-model-preview"), false);
-    assert.ok(logs.every((line) => /^\[emotion\] code=\S+ durationMs=\d+$/.test(line)));
+    assert.equal(joined.includes("not-json"), false);
+    assert.ok(
+      logs.some((line) => line.includes("reason=provider-json") && line.includes("upstream=200")),
+      "非 JSON 响应应记录 provider-json 诊断",
+    );
+    assert.ok(
+      logs.some(
+        (line) =>
+          line.includes("reason=native-validation") &&
+          line.includes("upstream=200") &&
+          line.includes("detail=原生响应含未知字段"),
+      ),
+      "原生校验失败应记录固定原因与上游状态码",
+    );
+    const invalidLogLines = logs.filter(
+      (line) =>
+        !/^\[emotion\] code=\S+ durationMs=\d+( upstream=\d+)?( reason=[a-z-]+( detail=.+)?)?$/.test(line),
+    );
+    assert.equal(invalidLogLines.length, 0, `日志格式不符：${invalidLogLines.join(" | ")}`);
   } finally {
     console.info = originalInfo;
     upstreamMode = "valid";
