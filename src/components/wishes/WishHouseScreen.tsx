@@ -34,12 +34,22 @@ function WishHouseScreenContent({ preview }: { preview: boolean }) {
 
   return (
     <div className="page wishes-page">
-      <div className="mobile-wish-brand" aria-hidden="true">♧ <b>拾绪 <small>ShiXu</small></b></div>
+      <div className="mobile-wish-brand" aria-hidden="true">
+        <svg viewBox="0 0 48 48">
+          <path d="M24 27c.4 5.8 1.6 10.6 4.4 15" fill="none" />
+          <g transform="translate(24 25)">
+            <path d="M0 0C-8.6-5.6-10.8-14.6-5.4-16.8-2-18.2 0-15.6 0-13.4 0-15.6 2-18.2 5.4-16.8 10.8-14.6 8.6-5.6 0 0Z" />
+            <path d="M0 0C-8.6-5.6-10.8-14.6-5.4-16.8-2-18.2 0-15.6 0-13.4 0-15.6 2-18.2 5.4-16.8 10.8-14.6 8.6-5.6 0 0Z" transform="rotate(118)" />
+            <path d="M0 0C-8.6-5.6-10.8-14.6-5.4-16.8-2-18.2 0-15.6 0-13.4 0-15.6 2-18.2 5.4-16.8 10.8-14.6 8.6-5.6 0 0Z" transform="rotate(-118)" />
+          </g>
+        </svg>
+        <b>拾绪 <small>ShiXu</small></b>
+      </div>
       <header className="page-header wish-header">
         <div>
           <p className="eyebrow">A LITTLE WISH FOR TOMORROW</p>
           <h1>许愿屋<span className="title-dot">.</span></h1>
-          <p>把心里的小愿望写下来，放进许愿杯里，慢慢去实现吧。♡</p>
+          <p>把心里的小愿望写下来，<br className="wish-mobile-break" />放进许愿杯里，慢慢去实现吧。♡</p>
         </div>
         <CornerLeaves />
       </header>

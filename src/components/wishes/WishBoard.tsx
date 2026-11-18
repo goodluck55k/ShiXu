@@ -85,6 +85,17 @@ export function WishBoard({
       <span className="wish-board-clip" aria-hidden="true">
         <svg viewBox="0 0 44 52"><path d="M14 10c0-5 4-8 8-8s8 3 8 8v6h6c2 0 4 2 4 4v26c0 2-2 4-4 4H8c-2 0-4-2-4-4V20c0-2 2-4 4-4h6Z" fill="#c98d5a" stroke="#8f5c30" strokeWidth="2" /><circle cx="22" cy="10" r="4" fill="#f6e3c2" stroke="#8f5c30" strokeWidth="2" /><rect x="10" y="24" width="24" height="5" rx="2.5" fill="#e8b87b" /></svg>
       </span>
+      <span className="wish-board-leaf" aria-hidden="true">
+        <svg viewBox="0 0 60 54">
+          <path d="M4 52C18 40 32 24 54 6" fill="none" stroke="#7d9c50" strokeWidth="2.2" strokeLinecap="round" />
+          <g fill="#b3c77f" stroke="#7d9c50" strokeWidth="1.2">
+            <path d="M22 36C12 32 12 20 20 14 28 20 29 30 22 36Z" />
+            <path d="M34 25C26 18 30 8 40 5 45 13 42 21 34 25Z" />
+            <path d="M44 17C46 7 54 2 59 8 56 16 51 20 44 17Z" />
+            <path d="M30 42C38 34 48 36 50 44 42 50 34 49 30 42Z" />
+          </g>
+        </svg>
+      </span>
       <div className="wish-board-paper">
         <div className="wish-tabs" role="tablist" aria-label="愿望状态">
           <button type="button" role="tab" id="wish-tab-pending" aria-selected={tab === "pending"} aria-controls="wish-list" className={tab === "pending" ? "wish-tab active" : "wish-tab"} onClick={() => setTab("pending")}>待完成（{pending.length}）</button>
@@ -126,8 +137,8 @@ export function WishBoard({
                       <span className="wish-text-body">{wish.text}</span>
                       {completedAt && <time className="wish-time" dateTime={completedAt.dateTime}>{completedAt.label}</time>}
                     </span>
-                    {wish.icon && <WishIcon icon={wish.icon} />}
                     <span className="wish-heart" aria-hidden="true">♡</span>
+                    {wish.icon && <WishIcon icon={wish.icon} />}
                     {wish.status === "pending" && (
                       <button
                         type="button"
@@ -135,10 +146,11 @@ export function WishBoard({
                         data-wish-id={wish.id}
                         disabled={!canWrite || saving}
                         aria-busy={busy}
+                        title="把这个愿望变成星星"
                         aria-label={`标记愿望「${wish.text}」为已完成`}
                         onClick={() => void handleComplete(wish)}
                       >
-                        {busy ? "完成中…" : "完成"}
+                        {busy ? "…" : "完成"}
                       </button>
                     )}
                     <span className="wish-sr">{wish.status === "completed" ? "已完成" : "待完成"}</span>
