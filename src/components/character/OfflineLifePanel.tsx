@@ -8,7 +8,7 @@ export function OfflineLifePanel({ snapshot }: { snapshot: Snapshot }) {
   const current = events.filter((item) => item.windowStart === lastWindowStart);
   const history = events.filter((item) => item.windowStart !== lastWindowStart);
   return (
-    <section className="companion-profile" aria-label="小人的离线生活">
+    <section className="companion-profile" aria-label="企鹅的离线生活">
       <div className="section-heading">
         <div>
           <span className="section-kicker">WHILE YOU WERE AWAY</span>
@@ -35,7 +35,7 @@ export function OfflineLifePanel({ snapshot }: { snapshot: Snapshot }) {
           </ul>
         </details>
       )}
-      <p className="profile-note">这些只是小人打发时间的小动作，不影响性格，也不是日记。</p>
+      <p className="profile-note">这些只是企鹅打发时间的小动作，不影响性格，也不是日记。</p>
     </section>
   );
 }
