@@ -143,9 +143,9 @@ Next.js 16 静态导出在 Windows 上把 RSC 分段文件写成了嵌套目录�
 
 ### 10.3 实现
 
-- 新增 `src/lib/appPaths.ts`：`appHref()` 在静态导出构建中为子页面追加 `.html`；`normalizeAppPath()` 让活动态与页面外壳在 `.html` URL 下保持正确。
+- 新增 `src/lib/appPaths.ts`：`appHref()` 在静态导出构建中为子页面追加 `.html`；`normalizeAppPath()` 让活动态与页面外壳在 `.html` URL 下保持正确；`requiresFullPageNavigation()` 区分必须整页跳转的静态子页面。
 - `scripts/build-static.mjs` 传入 `NEXT_PUBLIC_STATIC_EXPORT=1`；常规 `next dev/build/start` 仍使用干净路径。
-- `AppSidebar` 的子页面导航改用普通 `<a href="*.html">`，避免客户端路由与预取；根路径 `/` 仍使用 `next/link`（根路由 RSC 正常）。`AppShell` 统一归一化路径，活动导航与页面外壳在 `.html` URL 下保持正确。
+- `AppSidebar` 仅在静态导出的子页面使用普通 `<a href="*.html">`；根路径 `/` 与常规 Next.js 模式保留 `next/link` 客户端导航。`AppShell` 统一归一化路径，活动导航与页面外壳在 `.html` URL 下保持正确。
 - `DiaryHistory`：未保存草稿拦截改为 `window.location.assign`，并跳过二次 `beforeunload` 提示。
 - 保留 Windows RSC 分段归一化与 `character-preview` 产物移除。
 
@@ -157,7 +157,7 @@ Next.js 16 静态导出在 Windows 上把 RSC 分段文件写成了嵌套目录�
 - 页面水合正常（心情按钮可交互）。
 - 17 个 HTML 内引用的站内资源/链接全部存在；`_next` JS/CSS 200。
 - `/unknown-xyz`、`/character-preview` 404；`/diary` 404 为平台精确键行为。
-- RSC 分段文件保留且 200；导航不再发起 RSC 请求。
+- RSC 分段文件保留且 200；子页面 `.html` 导航不再发起 RSC 请求，返回 `/` 的客户端导航仍正常加载根路由 RSC 分段。
 - `npm run build` 仍通过，`/api/emotion` 保持动态。
 
 ### 10.5 未验证与边界
@@ -212,3 +212,35 @@ Next.js 16 静态导出在 Windows 上把 RSC 分段文件写成了嵌套目录�
 1. 接受 `.html` 规范 URL（当前分支），发布后复验四页直接访问、刷新与导航。
 2. 授权准备一次私有 draft，验证无扩展名别名（`web/diary`、`web/memories`、`web/wishes`）的 Content-Type；若为 `text/html` 再实现干净 URL，否则回退 `.html`。
 3. 等待平台提供 rewrite/redirect 或目录索引能力。
+
+## 12. PR #54 合并前导航回归复核与修复（2026-11-18）
+
+### 12.1 复核发现
+
+- 常规 Next.js 模式下所有侧栏导航都被无条件改为 `<a>`，页面间切换退化为整页重载。
+- 日记草稿与保存反馈只存在于 AppProvider 内存：整页重载后草稿静默丢失，保存后的一次性企鹅反馈也不再触发。
+- 回忆手账在 `.html` 当前页点击活动导航会整页刷新；未保存正文虽会触发浏览器提示，但绕过应用内确认。
+
+### 12.2 修复（仅运行时兼容，不改领域规则/存档结构）
+
+- `AppSidebar` 仅对静态导出子页面输出 `<a href="*.html">`；根路径与常规模式恢复 `next/link` 客户端导航。
+- 日记草稿写入 `sessionStorage`（标签页内、非正式存档），挂载后恢复；保存成功清空。
+- 保存反馈在 `CONFIRM_ENTRY` 成功后写入 `sessionStorage`，重载时按既有 `saveFeedbackTtlMs` 恢复；真正开始展示（`markSaveFeedbackStarted`）或过期即清除，保持一次性。
+- 回忆页在草稿未保存时阻止同地址整页重载；离开确认仍使用原生提示并手动导航。
+- 正式快照、五维评分、离线生活、久别重逢与愿望存储结构未改动。
+
+### 12.3 本轮交互验证
+
+- 常规 `next dev`（3414）与 `next start`（3002）：导航链接为无扩展名路径，跨页切换保持 SPA（页面内标记存活），日记草稿保留。
+- 静态精确键服务（4567）：`/`、`/diary.html`、`/memories.html`、`/wishes.html` 直接访问、刷新、整页切换正常；活动导航与 `home-shell`/`memories-shell`/`wishes-shell` 正确。
+- 静态模式：日记草稿经 `/diary.html → /memories.html → /diary.html` 整页切换后恢复；保存后经 `.html` 子页再返回 `/`，一次性反馈与开心爱心正常出现，只展示一次；随后页面恢复自主行为。
+- 回忆页：未保存正文离开确认可取消/确认；活动导航同地址点击被阻止；草稿未保存时翻页提示且页码不变。
+- 许愿屋：愿望写入后刷新仍存在。
+- 多次页面切换与重载后离线事件为 0、无待处理重逢，未出现重复结算。
+- 控制台无错误；静态页返回 `/` 的 RSC 分段请求均 200。
+- `npm run lint`、`npm run typecheck`、`npm run build:export`（normalized 6 RSC segment files）、`npm run build` 均通过。
+
+### 12.4 边界
+
+- 以上为本地精确键模拟与浏览器交互验证，不是 Qoder Sites 真实托管验收；未执行 `prepare_site`/`publish_site`。
+- 干净 URL 仍需平台能力，本轮决策为接受 `.html` 规范 URL。

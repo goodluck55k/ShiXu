@@ -160,7 +160,11 @@ export function DiaryHistory({ entries }: { entries: Entry[] }) {
     let destination: URL;
     try { destination = new URL(href, window.location.href); } catch { return; }
     if (destination.origin !== window.location.origin) return;
-    if (destination.pathname === window.location.pathname && destination.search === window.location.search) return;
+    // 同一地址在静态导出下是整页重载；草稿未保存时必须阻止而不是静默刷新。
+    if (destination.pathname === window.location.pathname && destination.search === window.location.search) {
+      event.preventDefault();
+      return;
+    }
     event.preventDefault();
     event.stopPropagation();
     if (!window.confirm(LEAVE_CONFIRM)) return;
