@@ -4,7 +4,7 @@
 
 ## 1. 服务接口
 
-规划接口：`POST /api/emotion`（Next.js App Router Route Handler）。请求 Content-Type 为 application/json：
+服务入口：`POST /api/emotion`（本地/自托管 Next.js Route Handler）与 `POST /functions/v1/app`（Qoder Sites Edge Function）使用完全相同的请求、响应、错误码与确认规则；客户端按部署模式选择其一（静态导出使用后者，常规 Next.js 使用前者）。请求 Content-Type 为 application/json：
 
 ```json
 {"schemaVersion":1,"requestId":"req-example-01","entryId":"entry-example-01","inputRevision":0,"text":"今天终于完成作业，有一点累，但很开心。"}
@@ -68,7 +68,9 @@ schemaVersion 固定 1；requestId、entryId 为客户端创建的非空不透�
 
 | 项 | 要求 |
 | --- | --- |
-| 调用位置 | 只在 Next.js 服务端 Route Handler 调用；浏览器不得直接访问百炼 |
+| 调用位置 | 只在 Next.js 服务端 Route Handler 或 Qoder Sites Edge Function 调用；浏览器不得直接访问百炼 |
+| 共享实现 | 请求校验、五问定义、Provider 映射、严格响应校验与 envelope 由 `functions/shared/` 单份实现；Next 与 Edge 只做运行时配置/入口适配，不复制第二套识别逻辑 |
+| Edge 配置 | Edge 经 `Deno.env.get` 读取同名 Secret；`AI_EDGE_ENABLED` 是总开关，默认关闭 |
 | 接口抽象 | Provider 适配器把百炼协议转换为本文内部 `Analysis`；若百炼提供 System One 兼容接口，沿用一次请求中的 Choice / Score 五问，否则由适配器显式映射，不改变内部契约 |
 | 配置 | `MODEL_API_KEY`（必填、仅服务端）、`MODEL_BASE_URL`、`MODEL_NAME`（候选 `decision-model-preview`）、`BAILIAN_WORKSPACE_ID`（如账号要求）；不得使用 `NEXT_PUBLIC_` 前缀 |
 | 校验 | 校验厂商响应为对象、模型/协议版本匹配、五个答案齐全且类型正确；只逐字段构造内部对象，不展开原生响应 |
@@ -156,6 +158,20 @@ Provider 计入问题与序列化开销；可预先发现的字节/部署 body �
 
 阶段六实现状态（2026-11-13）：`/api/emotion` 已实现请求体字节上限、正文与模型输入预检、每分钟请求数、并发与调用预算保护，阈值见 `.env.example`；超限分别返回 413 / 429 / 503，并保留完整正文供手选保存。计数为**单进程内存状态**，仅在单实例内有效；多实例或无状态公开部署必须由部署平台叠加同等限流与配额保护，不能把本实现当作已满足公开部署要求。真实 API 未验证，预算与错误码行为由本地上游桩和路由测试覆盖。
 
+### 2.6 Qoder Sites Edge Function（S8-03G）
+
+Qoder Sites 的托管模型是静态产物 + 单个 Edge Function；函数入口为 `functions/index.ts`，对外路径 `/functions/v1/app`，运行时为 Deno。Edge 与 Next Route 共享同一份 `EmotionApiRequest`、五问、九类情绪/VAD 映射、严格校验和 envelope，不新增第二套识别契约。
+
+- **默认关闭**：Edge 真实 Provider 调用必须显式设置 `AI_EDGE_ENABLED=1` 且提供 `MODEL_API_KEY` 与 `BAILIAN_WORKSPACE_ID`（或 `MODEL_BASE_URL`）；否则有效请求返回 503 / AI_UNAVAILABLE，且不调用上游。默认关闭是当前唯一可靠的费用边界。
+- **Secret**：只经 `Deno.env.get` 读取，不使用 `NEXT_PUBLIC_`，不进入静态产物、响应、日志或前端。Secret 名称通过 `prepare_site.secretNames` 声明，值只在 Portal 专用输入中填写。
+- **输入限制**：正文默认 30,000 字符（`AI_MAX_INPUT_CHARS`）；Edge 请求体默认 1 MiB、最多收紧到 4 MiB（`AI_EDGE_MAX_BODY_BYTES`）；超限 413 / INPUT_TOO_LONG，不截断正文。
+- **超时与降级**：15 秒覆盖响应头与响应体读取；超时 504 / AI_TIMEOUT；不自动重试。上游 401/403/404 → 503，413 → 413，其余失败与非法输出 → 502。
+- **实例内保护**：默认 10 次/分钟、2 并发、100 次调用预算；超限 429 或 503。这些计数只存在于单个 Edge 实例内存，冷启动重置且多实例不共享，**不是全局预算**。
+- **平台现状**：截至 2026-11-18，Qoder Sites Skills 与打包器未提供应用可声明的按路由限流、全局并发或调用预算；站点访问控制与同源写入检查不等于费用上限。可靠全局预算需要 Function backend 数据库的原子计数，属于后续授权项，本轮未实现。
+- **客户端选择**：静态导出构建请求 `/functions/v1/app`；本地/自托管 Next.js 仍请求 `/api/emotion`。两者返回格式与错误码完全一致，客户端会话、三元组与确认逻辑不变。
+
+未验证项（2026-11-18）：Edge 实际部署、Deno 运行时、平台出网/时长/内存上限、跨实例预算与真实百炼调用均未验证；本轮只使用本地模拟上游与注入 Provider。详见 [S8-03G 任务卡](STAGE8_S8-03G_EDGE_AI_TASK_CARD.md)。
+
 ## 3. 失败与降级
 
 单次模型请求超时 15 秒（覆盖获取响应头与读取响应体），不自动重试；浏览器请求另设 20 秒上限，超时提示 `AI_TIMEOUT` 并同样不自动重发。用户可主动重试识别或立即手选；识别重试不触发游戏规则。服务端只返回固定错误码与简短提示，不回传厂商原始错误、密钥或整段模型输出。
@@ -208,3 +224,5 @@ Provider 计入问题与序列化开销；可预先发现的字节/部署 body �
 阶段六一次检查：百炼 Choice / Score（或 Provider 映射后的等价结构）经转换能展示并确认；故障/输入超限不改状态且能手选保存原文；旧响应不覆盖新草稿或新心情；已保存纠正遵守修订契约；公开部署的成本保护（第 2.5 节）按所选环境生效或如实记录暂缓；同时确认 AI 不参与主导判定、行为选择、离线生活生成与久别重逢。交付真实阿里云百炼 Provider 的接入能力，mock 明确标注为演示数据，走相同原生校验与映射路径，不能以 mock 替代真实 Provider 实现。未配置 Key、账号未开通或真实调用条件不具备时，手选主流程仍可运行，PR 如实记录“真实 API 未验证”，不阻塞手选主流程（既有主线已交付）。真正具备 API 调用条件后，用约 8–12 条带人工预期标签的简短中文样例（覆盖积极、消极、混合、中性与含糊表达）做一次小样本检查，核对类别映射、confidence < 0.6 阈值提醒与手选降级是否合理；不开展大规模模型评测，也不在缺少证据时擅自改动 0.6 暂定阈值。confidence 是各答案分布集中度的保守聚合，不代表中文识别准确率；始终保留确认与手动纠正，不宣称中文准确率已验证。性格计分与行为判定等关键规则结果在对应阶段集中冒烟，不因外部 API 未就绪阻塞交付。
 
 阶段六完成记录（2026-11-13）：三元组匹配、新旧成功/失败响应隔离、严格 analysis/analysisMeta 校验、`needsConfirmation`、低置信度与 `unknown` 提醒、采纳/修改来源区分、保存后重识别绑定正文与修订号、纠正替换均已由 `tests/stage6-client.ts` 与浏览器主流程冒烟覆盖；服务端 Provider 映射、非法原生响应、400/413/429/502/503/504、预算与并发、15 秒体读取超时、日志脱敏由 `tests/stage6-server.ts` 覆盖。`AI_PROVIDER_MODE=mock` 只用于测试/演示且页面明确标注“演示数据”；默认真实 Provider。8–12 条真实中文样例未执行，原因如实记录为缺少 `MODEL_API_KEY` 与 `BAILIAN_WORKSPACE_ID`。
+
+阶段八 S8-03G 完成记录（2026-11-18）：Edge 入口、默认关闭、共享 AI 核心、静态/常规端点选择已本地实现；`tests/stage8-edge-ai.ts` 使用模拟上游与注入 Provider 覆盖正常建议、客户端确认、严格校验、五类 Provider 错误、默认关闭、缺 Key、413/429/503、并发、超时、405/400 与端点选择；阶段六服务端/客户端回归复跑通过。未执行 `deno check`、Edge 实际部署、真实百炼调用或平台 Secrets 配置，相关能力继续标记未验证；未把实例内存计数描述为全局预算。

@@ -57,6 +57,7 @@
 - 服务端 `/api/emotion` 只输出九类情绪 + VAD + intensity + confidence 的**建议**，必须经用户确认后才保存；AI 不参与性格、主导、行为、离线或重逢。
 - 目标提供方为阿里云百炼决策模型 `decision-model-preview`（TypeSafe System One，五问 Choice/Score）；默认 `AI_PROVIDER_MODE=bailian`，`mock` 仅测试/演示且页面明确标注。
 - 截至本次审计：仓库无真实 Key / Workspace，`.env.example` 中 `MODEL_API_KEY`、`BAILIAN_WORKSPACE_ID` 为空；**真实百炼调用从未验证**。模型上线状态、账号开通、地域 Endpoint 与配额必须用真实账号复核，不能把 mock 或文档推断当作真实联调结果。
+- S8-03G 已本地实现 Qoder Sites Edge Function `/functions/v1/app`，与 Next `/api/emotion` 共享同一 AI 核心；真实 Provider 调用默认关闭，未部署、未配置站点 Secrets、未发起真实请求。
 - 密钥只允许放在服务端环境变量；禁止 `NEXT_PUBLIC_` 前缀、浏览器存储、客户端源码、日志、PR 描述与截图中出现真实 Key。
 
 ### 2.5 部署与赛事要求
@@ -96,6 +97,16 @@
 - 部署验收：公网 URL 可访问；四页路由与刷新正常；无 Key 时手选全流程可用；有 Key 时 AI 可用且费用受控；不暴露密钥；不出现 404 返回 200 等路由问题（见 Issue #26）。
 - 退出条件：公网链接、构建与冒烟记录、未验证项清单。
 - 明确不做：数据库、登录、云同步、为评审伪造跨设备数据。
+
+### S8-03G 百炼 Edge Function 接入（2026-11-18，分支 `feature/stage8-edge-ai`）
+
+- 背景：Qoder Sites 只托管静态产物 + 单个 Edge Function，不运行 `/api/emotion`；静态站点因此没有 AI 后端。
+- 产出：`functions/index.ts` + `functions/shared/*` 单一 AI 核心；Next Route 与 Edge 共用请求校验、五问、九类情绪/VAD 映射、严格响应校验和 envelope；静态构建请求 `/functions/v1/app`，常规 Next 仍请求 `/api/emotion`。
+- 成本边界：Edge 真实百炼调用默认关闭（`AI_EDGE_ENABLED=1` 才启用），Secret 仅 `Deno.env` 读取；实例内频率/并发/预算为尽力保护，明确不是跨实例全局预算。Qoder Sites 当前无应用可声明的原生全局限流/预算。
+- 验证：`tests/stage8-edge-ai.ts` 使用模拟上游与注入 Provider 覆盖正常建议、确认、严格校验、五类错误、默认关闭、缺 Key、413/429/503、并发、超时与端点选择；阶段六服务端/客户端回归、typecheck、lint、常规构建与静态导出均通过。
+- 未验证：`deno check`（本机无 Deno）、Edge 实际部署、平台运行时上限、跨实例预算、真实百炼调用与 Secrets 配置。
+- 明确不做：不部署、不发布、不修改线上站点或 Secrets、不发起真实付费请求、不新增数据库、不改存档/评分/行为/UI。
+- 详见 [S8-03G 任务卡](STAGE8_S8-03G_EDGE_AI_TASK_CARD.md)。
 
 ### S8-04 赛前提交（建议分支 `docs/stage8-submission`）
 

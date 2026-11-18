@@ -1,5 +1,5 @@
-import { EMOTION_LABELS, type Analysis, type AnalysisMeta, type EmotionLabel } from "../../../domain/types";
-import { ANSWER_KEYS, DIMENSION_QUESTION_KEYS, SCORE_CRITERIA, type DimensionQuestionKey } from "./questions";
+import { EMOTION_LABELS, type Analysis, type AnalysisMeta, type EmotionLabel } from "./emotion-types.ts";
+import { ANSWER_KEYS, DIMENSION_QUESTION_KEYS, SCORE_CRITERIA, type DimensionQuestionKey } from "./questions.ts";
 
 // 原生响应校验与显式映射（docs/AI_CONTRACT.md §2.3，映射版本 bailian-emotion-v1）。
 // 纯函数，不依赖 IO；只逐字段构造内部对象，严禁展开原生响应合入状态。
