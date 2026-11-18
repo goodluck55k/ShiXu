@@ -1,6 +1,6 @@
 # 任务卡：阶段八 S8-03 部署兼容性预检
 
-> 状态（2026-11-18）：**预检完成，Windows RSC 404 已修复，未发布**。本分支只做 Qoder Sites 兼容性探针与最小构建适配；未创建公网站点、未创建付费云资源、未调用真实模型。
+> 状态（2026-11-18）：**预检完成，Windows RSC 404 已修复；S8-03E 已将静态站点内部导航改为平台支持的 `.html` 文件链接（干净 URL 需平台 rewrite，见第 10 节）；未重新发布**。本分支只做 Qoder Sites 兼容性探针与最小构建适配；未创建公网站点、未创建付费云资源、未调用真实模型。
 >
 > 分支：`feature/stage8-deploy`（基于 `origin/main` `9c2d3da`）；PR 指向 `main`，保持 Draft，是否合并由用户决定。
 
@@ -113,3 +113,56 @@ Next.js 16 静态导出在 Windows 上把 RSC 分段文件写成了嵌套目录�
 - 不自动部署到公网，不创建付费云资源，不调用真实模型。
 - 不修改 S8-02 分支 `feature/stage8-bailian-live`。
 - 不合并 PR；合并与公开发布均由用户决定。
+
+## 10. S8-03E 子页面 404 修复（2026-11-18）
+
+### 10.1 真实验收与根因
+
+在已登录的 Qoder 内置浏览器访问私有站点 `https://shixu-486cn1yd59z.qoder.zone`，逐路径读取状态码与内容类型：
+
+| 路径 | 状态 | 说明 |
+| --- | --- | --- |
+| `/` | 200 text/html | 首页 |
+| `/diary`、`/memories`、`/wishes` | 404 | 无扩展名路径 |
+| `/diary.html`、`/memories.html`、`/wishes.html` | 200 text/html | 精确文件 |
+| `/index`（`index.html` 存在、无 `index/` 目录） | 404 | 证明不存在“无扩展名 → `.html`”映射 |
+| `/diary/`、`/memories/`、`/wishes/` | 200 text/html | 实际返回首页内容，不是对应页面 |
+| `/diary/__next.diary.__PAGE__.txt`、`/diary.txt` | 200 text/plain | RSC 分段文件正常 |
+| `/unknown-xyz`、`/character-preview` | 404 | 未知路径与未发布页 |
+
+结论：Qoder Sites 静态托管**只按精确文件键响应**，没有无扩展名到 `.html` 的映射、没有目录索引、没有尾斜杠重定向；`/diary/` 会回落到根 `index.html`。`prepare_site` 生成的 `qoder-sites.json` 也固定 `subdirectory_index.enabled=false`，且不提供 rewrite/redirect 参数。
+
+### 10.2 方案评估
+
+| 方案 | 结论 |
+| --- | --- |
+| 平台原生 rewrite/redirect | 不可用：`prepare_site` 不接受路由规则，Skills 明确不执行任意 rewrite；宿主没有自定义路由入口 |
+| `trailingSlash: true` + 目录索引 | 不可用：目录索引被平台关闭；`/diary/` 实测返回首页 |
+| 静态路由文件别名 | 不可行：`/diary` 需要根级无扩展名文件，但 `diary/` 已被 RSC 分段占用；删目录会导致 RSC 404，且无扩展名文件的 MIME 未经平台验证 |
+| 最小客户端导航适配 | 采用：内部导航改为平台已支持的 `.html` 文件链接并整页导航；不使用 SPA fallback，不掩盖 404 |
+
+### 10.3 实现
+
+- 新增 `src/lib/appPaths.ts`：`appHref()` 在静态导出构建中为子页面追加 `.html`；`normalizeAppPath()` 让活动态与页面外壳在 `.html` URL 下保持正确。
+- `scripts/build-static.mjs` 传入 `NEXT_PUBLIC_STATIC_EXPORT=1`；常规 `next dev/build/start` 仍使用干净路径。
+- `AppSidebar` 的子页面导航改用普通 `<a href="*.html">`，避免客户端路由与预取；根路径 `/` 仍使用 `next/link`（根路由 RSC 正常）。`AppShell` 统一归一化路径，活动导航与页面外壳在 `.html` URL 下保持正确。
+- `DiaryHistory`：未保存草稿拦截改为 `window.location.assign`，并跳过二次 `beforeunload` 提示。
+- 保留 Windows RSC 分段归一化与 `character-preview` 产物移除。
+
+### 10.4 验证
+
+本地用与实测托管一致的“精确文件键”静态服务验证：
+
+- `/`、`/diary.html`、`/memories.html`、`/wishes.html` 直接访问与刷新均 200；四个 `.html` 页面通过导航链接整页切换，活动导航与 `home-shell`/`memories-shell`/`wishes-shell` 正确。
+- 页面水合正常（心情按钮可交互）。
+- 17 个 HTML 内引用的站内资源/链接全部存在；`_next` JS/CSS 200。
+- `/unknown-xyz`、`/character-preview` 404；`/diary` 404 为平台精确键行为。
+- RSC 分段文件保留且 200；导航不再发起 RSC 请求。
+- `npm run build` 仍通过，`/api/emotion` 保持动态。
+
+### 10.5 未验证与边界
+
+- 新构建尚未重新发布；`.html` 路径本身已在现有私有站点实测 200，但整页导航后的完整页面组合需发布后复验（需用户单独授权 `prepare_site`/`publish_site`）。
+- 干净 URL（`/diary`）在当前 Qoder Sites 上无法由应用产物修复；需要平台提供 URL rewrite/redirect 或目录索引能力。若后续平台开放，可恢复 SPA 导航并移除 `.html` 适配。
+- `/diary/` 等尾斜杠路径仍由平台返回首页，应用不生成此类链接。
+- 移动端、跨浏览器与真实设备仍未验证。

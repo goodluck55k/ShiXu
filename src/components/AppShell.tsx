@@ -4,13 +4,15 @@ import type { ReactNode } from "react";
 import { useApp } from "@/application/AppProvider";
 import { AppSidebar, ReadingProgressProvider } from "@/components/AppSidebar";
 import { StorageRecoveryNotice } from "@/components/StorageRecoveryNotice";
+import { normalizeAppPath } from "@/lib/appPaths";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const routePath = normalizeAppPath(pathname);
   const { state, reload } = useApp();
   const entries = state.snapshot?.entries ?? [];
   return <ReadingProgressProvider>
-    <div className={`app-shell${pathname === "/" ? " home-shell" : pathname === "/memories" ? " memories-shell" : pathname === "/wishes" ? " wishes-shell" : ""}`}>
+    <div className={`app-shell${routePath === "/" ? " home-shell" : routePath === "/memories" ? " memories-shell" : routePath === "/wishes" ? " wishes-shell" : ""}`}>
       <AppSidebar pathname={pathname} entries={entries} />
       <main className="main-content"><div className="content-wrap">
         {state.phase === "loading" && <p role="status" className="notice">正在读取本地存档…</p>}

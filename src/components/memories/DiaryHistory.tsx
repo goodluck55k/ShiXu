@@ -1,5 +1,4 @@
 "use client";
-import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useApp } from "@/application/AppProvider";
 import { EntryEmotionCorrection } from "@/components/emotion/EntryEmotionCorrection";
@@ -135,9 +134,11 @@ export function DiaryHistory({ entries }: { entries: Entry[] }) {
    };
  }, [clearTimers, finishFlipNow]);
  // 未保存正文：刷新或关闭页面时走浏览器原生离开提醒（提示文案由浏览器控制）。
+ const skipUnloadRef = useRef(false);
  useEffect(() => {
   if (!draftDirty) return;
   const onBeforeUnload = (event: BeforeUnloadEvent) => {
+    if (skipUnloadRef.current) return;
     event.preventDefault();
     event.returnValue = LEAVE_UNLOAD;
     return LEAVE_UNLOAD;
@@ -146,7 +147,6 @@ export function DiaryHistory({ entries }: { entries: Entry[] }) {
   return () => window.removeEventListener("beforeunload", onBeforeUnload);
  }, [draftDirty]);
  // 未保存正文：拦截应用内链接导航，确认放弃才离开；取消则保留草稿和当前页。
- const router = useRouter();
  useEffect(() => {
   if (!draftDirty) return;
   const onClick = (event: MouseEvent) => {
@@ -165,11 +165,12 @@ export function DiaryHistory({ entries }: { entries: Entry[] }) {
     event.stopPropagation();
     if (!window.confirm(LEAVE_CONFIRM)) return;
     if (selected) unfinishedDrafts.delete(selected.id);
-    router.push(`${destination.pathname}${destination.search}${destination.hash}`);
+    skipUnloadRef.current = true;
+    window.location.assign(destination.href);
   };
   document.addEventListener("click", onClick, true);
   return () => document.removeEventListener("click", onClick, true);
- }, [draftDirty, router, selected]);
+ }, [draftDirty, selected]);
  useEffect(() => {
    if (!selected) return;
    if (previousIdRef.current === null) { previousIdRef.current = selected.id; return; }

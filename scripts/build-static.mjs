@@ -11,7 +11,7 @@ rmSync(outDir, { recursive: true, force: true });
 const nextBin = fileURLToPath(new URL("../node_modules/next/dist/bin/next", import.meta.url));
 const result = spawnSync(process.execPath, [nextBin, "build"], {
   stdio: "inherit",
-  env: { ...process.env, NEXT_STATIC_EXPORT: "1" },
+  env: { ...process.env, NEXT_STATIC_EXPORT: "1", NEXT_PUBLIC_STATIC_EXPORT: "1" },
 });
 
 if (result.status !== 0) process.exit(result.status ?? 1);

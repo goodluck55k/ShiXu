@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { EMOTION_NAMES, type Entry } from "@/domain/types";
+import { appHref, normalizeAppPath } from "@/lib/appPaths";
 
 export interface NavItem {
   href: string;
@@ -207,13 +208,14 @@ function ProgressCard({ total, progress, onMemoriesPage }: { total: number; prog
       : <>
           <div className="sidebar-progress-row"><div className="sidebar-progress-bar" aria-hidden="true"><i style={{ width: "0%" }} /></div></div>
           <p>已珍藏 {total} 篇回忆</p>
-          <small>{total > 0 ? <Link className="sidebar-progress-link" href="/memories">到回忆碎片慢慢翻阅 →</Link> : "从第一篇回忆开始记录吧"}</small>
+          <small>{total > 0 ? <a className="sidebar-progress-link" href={appHref("/memories")}>到回忆碎片慢慢翻阅 →</a> : "从第一篇回忆开始记录吧"}</small>
         </>}
   </section>;
 }
 
 export function AppSidebar({ pathname, entries }: { pathname: string; entries: Entry[] }) {
   const progress = useReadingProgress();
+  const routePath = normalizeAppPath(pathname);
   return <aside className="sidebar" aria-label="站点目录">
     <PaperEdgeDefs />
     <span className="sidebar-tape" aria-hidden="true" />
@@ -229,17 +231,17 @@ export function AppSidebar({ pathname, entries }: { pathname: string; entries: E
       </div>
       <nav aria-label="主导航" className="nav-list">
         {APP_NAV.map((link) => {
-          const active = pathname === link.href;
-          return <Link key={link.href} href={link.href} aria-current={active ? "page" : undefined} className={active ? "nav-link active" : "nav-link"}>
+          const active = routePath === link.href;
+          return <a key={link.href} href={appHref(link.href)} aria-current={active ? "page" : undefined} className={active ? "nav-link active" : "nav-link"}>
             <span className="nav-icon" aria-hidden="true"><NavIcon icon={link.icon} /></span>
             <span className="nav-label">{link.label}</span>
             {active && <CloverSticker />}
-          </Link>;
+          </a>;
         })}
       </nav>
       <div className="sidebar-extras">
         <MonthNotes entries={entries} />
-        <ProgressCard total={entries.length} progress={progress} onMemoriesPage={pathname === "/memories"} />
+        <ProgressCard total={entries.length} progress={progress} onMemoriesPage={routePath === "/memories"} />
       </div>
       <div className="sidebar-note">
         <CloverStamp />
