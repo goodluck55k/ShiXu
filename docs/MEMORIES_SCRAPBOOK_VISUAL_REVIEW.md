@@ -175,3 +175,43 @@
 - 手机 18px 字体：[line-align-after-mobile-font18](assets/memories-highfidelity/line-align-after-mobile-font18.png)
 
 截图说明：桌面“修复前”来自旧构建；手机“修复前”为在修复后构建中通过运行时样式还原旧 `background-origin:padding-box` 后截取，用于等价对照。测试记录为本地注入的 3 条结构记录，不是产品种子数据。
+
+### 5. PR 验收补充：翻页纸张/文字分层修复（2026-11-18）
+
+验收翻页动画时确认：文字、横线与纸张在 DOM 中同属 `.flip-face`，但翻页纸张的**几何尺寸和排版基准**不是正文纸面，导致视觉上像“文字脱离纸张”。
+
+根因：
+
+- `.flip-stage` 以整个 `.scrap-right` 为定位框（`inset:0`），而真正的正文纸面是 `.page-leaf`。桌面翻页纸为 `550.2×614`，纸面只有 `467.7×556`，整体左移/上移；移动端翻页纸为 `336×1270.9`，纸面为 `285.6×657.4`，把标题、分页、统计和内边距都算进了纸张。
+- 翻页页 `.flip-page` 的内边距/字号与正文页不一致（桌面 30px vs 36/34px，移动端 22/17px vs 24/19px；移动端正文 15px/2.1 vs 16px/2.2），所以翻页内容贴在翻页纸左/上边缘，而底层纸面的文字在别处，形成两层错位。
+- 移动端翻页舞台高度跟随右侧内容，选中页切换时从 `1270.9` 缩到 `919.1`，纸张在动画中途改变高度。
+- 下一页切换后，较高的下一页正文会从较短翻页纸的下方提前露出。
+
+修复（仅翻页动画/图层与信纸样式）：
+
+- 翻页开始时测量真实 `.page-leaf` 矩形，冻结 `top/left/width/height` 到 `FlipState` 并内联到 `.flip-stage`；纸张尺寸不再取 `.scrap-right`，也不再随选中页高度变化。
+- 用 `ResizeObserver` 缓存各正文纸面高度：下一页取当前页高度，上一页取目标页高度；目标未测量时退回当前高度。
+- 翻页页的内边距、日期字号、来源字号、正文外边距/行高与正文页对齐；心情标签改为不拉伸；正文横线继续使用与行高绑定的背景线与 `background-origin:content-box`，保持第四轮的对齐修复。
+- 下一页在翻页开始时垫到翻动纸张下面，并在纸张抬过 90° 前把底层页裁到翻页纸高度，避免较高的下一页正文提前露出；上一页仍保持底层为当前页，目标页由翻页纸正面承载，94% 时切换。
+- 不提高/降低 z-index，不把文字做成独立覆盖层；文字仍在 `flip-face` 内随 3D 变换一起运动。缓动、透视、背封面与翻页风格保持不变。
+
+验证（Chrome 无头 screencast，1440×900 / 390×844）：
+
+- 桌面 1→2→3→2：翻页舞台矩形与正文纸面完全一致（`467.7×556 @ 892,183.3`）；文字与横线始终在纸张内，无贴边/悬浮/穿透；落页后分别为 1/3、2/3、3/3、2/3。
+- 移动端 1→2、3→2：舞台冻结为 `285.6×657.4 @ 52.2,219.2`，选中页切换时底层纸面从 657.4 变为 305.6，但翻页纸尺寸不变；标题、顶部分页、统计不再被翻页纸盖住；较高下一页的正文在抬过 90° 前不外露，之后完整出现。
+- 连续向前、连续向后、落页后的文字与页码均检查；上一页目标纸面由 `ResizeObserver` 缓存高度承载，落页后与底层页一致。
+- 信纸横线对齐修复保持：翻页页正文同样有横线，行间距与横线间距一致。
+- 未改业务逻辑、存档、编辑/纠正、页面其他布局；`npm run lint`、生产构建通过。
+- 未验证：Safari/Firefox、实体设备；`prefers-reduced-motion` 下不启动翻页动画。
+
+证据（连续帧）：
+
+- 修复前桌面：[0159](assets/memories-flip/before-desktop-0159.jpg) · [0242](assets/memories-flip/before-desktop-0242.jpg) · [0326](assets/memories-flip/before-desktop-0326.jpg)
+- 修复前手机：[0105](assets/memories-flip/before-mobile-0105.jpg) · [0205](assets/memories-flip/before-mobile-0205.jpg) · [0305](assets/memories-flip/before-mobile-0305.jpg)
+- 修复后桌面向前：[0078](assets/memories-flip/after-desktop-0078.jpg) · [0228](assets/memories-flip/after-desktop-0228.jpg) · [0412](assets/memories-flip/after-desktop-0412.jpg)
+- 修复后桌面向后：[0220](assets/memories-flip/after-desktop-prev-0220.jpg) · [0504](assets/memories-flip/after-desktop-prev-0504.jpg) · [0787](assets/memories-flip/after-desktop-prev-0787.jpg) · [落页](assets/memories-flip/after-desktop-settled-1120.jpg)
+- 修复后手机向前：[0108](assets/memories-flip/after-mobile-0108.jpg) · [0208](assets/memories-flip/after-mobile-0208.jpg) · [0308](assets/memories-flip/after-mobile-0308.jpg) · [0408](assets/memories-flip/after-mobile-0408.jpg)
+- 修复后手机向后：[0334](assets/memories-flip/after-mobile-prev-0334.jpg) · [0501](assets/memories-flip/after-mobile-prev-0501.jpg) · [落页](assets/memories-flip/after-mobile-settled-0851.jpg)
+- 连续第二页落页：[1006](assets/memories-flip/after-desktop-next2-settled-1006.jpg)
+
+截图为本地生产构建下同一测试存档的 screencast 连续帧；修复前帧来自上一版构建。测试存档为本地注入的 3 条结构记录，不是产品种子数据。

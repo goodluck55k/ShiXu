@@ -11,7 +11,8 @@ const SOURCE_NAMES: Record<EmotionSource, string> = { ai: "AI 建议", manual: "
 const LEAVE_CONFIRM = "正文还有未保存的修改，确定要离开吗？离开后这次修改会丢失。";
 const LEAVE_UNLOAD = "正文还有未保存的修改，离开后这次修改会丢失。";
 type FlipDirection = "prev" | "next";
-type FlipState = { direction: FlipDirection; from: Entry; to: Entry; duration: number; settling: boolean };
+type FlipSheetGeometry = { top: number; left: number; width: number; height: number };
+type FlipState = { direction: FlipDirection; from: Entry; to: Entry; duration: number; settling: boolean; sheet: FlipSheetGeometry };
 const FLIP_SETTLE = 150;
 
 function flipTiming(): { duration: number } | null {
@@ -111,6 +112,8 @@ export function DiaryHistory({ entries }: { entries: Entry[] }) {
  const lockRef = useRef(false);
  const timersRef = useRef<Array<ReturnType<typeof setTimeout>>>([]);
  const bookRef = useRef<HTMLDivElement>(null);
+ const pageLeafRef = useRef<HTMLDivElement>(null);
+ const pageHeightsRef = useRef<Map<string, number>>(new Map());
  const previousIdRef = useRef<string | null>(null);
  const flipRef = useRef<FlipState | null>(null);
  const clearTimers = useCallback(() => { for (const timer of timersRef.current) clearTimeout(timer); timersRef.current = []; }, []);
@@ -136,6 +139,22 @@ export function DiaryHistory({ entries }: { entries: Entry[] }) {
      lockRef.current = false;
    };
  }, [clearTimers, finishFlipNow]);
+ const selectedEntryId = selected?.id ?? null;
+ useEffect(() => {
+   const el = pageLeafRef.current;
+   if (!el || !selectedEntryId) return;
+   const measure = () => pageHeightsRef.current.set(selectedEntryId, el.getBoundingClientRect().height);
+   measure();
+   if (typeof ResizeObserver === "undefined") return;
+   const observer = new ResizeObserver(measure);
+   observer.observe(el);
+   return () => observer.disconnect();
+ }, [selectedEntryId]);
+ useEffect(() => {
+   const clear = () => pageHeightsRef.current.clear();
+   window.addEventListener("resize", clear);
+   return () => window.removeEventListener("resize", clear);
+ }, []);
  // 未保存正文：刷新或关闭页面时走浏览器原生离开提醒（提示文案由浏览器控制）。
  const skipUnloadRef = useRef(false);
  useEffect(() => {
@@ -194,13 +213,23 @@ export function DiaryHistory({ entries }: { entries: Entry[] }) {
    setNotice("");
    const timing = flipTiming();
    if (!timing) { setSelectedId(target.id); return; }
-   lockRef.current = true;
    const direction: FlipDirection = index > selectedIndex ? "next" : "prev";
-   const nextState: FlipState = { direction, from: selected, to: target, duration: timing.duration, settling: false };
+   const leaf = pageLeafRef.current;
+   const sheetHost = leaf?.parentElement;
+   if (!leaf || !sheetHost) { setSelectedId(target.id); return; }
+   const leafRect = leaf.getBoundingClientRect();
+   const hostRect = sheetHost.getBoundingClientRect();
+   pageHeightsRef.current.set(selected.id, leafRect.height);
+   const sheetEntry = direction === "next" ? selected : target;
+   const sheetHeight = pageHeightsRef.current.get(sheetEntry.id) ?? leafRect.height;
+   const sheet: FlipSheetGeometry = { top: leafRect.top - hostRect.top, left: leafRect.left - hostRect.left, width: leafRect.width, height: sheetHeight };
+   lockRef.current = true;
+   const nextState: FlipState = { direction, from: selected, to: target, duration: timing.duration, settling: false, sheet };
    flipRef.current = nextState;
    setFlip(nextState);
-   const swapAt = direction === "prev" ? timing.duration * 0.94 : timing.duration / 2;
-   timersRef.current.push(setTimeout(() => setSelectedId(target.id), swapAt));
+   // 下一页在翻页开始时铺在翻动纸张下面；纸张已与当前纸面对齐，翻起后才露出。
+   if (direction === "next") setSelectedId(target.id);
+   else timersRef.current.push(setTimeout(() => setSelectedId(target.id), timing.duration * 0.94));
    timersRef.current.push(setTimeout(() => {
      const settled: FlipState = { ...nextState, settling: true };
      flipRef.current = settled;
@@ -222,11 +251,11 @@ export function DiaryHistory({ entries }: { entries: Entry[] }) {
     <div className="left-bottom"><MonthNotes entries={entries}/><div className="little-note">把每一个<br/>小小的瞬间<br/>轻轻收好 ♡</div><svg className="scrap-clover" viewBox="0 0 60 70" aria-hidden="true"><path d="M30 43 Q32 59 23 67" fill="none" stroke="#7d8c42" strokeWidth="3"/><g fill="#a9b75d" stroke="#7d8c42" strokeWidth="1.5"><path d="M30 34 C7 31 9 12 21 14 Q29 15 30 24 Q32 13 40 14 C53 13 54 30 30 34Z"/><path d="M30 34 C8 28 6 45 18 49 Q26 51 30 40 Q34 51 42 49 C54 46 52 30 30 34Z"/></g><circle cx="30" cy="34" r="3" fill="#d6d995"/></svg></div><Sprig className="bottom-sprig"/>
    </div>
    <div className="scrap-right"><div className="mobile-scrap-title">我的回忆碎片 ♡</div><Sprig className="right-sprig"/>{total > 0 && <Pager page={page} total={total} onPrev={goPrev} onNext={goNext} notice={notice} variant="top"/>}
-    <div className="page-leaf" key={selected?.id ?? "empty"} aria-busy={flip !== null} inert={flip ? true : undefined}>{selected ? <MemoryDetail entry={selected} onDirtyChange={handleDirtyChange}/> : <section className="empty-memory"><span aria-hidden="true">✿</span><h2>这里还留着一片空白</h2><p>等你愿意写下的时候，回忆会在这里慢慢生长。</p></section>}</div>
+    <div className={`page-leaf${flip?.direction === "next" ? " flip-underlay-next" : ""}`} key={selected?.id ?? "empty"} ref={pageLeafRef} aria-busy={flip !== null} inert={flip ? true : undefined} style={flip?.direction === "next" ? { "--flip-sheet-height": `${flip.sheet.height}px`, "--flip-duration": `${flip.duration}ms` } as CSSProperties : undefined}>{selected ? <MemoryDetail entry={selected} onDirtyChange={handleDirtyChange}/> : <section className="empty-memory"><span aria-hidden="true">✿</span><h2>这里还留着一片空白</h2><p>等你愿意写下的时候，回忆会在这里慢慢生长。</p></section>}</div>
     <div className="mobile-stats"><MonthNotes entries={entries}/><div className="little-note">把每一个<br/>小小的瞬间<br/>轻轻收好 ♡</div></div>
     <ReadingScene/>
     {total > 0 && <div className="mobile-book-progress" aria-hidden="true"><span>第 {page} / {total} 页</span><span>还有 {total - page} 页待翻阅 ♡</span></div>}
-    {flip && <div className={`flip-stage flip-${flip.direction}${flip.settling ? " is-settling" : ""}`} aria-hidden="true" style={{ "--flip-duration": `${flip.duration}ms` } as CSSProperties}>
+    {flip && <div className={`flip-stage flip-${flip.direction}${flip.settling ? " is-settling" : ""}`} aria-hidden="true" style={{ "--flip-duration": `${flip.duration}ms`, top: flip.sheet.top, left: flip.sheet.left, width: flip.sheet.width, height: flip.sheet.height, right: "auto", bottom: "auto" } as CSSProperties}>
       <div className="flip-leaf" style={{ animationDuration: `${flip.duration}ms` }}>
         <div className="flip-face flip-front"><PageFace entry={flip.direction === "next" ? flip.from : flip.to}/><span className="flip-edge"/><span className="flip-curl"/></div>
         <div className="flip-face flip-back"><span className="flip-back-mark">♧</span><span className="flip-edge"/><span className="flip-curl"/></div>
