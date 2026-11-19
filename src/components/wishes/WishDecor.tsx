@@ -15,7 +15,7 @@ export function NoteCard() {
         <path d="M185 207 Q200 202 208 191 L212 208 Z" fill="#fff9e8" opacity=".7" />
         <g stroke="#c4a77c" strokeWidth=".7" opacity=".16"><path d="M27 43 Q91 40 154 38 M30 183 Q102 180 179 176 M34 192 Q110 188 182 185" /></g>
         <rect x="86" y="8" width="52" height="18" rx="2" fill="#e9d9a8" opacity=".9" transform="rotate(2 112 17)" />
-        <g fill="#7c5c3e" fontFamily="'KaiTi','Songti SC',serif" fontSize="19">
+        <g fill="#8a6a48" fontFamily="'KaiTi','Songti SC',serif" fontSize="17">
           <text x="34" y="66">一个一个小愿望，</text>
           <text x="40" y="98">像一颗颗种子，</text>
           <text x="36" y="130">在日常的时光里</text>
@@ -113,34 +113,24 @@ export function Daisies() {
 
 export function CornerLeaves() {
   return (
-    <svg viewBox="0 0 240 190" aria-hidden="true" className="wish-corner-leaves">
-      <g fill="none" stroke="#7d9c50" strokeWidth="3.6" strokeLinecap="round">
-        <path d="M242 2 C190 22 142 38 92 82" />
-        <path d="M244 40 C204 56 168 78 136 118" />
-        <path d="M198 18 C184 46 178 68 182 100" />
-        <path d="M162 46 C150 72 148 92 154 118" />
+    <svg viewBox="0 0 200 150" aria-hidden="true" className="wish-corner-leaves">
+      <g fill="none" stroke="#7d9c50" strokeWidth="3.4">
+        <path d="M200 6 C150 26 110 40 60 78" />
+        <path d="M200 40 C168 56 140 74 112 110" />
+        <path d="M160 22 C150 44 146 60 148 84" />
       </g>
-      <g fill="#a8c47a" stroke="#719247" strokeWidth="1.6">
-        <path d="M176 26 Q152 12 138 32 Q158 50 176 26 Z" />
-        <path d="M136 52 Q110 40 98 62 Q120 78 136 52 Z" />
-        <path d="M100 78 Q72 68 62 92 Q86 108 100 78 Z" />
-        <path d="M72 102 Q48 98 42 122 Q68 132 72 102 Z" />
-        <path d="M190 62 Q166 54 158 76 Q182 90 190 62 Z" />
-        <path d="M160 100 Q136 96 130 118 Q156 130 160 100 Z" />
-        <path d="M196 100 Q184 124 204 138 Q220 118 196 100 Z" />
-        <path d="M132 132 Q118 154 138 168 Q154 148 132 132 Z" />
-        <path d="M178 142 Q166 164 186 178 Q202 158 178 142 Z" />
+      <g fill="#a8c47a" stroke="#7d9c50" strokeWidth="1.6">
+        <path d="M132 30 Q112 18 100 34 Q116 48 132 30 Z" />
+        <path d="M96 52 Q74 42 64 60 Q82 72 96 52 Z" />
+        <path d="M66 74 Q46 68 38 86 Q58 96 66 74 Z" />
+        <path d="M150 60 Q130 54 124 72 Q144 82 150 60 Z" />
+        <path d="M126 92 Q106 90 102 108 Q122 116 126 92 Z" />
+        <path d="M148 84 Q140 104 156 114 Q168 98 148 84 Z" />
       </g>
       <g fill="#c3d996" stroke="#8ba763" strokeWidth="1.4">
-        <path d="M214 12 Q198 -6 178 4 Q194 24 214 12 Z" />
-        <path d="M150 36 Q138 16 118 22 Q130 44 150 36 Z" />
-        <path d="M218 58 Q206 40 186 48 Q200 68 218 58 Z" />
-        <path d="M118 96 Q108 76 88 82 Q100 104 118 96 Z" />
-        <path d="M92 126 Q82 108 64 114 Q76 134 92 126 Z" />
-        <path d="M212 112 Q202 94 184 100 Q196 120 212 112 Z" />
-      </g>
-      <g fill="none" stroke="#5e7c43" strokeWidth="1" opacity=".4">
-        <path d="M176 29 Q154 28 142 33 M136 55 Q114 48 102 63 M100 81 Q78 76 66 93 M190 65 Q170 60 162 77 M160 103 Q140 99 133 119 M214 15 Q196 4 182 5 M150 39 Q136 28 122 24 M118 99 Q102 90 92 84" />
+        <path d="M170 14 Q158 0 142 8 Q154 24 170 14 Z" />
+        <path d="M112 40 Q104 24 88 28 Q96 46 112 40 Z" />
+        <path d="M176 48 Q168 34 152 40 Q162 56 176 48 Z" />
       </g>
     </svg>
   );

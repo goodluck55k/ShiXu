@@ -4,172 +4,119 @@ export function WishSceneBackdrop() {
     <svg viewBox="0 0 1400 800" preserveAspectRatio="xMinYMax slice" aria-hidden="true" className="wish-backdrop">
       <defs>
         <linearGradient id="ws-wall" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#fbe5c6" />
-          <stop offset=".6" stopColor="#f5d4ab" />
-          <stop offset="1" stopColor="#eec296" />
+          <stop offset="0" stopColor="#f8e0c0" />
+          <stop offset="1" stopColor="#eec49a" />
         </linearGradient>
         <linearGradient id="ws-table" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#e7b477" />
-          <stop offset=".38" stopColor="#d99d5e" />
-          <stop offset=".78" stopColor="#c8864b" />
-          <stop offset="1" stopColor="#bd7a41" />
+          <stop offset="0" stopColor="#e2ae70" />
+          <stop offset=".5" stopColor="#d2955a" />
+          <stop offset="1" stopColor="#c08048" />
         </linearGradient>
-        <linearGradient id="ws-beam" x1="0" y1="0" x2=".72" y2="1">
-          <stop offset="0" stopColor="#fff3c6" stopOpacity=".78" />
-          <stop offset=".7" stopColor="#ffedb6" stopOpacity=".22" />
-          <stop offset="1" stopColor="#ffedb6" stopOpacity="0" />
+        <linearGradient id="ws-beam" x1="0" y1="0" x2=".6" y2="1">
+          <stop offset="0" stopColor="#fff3cf" stopOpacity=".75" />
+          <stop offset="1" stopColor="#fff3cf" stopOpacity="0" />
         </linearGradient>
-        <linearGradient id="ws-pane" x1="0" y1="0" x2=".4" y2="1">
-          <stop offset="0" stopColor="#fffbe3" />
-          <stop offset=".52" stopColor="#f4f0c4" />
-          <stop offset="1" stopColor="#e8e6ae" />
+        <linearGradient id="ws-pane" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#fdf8dd" />
+          <stop offset="1" stopColor="#f4e9c0" />
         </linearGradient>
         <linearGradient id="ws-curtain" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stopColor="#fffbeb" />
-          <stop offset=".55" stopColor="#f8ead0" />
-          <stop offset="1" stopColor="#fff8e6" />
+          <stop offset="0" stopColor="#fbeed6" />
+          <stop offset=".5" stopColor="#f4e2c2" />
+          <stop offset="1" stopColor="#fbeed6" />
         </linearGradient>
-        <linearGradient id="ws-foliage" x1="0" y1="0" x2=".8" y2="1">
-          <stop offset="0" stopColor="#d9e79c" />
-          <stop offset="1" stopColor="#93b465" />
-        </linearGradient>
-        <radialGradient id="ws-sun" cx=".22" cy=".18" r=".68">
-          <stop offset="0" stopColor="#fff8d8" stopOpacity=".9" />
-          <stop offset=".55" stopColor="#fff3c2" stopOpacity=".35" />
-          <stop offset="1" stopColor="#fff3c2" stopOpacity="0" />
-        </radialGradient>
-        <filter id="ws-bokeh" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="9" /></filter>
-        <filter id="ws-soft" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="3" /></filter>
-        <clipPath id="ws-window-clip"><rect x="55" y="36" width="424" height="500" rx="4" /></clipPath>
+        <filter id="ws-bokeh" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="7" /></filter>
+        <clipPath id="ws-window-clip"><rect x="86" y="60" width="540" height="470" rx="8" /></clipPath>
       </defs>
 
       <rect width="1400" height="800" fill="url(#ws-wall)" />
-      <rect width="1400" height="800" fill="url(#ws-sun)" />
-      <ellipse cx="360" cy="150" rx="520" ry="330" fill="#fff8df" opacity=".4" filter="url(#ws-bokeh)" />
+      <ellipse cx="420" cy="180" rx="620" ry="360" fill="#fff3d8" opacity=".35" />
 
-      {/* window frame and sunlit foliage */}
-      <rect x="30" y="12" width="474" height="552" rx="9" fill="#c98d5a" stroke="#a96f3f" strokeWidth="4" />
-      <rect x="38" y="20" width="458" height="536" rx="6" fill="#e2ae73" />
+      {/* window with sunlit foliage */}
+      <rect x="66" y="40" width="580" height="512" rx="12" fill="#c98d5a" stroke="#a96f3f" strokeWidth="4" />
       <g clipPath="url(#ws-window-clip)">
-        <rect x="55" y="36" width="424" height="500" fill="url(#ws-pane)" />
+        <rect x="86" y="60" width="540" height="470" fill="url(#ws-pane)" />
         <g filter="url(#ws-bokeh)">
-          <circle cx="104" cy="96" r="66" fill="#c6db8f" opacity=".9" />
-          <circle cx="212" cy="64" r="52" fill="#e0ecaa" opacity=".95" />
-          <circle cx="332" cy="104" r="72" fill="#a9c778" opacity=".82" />
-          <circle cx="440" cy="70" r="54" fill="#cfe2a0" opacity=".88" />
-          <circle cx="150" cy="246" r="68" fill="#b7d184" opacity=".55" />
-          <circle cx="414" cy="270" r="82" fill="#c6db8f" opacity=".5" />
-          <circle cx="268" cy="388" r="72" fill="#a9c778" opacity=".42" />
-          <ellipse cx="280" cy="180" rx="190" ry="112" fill="#fffce8" opacity=".62" />
+          <circle cx="150" cy="120" r="60" fill="#b5cf8b" opacity=".8" />
+          <circle cx="280" cy="80" r="46" fill="#cfe3a4" opacity=".8" />
+          <circle cx="420" cy="140" r="70" fill="#9dbf72" opacity=".65" />
+          <circle cx="560" cy="90" r="52" fill="#c3d996" opacity=".75" />
+          <circle cx="200" cy="300" r="66" fill="#a8c47a" opacity=".55" />
+          <circle cx="500" cy="330" r="80" fill="#b5cf8b" opacity=".5" />
+          <circle cx="340" cy="430" r="60" fill="#9dbf72" opacity=".45" />
+          <circle cx="120" cy="470" r="52" fill="#c3d996" opacity=".5" />
+          <ellipse cx="360" cy="220" rx="180" ry="110" fill="#fffbe8" opacity=".6" />
         </g>
-        <g fill="#9fbd6d" opacity=".78">
-          <path d="M58 92 Q86 44 142 34 Q150 82 108 108 Q78 112 58 92 Z" />
-          <path d="M160 60 Q196 26 240 46 Q230 92 186 98 Q168 86 160 60 Z" />
-          <path d="M318 54 Q356 20 404 40 Q394 84 348 92 Q328 80 318 54 Z" />
-          <path d="M428 122 Q466 92 498 122 Q480 158 442 154 Q430 140 428 122 Z" />
-          <path d="M78 188 Q108 160 138 182 Q124 216 92 212 Q80 202 78 188 Z" />
+        <g opacity=".28" fill="#86a765" filter="url(#ws-bokeh)">
+          <path d="M105 490 Q135 340 215 245 Q180 355 105 490 M135 387 Q95 355 94 310 Q150 326 135 387 M160 340 Q167 280 220 261 Q218 316 160 340" />
+          <path d="M560 500 Q530 340 450 240 Q492 359 560 500 M531 385 Q574 350 579 305 Q522 328 531 385 M505 335 Q493 280 448 260 Q451 310 505 335" />
         </g>
-        <g fill="#c7d992" opacity=".9">
-          <path d="M108 40 Q132 20 160 36 Q150 64 122 62 Q110 54 108 40 Z" />
-          <path d="M232 68 Q256 46 282 64 Q270 92 242 86 Q232 78 232 68 Z" />
-          <path d="M376 86 Q402 66 426 88 Q412 112 386 106 Q378 98 376 86 Z" />
-          <path d="M62 244 Q86 220 110 240 Q98 266 72 260 Q62 254 62 244 Z" />
+        <g fill="#9cb97b" opacity=".22">
+          <path d="M116 305 Q125 248 176 226 Q172 279 116 305 Z M513 235 Q544 180 596 188 Q570 238 513 235 Z M410 420 Q449 373 486 385 Q461 430 410 420 Z" />
         </g>
-        <g fill="none" stroke="#6f9048" strokeWidth="1.1" opacity=".45">
-          <path d="M68 82 Q104 60 136 46 M176 60 Q206 44 232 50 M334 58 Q366 40 396 48 M440 130 Q466 108 490 122 M84 196 Q108 178 132 188 M116 48 Q138 34 154 40" />
-        </g>
-        <g fill="#8fb165" opacity=".5" filter="url(#ws-soft)">
-          <path d="M70 512 Q92 330 198 214 Q168 350 70 512 M122 365 Q76 330 72 270 Q142 306 122 365 M178 290 Q206 214 282 198 Q262 272 178 290" />
-          <path d="M466 518 Q420 330 322 210 Q372 360 466 518 M410 372 Q458 330 466 272 Q394 306 410 372 M360 276 Q340 206 268 190 Q292 266 360 276" />
-        </g>
-        <g fill="url(#ws-foliage)" opacity=".55">
-          <path d="M104 342 Q120 250 196 214 Q196 286 104 342 Z" />
-          <path d="M340 250 Q408 180 478 196 Q432 262 340 250 Z" />
-          <path d="M240 488 Q300 410 362 430 Q320 496 240 488 Z" />
-        </g>
-        <g fill="#a9c778" opacity=".34">
-          <path d="M132 168 Q142 110 194 92 Q192 148 132 168 Z M356 404 Q390 352 438 360 Q412 414 356 404 Z" />
-        </g>
-        <path d="M55 36 L262 36 L144 536 L55 536 Z" fill="#fffbdc" opacity=".2" />
-        <path d="M310 36 L480 36 L480 536 L376 536 Z" fill="#fff3c4" opacity=".14" />
-        <g fill="#64853f" opacity=".3">
-          <path d="M64 130 Q82 64 146 48 Q134 116 64 130 Z M180 88 Q214 42 274 46 Q248 98 180 88 Z M356 140 Q408 88 470 98 Q438 154 356 140 Z M430 240 Q474 202 502 230 Q470 270 430 240 Z" />
-        </g>
+        <path d="M86 60 L300 60 L180 530 L86 530 Z" fill="#fffdf0" opacity=".35" />
       </g>
-      <g fill="#d39a61" stroke="#a96f3f" strokeWidth="1.6">
-        <rect x="248" y="26" width="16" height="510" />
-        <rect x="48" y="208" width="446" height="14" />
-        <rect x="48" y="374" width="446" height="14" />
+      <g fill="#c98d5a" stroke="#a96f3f" strokeWidth="2">
+        <rect x="346" y="52" width="18" height="488" />
+        <rect x="78" y="206" width="556" height="16" />
+        <rect x="78" y="368" width="556" height="16" />
       </g>
-      <g opacity=".5" fill="#fff2cf">
-        <rect x="256" y="26" width="4" height="510" /><rect x="48" y="210" width="446" height="3" />
-      </g>
-      <rect x="16" y="548" width="508" height="24" rx="6" fill="#d9a468" stroke="#a96f3f" strokeWidth="2" />
-      <rect x="22" y="552" width="496" height="5" rx="2.5" fill="#f1c78e" opacity=".7" />
+      <rect x="52" y="540" width="610" height="24" rx="6" fill="#d9a468" stroke="#b0763f" strokeWidth="2" />
 
-      {/* gauzy curtain at the right edge of the window */}
-      <path d="M506 0 C552 90 542 200 558 320 C570 420 552 520 568 630 L646 630 C626 508 644 384 632 262 C622 148 640 58 628 0 Z" fill="url(#ws-curtain)" />
-      <path d="M506 0 C552 90 542 200 558 320 C570 420 552 520 568 630" fill="none" stroke="#d9bd93" strokeWidth="4" opacity=".55" />
-      <g fill="none" stroke="#e2c9a2" strokeWidth="4" opacity=".72">
-        <path d="M536 0 C572 110 560 240 574 380 C584 480 570 560 582 630" />
-        <path d="M574 0 C600 120 590 260 602 400 C610 500 598 570 608 630" />
+      {/* curtain */}
+      <path d="M660 0 C700 90 690 200 706 320 C718 420 700 520 716 620 L790 620 C770 500 786 380 774 260 C764 150 780 60 768 0 Z" fill="url(#ws-curtain)" />
+      <path d="M660 0 C700 90 690 200 706 320 C718 420 700 520 716 620" fill="none" stroke="#d9bd93" strokeWidth="4" opacity=".6" />
+      <g fill="none" stroke="#dfc49c" strokeWidth="4" opacity=".8">
+        <path d="M692 0 C724 110 712 240 726 380 C736 480 722 560 734 620" />
+        <path d="M726 0 C752 120 742 260 754 400 C762 500 750 570 760 620" />
       </g>
-      <path d="M520 0 Q558 180 555 360 T572 630 L594 630 Q575 420 586 240 T553 0 Z" fill="#fffbee" opacity=".32" />
+      <path d="M675 0 Q714 180 711 360 T728 620 L750 620 Q731 420 742 240 T709 0 Z" fill="#fff9e9" opacity=".26" />
+      <path d="M750 0 Q773 210 762 350 T775 620" fill="none" stroke="#ae875f" strokeWidth="12" opacity=".08" />
 
-      {/* broad sunbeams falling across the room */}
-      <path d="M120 120 L620 700 L840 700 L360 96 Z" fill="url(#ws-beam)" opacity=".62" />
-      <path d="M310 96 L760 700 L930 700 L500 78 Z" fill="url(#ws-beam)" opacity=".42" />
-      <path d="M480 110 L1040 700 L1120 700 L560 82 Z" fill="url(#ws-beam)" opacity=".22" />
+      {/* sunbeams across the room */}
+      <path d="M250 90 L640 640 L880 640 L430 70 Z" fill="url(#ws-beam)" opacity=".5" />
+      <path d="M420 80 L820 640 L960 640 L560 70 Z" fill="url(#ws-beam)" opacity=".35" />
 
-      {/* warm wooden table */}
-      <rect x="0" y="516" width="1400" height="284" fill="url(#ws-table)" />
-      <rect x="0" y="512" width="1400" height="12" fill="#eebd82" />
-      <rect x="0" y="524" width="1400" height="4" fill="#b9783f" opacity=".28" />
-      <g stroke="#9c6132" strokeWidth="1.6" opacity=".2" fill="none">
-        <path d="M0 566 C260 558 520 574 780 566 C1040 558 1240 574 1400 566" />
-        <path d="M0 626 C300 618 560 634 820 626 C1080 618 1260 634 1400 626" />
-        <path d="M0 700 C260 692 540 708 800 700 C1060 692 1260 708 1400 700" />
-        <path d="M0 772 C280 764 560 780 820 772 C1080 764 1280 780 1400 772" />
+      {/* wooden table */}
+      <rect x="0" y="500" width="1400" height="300" fill="url(#ws-table)" />
+      <rect x="0" y="498" width="1400" height="10" fill="#e8b87b" />
+      <g stroke="#a96f3f" strokeWidth="2" opacity=".35">
+        <path d="M0 560 H1400" /><path d="M0 636 H1400" /><path d="M0 716 H1400" />
       </g>
-      <g stroke="#a86c38" strokeWidth="1.2" opacity=".16" fill="none">
-        <path d="M40 590 Q220 584 400 592 T760 590 M820 604 Q1010 596 1200 606 T1400 600 M80 664 Q260 656 440 666 T800 662 M860 676 Q1050 668 1240 678 T1400 672" />
-        <ellipse cx="1040" cy="596" rx="24" ry="5" /><ellipse cx="220" cy="708" rx="18" ry="4" />
-        <ellipse cx="660" cy="740" rx="30" ry="5" /><ellipse cx="1220" cy="724" rx="20" ry="4" />
+      <g stroke="#8f5c30" strokeWidth="1.4" opacity=".18" fill="none">
+        <path d="M60 585 C300 578 560 592 820 584 C1080 577 1260 590 1400 583" />
+        <path d="M0 668 C260 660 520 676 780 668 C1040 661 1240 674 1400 667" />
+        <path d="M100 748 C360 740 620 756 880 748 C1120 741 1300 754 1400 748" />
+        <ellipse cx="1050" cy="600" rx="26" ry="7" />
+        <ellipse cx="240" cy="690" rx="20" ry="6" />
       </g>
-      <path d="M0 540 L330 540 L740 800 L420 800 Z M520 536 L690 536 L1120 800 L960 800 Z M940 532 L1050 532 L1400 752 L1400 800 Z" fill="#fff2c8" opacity=".18" />
-      <g stroke="#ffe9b3" strokeWidth="10" opacity=".14" strokeLinecap="round">
-        <path d="M30 580 L300 800 M520 560 L900 800 M1050 580 L1290 760" />
+      <ellipse cx="700" cy="560" rx="520" ry="70" fill="#ffe9b8" opacity=".38" />
+      <ellipse cx="500" cy="640" rx="360" ry="56" fill="#fff3cf" opacity=".28" />
+      <path d="M10 520 L340 520 L590 800 L380 800 Z M385 515 L500 515 L770 800 L690 800 Z" fill="#fff0cb" opacity=".12" />
+      <g fill="none" stroke="#8e603b" opacity=".16" strokeLinecap="round">
+        <path d="M10 540 Q180 529 340 541 T690 539 M720 548 Q930 535 1130 547 T1400 543 M40 608 Q240 596 420 608 T780 606 M850 617 Q1080 602 1390 614 M15 685 Q250 672 485 683 T900 683 M780 764 Q1050 750 1390 763" strokeWidth="2" />
+        <path d="M80 550 Q190 545 290 551 M565 621 Q680 614 780 620 M1020 692 Q1180 684 1300 690 M260 760 Q400 753 540 759" />
       </g>
-      <ellipse cx="690" cy="560" rx="540" ry="64" fill="#ffe9b8" opacity=".34" />
-      <ellipse cx="450" cy="660" rx="360" ry="54" fill="#fff3cf" opacity=".24" />
-
-      {/* contact shadows for the jar, penguin and books */}
-      <ellipse cx="300" cy="614" rx="128" ry="17" fill="#6e452b" opacity=".16" />
-      <ellipse cx="690" cy="606" rx="198" ry="20" fill="#6e452b" opacity=".15" />
-      <ellipse cx="780" cy="620" rx="230" ry="18" fill="#5d3a22" opacity=".1" />
-      <ellipse cx="1240" cy="590" rx="120" ry="12" fill="#6e452b" opacity=".12" />
+      <ellipse cx="300" cy="602" rx="125" ry="18" fill="#704a30" opacity=".14" />
+      <ellipse cx="615" cy="612" rx="185" ry="20" fill="#704a30" opacity=".13" />
 
       {/* hanging leaves, top-left */}
       <g>
-        <path d="M-10 -10 C70 40 142 60 224 124" fill="none" stroke="#7d9c50" strokeWidth="4" />
-        <path d="M62 22 C96 62 126 92 158 154" fill="none" stroke="#7d9c50" strokeWidth="3" />
-        <g fill="#a8c47a" stroke="#719247" strokeWidth="1.6">
-          <path d="M40 26 Q16 46 34 68 Q58 52 40 26 Z" />
-          <path d="M94 48 Q74 74 96 96 Q118 76 94 48 Z" />
-          <path d="M152 80 Q134 108 158 128 Q180 104 152 80 Z" />
-          <path d="M198 114 Q186 144 212 160 Q230 134 198 114 Z" />
-          <path d="M120 110 Q100 134 120 154 Q142 134 120 110 Z" />
-          <path d="M72 70 Q58 92 74 108 Q90 88 72 70 Z" />
+        <path d="M-10 -6 C60 40 130 60 210 120" fill="none" stroke="#7d9c50" strokeWidth="4" />
+        <path d="M60 20 C90 60 120 90 150 150" fill="none" stroke="#7d9c50" strokeWidth="3" />
+        <g fill="#a8c47a" stroke="#7d9c50" strokeWidth="1.6">
+          <path d="M40 26 Q18 44 34 66 Q56 52 40 26 Z" />
+          <path d="M92 48 Q74 72 94 92 Q114 74 92 48 Z" />
+          <path d="M150 78 Q134 104 156 122 Q176 100 150 78 Z" />
+          <path d="M196 112 Q184 140 208 154 Q224 130 196 112 Z" />
+          <path d="M118 108 Q100 130 118 148 Q138 130 118 108 Z" />
         </g>
         <g fill="#c3d996" stroke="#8ba763" strokeWidth="1.4">
-          <path d="M70 40 Q90 18 112 34 Q98 58 70 40 Z" />
-          <path d="M132 70 Q154 50 174 68 Q158 90 132 70 Z" />
-          <path d="M142 132 Q164 116 182 134 Q164 154 142 132 Z" />
-          <path d="M38 74 Q50 54 70 60 Q62 82 38 74 Z" />
+          <path d="M70 40 Q88 20 108 34 Q96 56 70 40 Z" />
+          <path d="M130 70 Q150 52 168 68 Q154 88 130 70 Z" />
+          <path d="M140 130 Q160 116 176 132 Q160 150 140 130 Z" />
         </g>
-        <g fill="none" stroke="#5e7c43" strokeWidth="1" opacity=".42">
-          <path d="M40 29 Q39 48 34 61 M94 51 Q96 72 96 90 M152 83 Q157 104 158 121 M70 40 Q89 37 105 35 M132 70 Q151 69 167 68" />
-        </g>
+        <g fill="none" stroke="#617f45" strokeWidth="1" opacity=".45"><path d="M40 29 Q39 48 34 61 M92 51 Q94 70 94 88 M150 81 Q155 102 156 119 M70 40 Q89 37 104 35 M130 70 Q149 69 164 68" /></g>
       </g>
     </svg>
   );

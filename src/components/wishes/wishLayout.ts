@@ -39,11 +39,11 @@ export const BALL_SLOTS: readonly SlotBase[] = [
 ];
 
 export const STAR_SLOTS: readonly SlotBase[] = [
-  { x: 246, y: 185, s: 0.95, r: -12 },
-  { x: 142, y: 216, s: 0.7, r: 14 },
-  { x: 330, y: 204, s: 0.8, r: -18 },
-  { x: 108, y: 194, s: 0.5, r: 8 },
-  { x: 356, y: 176, s: 0.56, r: -6 },
+  { x: 240, y: 58, s: 1.0, r: -12 },
+  { x: 156, y: 116, s: 0.72, r: 14 },
+  { x: 314, y: 122, s: 0.8, r: -20 },
+  { x: 116, y: 50, s: 0.5, r: 8 },
+  { x: 338, y: 42, s: 0.55, r: -6 },
 ];
 
 export interface BallLayoutItem {

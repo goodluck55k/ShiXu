@@ -11,10 +11,10 @@ import {
   type StarLayoutItem,
 } from "./wishLayout";
 
-function starPoints(radius: number, innerRatio = 0.5) {
+function starPoints(radius: number) {
   const pts: string[] = [];
   for (let i = 0; i < 10; i++) {
-    const r = i % 2 === 0 ? radius : radius * innerRatio;
+    const r = i % 2 === 0 ? radius : radius * 0.46;
     const a = (Math.PI / 5) * i - Math.PI / 2;
     pts.push(`${(Math.cos(a) * r).toFixed(1)},${(Math.sin(a) * r).toFixed(1)}`);
   }
@@ -24,36 +24,12 @@ function starPoints(radius: number, innerRatio = 0.5) {
 function PaperBall({ palette }: { palette: BallPalette }) {
   return (
     <g>
-      <ellipse cx="0" cy="37" rx="33" ry="7" fill="#8a5d35" opacity=".14" />
-      <path
-        d="M0 -40 L24 -33 L40 -12 L38 14 L22 33 L-2 40 L-26 31 L-40 10 L-38 -14 L-22 -33 Z"
-        fill={palette.base}
-        stroke={palette.line}
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-        strokeOpacity=".5"
-      />
-      <path d="M0 -40 L-22 -33 L-38 -14 L-12 -10 L10 -18 Z" fill={palette.light} opacity=".92" />
-      <path d="M0 -40 L10 -18 L24 -33 Z" fill={palette.base} />
-      <path d="M-12 -10 L10 -18 L20 4 L-2 12 L-20 4 Z" fill={palette.light} opacity=".7" />
-      <path d="M24 -33 L40 -12 L38 14 L20 4 L10 -18 Z" fill={palette.base} />
-      <path d="M38 14 L22 33 L-2 12 L20 4 Z" fill={palette.dark} opacity=".5" />
-      <path d="M22 33 L-2 40 L-26 31 L-20 12 L-2 12 Z" fill={palette.base} />
-      <path d="M-26 31 L-40 10 L-38 -14 L-20 4 L-20 12 Z" fill={palette.dark} opacity=".4" />
-      <path d="M-38 -14 L-12 -10 L-20 4 Z" fill={palette.base} opacity=".92" />
-      <path d="M-2 12 L20 4 L38 14 L22 33 L-2 40 L-26 31 L-20 12 Z" fill={palette.dark} opacity=".1" />
-      <path
-        d="M0 -40 L-22 -33 L-38 -14 L-12 -10 L10 -18 Z"
-        fill="none"
-        stroke="#fffdf4"
-        strokeWidth="2.2"
-        opacity=".55"
-        strokeLinejoin="round"
-      />
-      <g fill="none" stroke={palette.line} strokeWidth="1.2" opacity=".4" strokeLinecap="round">
-        <path d="M-12 -10 L10 -18 M-12 -10 L-20 4 M-20 4 L-38 -14 M-20 4 L-20 12 M-20 12 L-26 31 M-20 12 L-2 12 M10 -18 L24 -33 M10 -18 L20 4 M20 4 L38 14 M20 4 L-2 12 M-2 12 L22 33 M-2 12 L-2 40" />
-      </g>
-      <path d="M-30 -20 Q-20 -33 -6 -34" fill="none" stroke="#fffdf4" strokeWidth="2.6" opacity=".6" strokeLinecap="round" />
+      <ellipse cx="0" cy="34" rx="34" ry="8" fill="#a97c4e" opacity=".16" />
+      <path d="M-37 -8 Q-40 -20 -29 -27 Q-25 -38 -12 -36 Q-3 -43 8 -37 Q22 -39 28 -29 Q39 -25 37 -13 Q43 -3 36 7 Q38 19 27 25 Q20 36 8 34 Q-2 41 -13 34 Q-26 36 -30 25 Q-40 20 -36 9 Q-42 1 -37 -8 Z" fill={palette.base} stroke={palette.line} strokeWidth="1.2" strokeOpacity=".55" />
+      <path d="M-33 7 Q-28 22 -17 25 Q-4 35 8 29 Q23 31 33 12 Q29 31 8 34 Q-2 41 -13 34 Q-29 35 -33 24 Z" fill={palette.dark} opacity=".28" />
+      <path d="M-30 -18 Q-22 -34 -9 -30 Q1 -37 13 -29 Q24 -30 29 -19 Q18 -24 9 -17 Q-5 -24 -14 -15 Q-24 -20 -30 -18 Z" fill={palette.light} opacity=".7" />
+      <path d="M-29 -13 Q-18 -9 -15 0 Q-9 -5 -3 -3 M-15 0 Q-22 8 -19 17 M-4 -26 Q-1 -17 7 -14 Q3 -8 8 -3 M23 -20 Q18 -12 22 -6 Q15 -2 16 5 M-8 24 Q-1 18 1 11 Q8 15 14 12 M27 7 Q21 10 20 18" fill="none" stroke={palette.line} strokeWidth="1.25" opacity=".46" strokeLinecap="round" />
+      <path d="M-25 -23 Q-18 -28 -11 -25 M-9 3 Q-3 0 2 3 M12 -22 Q17 -24 21 -20 M-13 20 Q-8 17 -5 19" fill="none" stroke="#fffdf4" strokeWidth="2" opacity=".55" strokeLinecap="round" />
     </g>
   );
 }
@@ -61,11 +37,10 @@ function PaperBall({ palette }: { palette: BallPalette }) {
 function WishStarShape({ delay }: { delay?: number }) {
   return (
     <g>
-      <circle className="wish-star-glow" style={delay === undefined ? undefined : { animationDelay: `${delay}s` }} r="58" fill="url(#wish-glow)" />
-      <polygon points={starPoints(34)} fill="url(#wish-star)" stroke="#efb941" strokeWidth="7" strokeLinejoin="round" />
-      <polygon points={starPoints(23, 0.48)} fill="#fff2bd" opacity=".62" />
-      <path d="M-9 -14 L-3 -18" stroke="#fffbe4" strokeWidth="3.4" strokeLinecap="round" opacity=".95" />
-      <path d="M13 12 L17 9" stroke="#fffbe4" strokeWidth="2.2" strokeLinecap="round" opacity=".7" />
+      <circle className="wish-star-glow" style={delay === undefined ? undefined : { animationDelay: `${delay}s` }} r="46" fill="url(#wish-glow)" />
+      <polygon points={starPoints(30)} fill="url(#wish-star)" stroke="#f2bd45" strokeWidth="5" strokeLinejoin="round" />
+      <polygon points={starPoints(19)} fill="#fff3c4" opacity=".55" />
+      <path d="M-7 -12 L-2 -16" stroke="#fffbe0" strokeWidth="3" strokeLinecap="round" opacity=".9" />
     </g>
   );
 }
@@ -79,26 +54,23 @@ function WishStar({ wishId, x, y, s, r, delay }: { wishId: string; x: number; y:
 }
 
 function LaceDoily() {
-  const scallops = Array.from({ length: 40 }, (_, i) => {
-    const a = (Math.PI * 2 * i) / 40;
-    return <circle key={i} cx={(230 + Math.cos(a) * 196).toFixed(1)} cy={(586 + Math.sin(a) * 34).toFixed(1)} r="7.5" fill="#fff8ec" stroke="#ecd9bd" strokeWidth=".8" />;
+  const scallops = Array.from({ length: 36 }, (_, i) => {
+    const a = (Math.PI * 2 * i) / 36;
+    return <circle key={i} cx={(230 + Math.cos(a) * 186).toFixed(1)} cy={(584 + Math.sin(a) * 31).toFixed(1)} r="7.5" fill="#fff6e8" stroke="#ecd9bd" strokeWidth=".8" />;
   });
   return (
     <g>
-      <ellipse cx="230" cy="592" rx="206" ry="37" fill="#b98a55" opacity=".2" />
+      <ellipse cx="230" cy="588" rx="196" ry="34" fill="#c99b62" opacity=".18" />
       {scallops}
-      <ellipse cx="230" cy="586" rx="196" ry="34" fill="#fff8ec" stroke="#ecd9bd" strokeWidth="1" />
-      <ellipse cx="230" cy="586" rx="164" ry="26" fill="none" stroke="#e5cfae" strokeWidth="1.4" strokeDasharray="3 5" />
-      <ellipse cx="230" cy="586" rx="126" ry="19" fill="#f7ecd9" opacity=".8" />
-      <ellipse cx="230" cy="583" rx="138" ry="20" fill="#c49a67" opacity=".12" />
-      <g fill="#fffdf6" opacity=".8">
-        <circle cx="98" cy="574" r="2.4" /><circle cx="152" cy="606" r="2" /><circle cx="286" cy="610" r="2.2" /><circle cx="362" cy="572" r="2.4" />
-      </g>
+      <ellipse cx="230" cy="584" rx="186" ry="31" fill="#fff6e8" stroke="#ecd9bd" strokeWidth="1" />
+      <ellipse cx="230" cy="584" rx="156" ry="24" fill="none" stroke="#e5cfae" strokeWidth="1.4" strokeDasharray="3 5" />
+      <ellipse cx="230" cy="584" rx="120" ry="17" fill="#f6ead6" opacity=".7" />
+      <ellipse cx="230" cy="582" rx="132" ry="18" fill="#b98a55" opacity=".14" />
     </g>
   );
 }
 
-const JAR_BODY = "M70 200 C62 232 60 252 72 272 C42 322 34 382 44 436 C58 516 132 556 230 560 C328 556 402 516 416 436 C426 382 418 322 388 272 C400 252 398 232 390 200 A160 30 0 0 0 70 200 Z";
+const JAR_BODY = "M112 190 C108 214 106 228 112 244 C76 280 60 330 60 392 C60 470 96 536 150 556 C180 566 280 566 310 556 C364 536 400 470 400 392 C400 330 384 280 348 244 C354 228 352 214 348 190 A118 26 0 0 1 112 190 Z";
 
 interface ActiveRise {
   nonce: number;
@@ -133,10 +105,10 @@ function deriveActiveRise(
     wishId: celebration.wishId,
     from,
     // A capped-out wish has no visible ball; rise from the mouth instead of borrowing another ball.
-    start: from ? { x: from.slot.x, y: from.slot.y } : { x: 230, y: 200 },
+    start: from ? { x: from.slot.x, y: from.slot.y } : { x: 230, y: 188 },
     to: target
       ? { x: target.slot.x, y: target.slot.y, scale: target.scale, rotation: target.rotation }
-      : { x: 246, y: 185, scale: 0.62, rotation: -8 },
+      : { x: 232, y: 74, scale: 0.62, rotation: -8 },
     toVisible: target !== null,
   };
 }
@@ -211,54 +183,53 @@ export function WishJar({
 
   return (
     <svg
-      viewBox="30 20 420 575"
+      viewBox="0 0 460 640"
       role="img"
       aria-label={`玻璃许愿杯：共 ${pending.length} 个未完成愿望，杯中显示 ${ballLayout.length} 个纸团；共 ${completed.length} 个已完成愿望，空中显示 ${starLayout.length} 颗星星`}
       className="wish-jar-svg"
     >
       <defs>
         <linearGradient id="wish-glass-edge" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stopColor="#ffffff" stopOpacity=".6" />
-          <stop offset=".14" stopColor="#ffffff" stopOpacity=".14" />
-          <stop offset=".5" stopColor="#fff6e6" stopOpacity=".08" />
-          <stop offset=".86" stopColor="#ffffff" stopOpacity=".2" />
-          <stop offset="1" stopColor="#ffffff" stopOpacity=".55" />
+          <stop offset="0" stopColor="#ffffff" stopOpacity=".52" />
+          <stop offset=".16" stopColor="#ffffff" stopOpacity=".1" />
+          <stop offset=".5" stopColor="#fff6e6" stopOpacity=".07" />
+          <stop offset=".84" stopColor="#ffffff" stopOpacity=".16" />
+          <stop offset="1" stopColor="#ffffff" stopOpacity=".5" />
         </linearGradient>
         <linearGradient id="wish-glass-front" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#ffffff" stopOpacity=".24" />
-          <stop offset=".28" stopColor="#ffffff" stopOpacity=".025" />
-          <stop offset=".76" stopColor="#ffffff" stopOpacity=".07" />
-          <stop offset="1" stopColor="#ffffff" stopOpacity=".3" />
+          <stop offset="0" stopColor="#ffffff" stopOpacity=".2" />
+          <stop offset=".3" stopColor="#ffffff" stopOpacity=".02" />
+          <stop offset=".78" stopColor="#ffffff" stopOpacity=".06" />
+          <stop offset="1" stopColor="#ffffff" stopOpacity=".26" />
         </linearGradient>
         <linearGradient id="wish-rim" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#ffffff" stopOpacity=".96" />
-          <stop offset=".55" stopColor="#fdf7ec" stopOpacity=".72" />
-          <stop offset="1" stopColor="#d8c5ad" stopOpacity=".55" />
+          <stop offset="0" stopColor="#ffffff" stopOpacity=".92" />
+          <stop offset="1" stopColor="#d9c9b6" stopOpacity=".55" />
         </linearGradient>
-        <radialGradient id="wish-mouth" cx=".5" cy=".5" r=".66">
-          <stop offset="0" stopColor="#ad9276" stopOpacity=".62" />
-          <stop offset=".72" stopColor="#d5bfa2" stopOpacity=".4" />
-          <stop offset="1" stopColor="#ffffff" stopOpacity=".72" />
+        <radialGradient id="wish-mouth" cx=".5" cy=".5" r=".65">
+          <stop offset="0" stopColor="#b79c80" stopOpacity=".65" />
+          <stop offset=".75" stopColor="#d9c3a6" stopOpacity=".45" />
+          <stop offset="1" stopColor="#ffffff" stopOpacity=".6" />
         </radialGradient>
-        <radialGradient id="wish-star" cx=".38" cy=".32" r=".82">
-          <stop offset="0" stopColor="#fff8cf" />
-          <stop offset=".52" stopColor="#ffd96f" />
-          <stop offset="1" stopColor="#f2b23a" />
+        <radialGradient id="wish-star" cx=".4" cy=".35" r=".8">
+          <stop offset="0" stopColor="#fff6c9" />
+          <stop offset=".55" stopColor="#ffd76e" />
+          <stop offset="1" stopColor="#f5b93f" />
         </radialGradient>
         <radialGradient id="wish-glow" cx=".5" cy=".5" r=".5">
-          <stop offset="0" stopColor="#ffeaa8" stopOpacity=".9" />
-          <stop offset=".58" stopColor="#ffe9a8" stopOpacity=".32" />
+          <stop offset="0" stopColor="#ffe9a8" stopOpacity=".85" />
+          <stop offset=".6" stopColor="#ffe9a8" stopOpacity=".3" />
           <stop offset="1" stopColor="#ffe9a8" stopOpacity="0" />
         </radialGradient>
         <linearGradient id="wish-rope" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#e0b47a" />
-          <stop offset="1" stopColor="#b8834a" />
+          <stop offset="0" stopColor="#d8ab6e" />
+          <stop offset="1" stopColor="#b9854a" />
         </linearGradient>
         <linearGradient id="wish-tag" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#fff8e2" />
-          <stop offset="1" stopColor="#f3ddb2" />
+          <stop offset="0" stopColor="#fbf0d6" />
+          <stop offset="1" stopColor="#f3dfb8" />
         </linearGradient>
-        <filter id="wish-soft" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="3.2" /></filter>
+        <filter id="wish-soft" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="3" /></filter>
         <filter id="wish-soft-2" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="1.6" /></filter>
         <clipPath id="wish-jar-clip"><path d={JAR_BODY} /></clipPath>
       </defs>
@@ -266,62 +237,59 @@ export function WishJar({
       <LaceDoily />
 
       {/* back wall of the glass */}
-      <path d={JAR_BODY} fill="url(#wish-glass-edge)" stroke="#a98f74" strokeWidth="3.6" strokeOpacity=".88" />
-      <path d={JAR_BODY} fill="#fff8ec" opacity=".12" />
-      <path d="M82 286 C58 334 52 390 60 442 C68 486 88 522 118 546 M382 282 C408 332 414 388 406 442 C398 484 378 518 346 542" fill="none" stroke="#95775b" strokeWidth="9" opacity=".12" filter="url(#wish-soft)" />
+      <path d={JAR_BODY} fill="url(#wish-glass-edge)" stroke="#bfae97" strokeWidth="3" strokeOpacity=".9" />
+      <path d={JAR_BODY} fill="#fff8ec" opacity=".14" />
+      <path d="M119 256 C88 301 73 356 80 416 C85 466 105 513 144 542 M341 255 C376 307 389 360 380 420 C374 470 355 511 320 539" fill="none" stroke="#997b60" strokeWidth="7" opacity=".13" filter="url(#wish-soft)" />
 
       <g clipPath="url(#wish-jar-clip)">
-        <ellipse cx="230" cy="542" rx="160" ry="26" fill="#b98a55" opacity=".15" />
+        <ellipse cx="230" cy="540" rx="150" ry="26" fill="#b98a55" opacity=".16" />
         {ballLayout.map((ball) => (
           <g key={ball.wish.id} data-wish-id={ball.wish.id} data-wish-kind="ball" transform={`translate(${ball.slot.x} ${ball.slot.y}) rotate(${ball.rotation}) scale(${ball.scale})`}>
             <PaperBall palette={ball.palette} />
           </g>
         ))}
-        {pending.length === 0 && completed.length === 0 && <ellipse cx="230" cy="500" rx="130" ry="42" fill="#fff6e0" opacity=".22" />}
+        {pending.length === 0 && completed.length === 0 && <ellipse cx="230" cy="500" rx="120" ry="40" fill="#fff6e0" opacity=".22" />}
       </g>
 
       {/* front glass: refraction veil, highlights and thick base */}
       <path d={JAR_BODY} fill="url(#wish-glass-front)" />
       <g clipPath="url(#wish-jar-clip)">
-        <path d="M78 292 C60 338 54 392 62 444 C68 484 84 518 112 542" fill="none" stroke="#ffffff" strokeWidth="22" strokeLinecap="round" opacity=".72" filter="url(#wish-soft)" />
-        <path d="M96 304 C82 348 78 394 86 440" fill="none" stroke="#ffffff" strokeWidth="6.5" strokeLinecap="round" opacity=".92" filter="url(#wish-soft-2)" />
-        <path d="M390 288 C410 336 416 390 408 442 C402 482 386 512 358 534" fill="none" stroke="#ffffff" strokeWidth="12" strokeLinecap="round" opacity=".56" filter="url(#wish-soft)" />
-        <path d="M386 318 C396 360 398 402 392 436" fill="none" stroke="#ffffff" strokeWidth="3" strokeLinecap="round" opacity=".55" />
-        <path d="M124 548 C168 566 292 566 336 548 L336 570 L124 570 Z" fill="#ffffff" opacity=".4" />
-        <ellipse cx="230" cy="550" rx="132" ry="15" fill="#ffffff" opacity=".3" />
-        <path d="M112 538 C150 562 310 562 348 538" fill="none" stroke="#fffef8" strokeWidth="4" strokeLinecap="round" opacity=".85" />
-        <path d="M146 330 L166 310 M154 348 L180 322" stroke="#ffffff" strokeWidth="4.4" strokeLinecap="round" opacity=".5" />
-        <path d="M312 352 L326 338" stroke="#ffffff" strokeWidth="3.4" strokeLinecap="round" opacity=".4" />
+        <path d="M118 262 C92 302 82 342 84 396 C86 448 104 498 132 528" fill="none" stroke="#ffffff" strokeWidth="16" strokeLinecap="round" opacity=".65" filter="url(#wish-soft)" />
+        <path d="M136 276 C116 312 108 348 110 396" fill="none" stroke="#ffffff" strokeWidth="5" strokeLinecap="round" opacity=".8" filter="url(#wish-soft-2)" />
+        <path d="M352 268 C374 306 382 348 380 398 C378 442 366 486 344 516" fill="none" stroke="#ffffff" strokeWidth="9" strokeLinecap="round" opacity=".5" filter="url(#wish-soft)" />
+        <path d="M150 552 C180 562 280 562 310 552 L310 566 L150 566 Z" fill="#ffffff" opacity=".3" />
+        <ellipse cx="230" cy="550" rx="116" ry="13" fill="#ffffff" opacity=".22" />
+        <path d="M168 300 L186 282 M176 316 L200 292" stroke="#ffffff" strokeWidth="4" strokeLinecap="round" opacity=".5" />
       </g>
-      <path d={JAR_BODY} fill="none" stroke="#ffffff" strokeWidth="2.4" strokeOpacity=".78" />
-      <path d="M120 540 Q230 582 340 540 M136 552 Q230 578 324 552" fill="none" stroke="#a9896c" strokeWidth="4" opacity=".24" />
-      <path d="M140 556 Q230 580 320 556" fill="none" stroke="#fff9ea" strokeWidth="3.2" opacity=".68" />
+      <path d={JAR_BODY} fill="none" stroke="#ffffff" strokeWidth="2" strokeOpacity=".75" />
+      <path d="M138 539 Q230 579 322 539 M151 549 Q230 575 309 549" fill="none" stroke="#a9896c" strokeWidth="4" opacity=".25" />
+      <path d="M152 552 Q230 570 308 552" fill="none" stroke="#fff9ea" strokeWidth="3" opacity=".65" />
 
-      {/* wide thick glass rim */}
-      <ellipse cx="230" cy="207" rx="160" ry="30" fill="none" stroke="#cbb79e" strokeWidth="2.4" opacity=".5" />
-      <ellipse cx="230" cy="200" rx="161" ry="30" fill="url(#wish-rim)" stroke="#c9b69f" strokeWidth="2.2" />
-      <ellipse cx="230" cy="200" rx="141" ry="23" fill="url(#wish-mouth)" />
-      <path d="M70 196 A160 30 0 0 1 390 196" fill="none" stroke="#ffffff" strokeWidth="3.6" strokeLinecap="round" opacity=".85" />
-      <path d="M82 207 A150 25 0 0 0 378 207" fill="none" stroke="#b49a7d" strokeWidth="3.2" opacity=".35" />
-      <ellipse cx="230" cy="200" rx="141" ry="23" fill="none" stroke="#ffffff" strokeWidth="2" strokeOpacity=".8" />
+      {/* thick glass rim */}
+      <ellipse cx="230" cy="197" rx="120" ry="27" fill="none" stroke="#cbb79e" strokeWidth="2.4" opacity=".55" />
+      <ellipse cx="230" cy="190" rx="120" ry="27" fill="url(#wish-rim)" stroke="#c9b69f" strokeWidth="2" />
+      <ellipse cx="230" cy="190" rx="103" ry="20" fill="url(#wish-mouth)" />
+      <path d="M130 186 A100 18 0 0 1 330 186" fill="none" stroke="#c9b193" strokeWidth="4" opacity=".5" />
+      <path d="M132 194 A98 16 0 0 0 328 194" fill="none" stroke="#a98f74" strokeWidth="3" opacity=".35" />
+      <ellipse cx="230" cy="190" rx="103" ry="20" fill="none" stroke="#ffffff" strokeWidth="2" strokeOpacity=".8" />
+      <path d="M120 184 A112 22 0 0 1 340 184" fill="none" stroke="#ffffff" strokeWidth="3" strokeLinecap="round" opacity=".85" />
 
       {/* rope, bow and paper tag */}
       <g>
-        <path d="M64 262 C142 286 318 286 396 262" fill="none" stroke="url(#wish-rope)" strokeWidth="10" strokeLinecap="round" />
-        <path d="M64 262 C142 286 318 286 396 262" fill="none" stroke="#8a5f33" strokeWidth="10" strokeDasharray="2.5 6.5" opacity=".32" />
-        <path d="M66 257 C144 281 316 281 394 257" fill="none" stroke="#f0d3a0" strokeWidth="2.4" opacity=".72" />
-        <path d="M394 265 C412 248 432 250 434 266 C435 280 416 284 402 273" fill="none" stroke="url(#wish-rope)" strokeWidth="7.4" strokeLinecap="round" />
-        <path d="M398 269 C390 287 400 300 416 298 C430 296 430 278 412 272" fill="none" stroke="url(#wish-rope)" strokeWidth="7.4" strokeLinecap="round" />
-        <circle cx="400" cy="268" r="6.8" fill="#c89a62" stroke="#a97a42" strokeWidth="1.5" />
-        <path d="M402 274 C398 294 384 320 372 344" fill="none" stroke="#c89a62" strokeWidth="3.2" strokeLinecap="round" />
-        <g transform="translate(360 394) rotate(7) scale(1.26)">
-          <path d="M-36 -48 L36 -44 L38 46 L-34 48 Z" fill="url(#wish-tag)" stroke="#d9b98c" strokeWidth="1.6" strokeLinejoin="round" />
-          <path d="M-36 -48 L36 -44 L38 46 L-34 48 Z" fill="none" stroke="#fff8e6" strokeWidth=".8" opacity=".7" />
-          <circle cx="0" cy="-35" r="3.5" fill="#b98a55" />
-          <path d="M-4 -48 C-2 -55 2 -55 4 -48" fill="none" stroke="#c89a62" strokeWidth="2.5" />
-          <text x="0" y="-6" textAnchor="middle" fontSize="19" fill="#7a5a3a" fontFamily="'KaiTi','Songti SC',serif">我的</text>
-          <text x="0" y="19" textAnchor="middle" fontSize="19" fill="#7a5a3a" fontFamily="'KaiTi','Songti SC',serif">小愿望</text>
-          <g transform="translate(0 35) scale(.38)" fill="#9dbb6a" stroke="#7d9c50" strokeWidth="2">
+        <path d="M114 248 C160 266 300 266 346 248" fill="none" stroke="url(#wish-rope)" strokeWidth="9" strokeLinecap="round" />
+        <path d="M114 248 C160 266 300 266 346 248" fill="none" stroke="#8a5f33" strokeWidth="9" strokeDasharray="2.5 6" opacity=".35" />
+        <path d="M116 244 C162 261 298 261 344 244" fill="none" stroke="#f0d3a0" strokeWidth="2" opacity=".7" />
+        <path d="M346 250 C362 236 380 238 382 252 C383 264 366 268 352 258" fill="none" stroke="url(#wish-rope)" strokeWidth="7" strokeLinecap="round" />
+        <path d="M350 254 C344 270 352 282 366 280 C378 278 378 262 362 256" fill="none" stroke="url(#wish-rope)" strokeWidth="7" strokeLinecap="round" />
+        <circle cx="352" cy="253" r="6.5" fill="#c89a62" stroke="#a97a42" strokeWidth="1.5" />
+        <path d="M356 258 C362 274 366 288 368 302" fill="none" stroke="#c89a62" strokeWidth="3" strokeLinecap="round" />
+        <g transform="translate(374 352) rotate(7) scale(1.12)">
+          <path d="M-34 -46 L34 -42 L36 44 L-32 46 Z" fill="url(#wish-tag)" stroke="#d9b98c" strokeWidth="1.6" strokeLinejoin="round" />
+          <circle cx="0" cy="-34" r="3.4" fill="#b98a55" />
+          <path d="M-4 -46 C-2 -52 2 -52 4 -46" fill="none" stroke="#c89a62" strokeWidth="2.4" />
+          <text x="0" y="-6" textAnchor="middle" fontSize="17" fill="#7a5a3a" fontFamily="'KaiTi','Songti SC',serif">我的</text>
+          <text x="0" y="17" textAnchor="middle" fontSize="17" fill="#7a5a3a" fontFamily="'KaiTi','Songti SC',serif">小愿望</text>
+          <g transform="translate(0 32) scale(.34)" fill="#9dbb6a" stroke="#7d9c50" strokeWidth="2">
             <path d="M0 -2 C-3 -14 -16 -15 -16 -6 C-16 1 -6 3 0 -2 Z" />
             <path d="M0 -2 C3 -14 16 -15 16 -6 C16 1 6 3 0 -2 Z" />
             <path d="M0 -2 C-8 6 -6 16 0 16 C6 16 8 6 0 -2 Z" />
@@ -329,24 +297,24 @@ export function WishJar({
         </g>
       </g>
 
-      {/* completed wishes: warm stars drifting above the mouth */}
+      {/* completed wishes: warm stars rising from the mouth */}
       {starLayout.length > 0 && (
         <g>
-          <path d="M232 186 C244 158 236 146 246 124" fill="none" stroke="#f7cf6f" strokeWidth="2.6" strokeDasharray="1 7" strokeLinecap="round" opacity=".9" />
-          <path d="M258 190 C284 176 302 182 322 176" fill="none" stroke="#f7cf6f" strokeWidth="2.2" strokeDasharray="1 7" strokeLinecap="round" opacity=".72" />
-          <path d="M204 190 C178 178 156 184 136 186" fill="none" stroke="#f7cf6f" strokeWidth="2.2" strokeDasharray="1 7" strokeLinecap="round" opacity=".72" />
+          <path d="M232 176 C242 142 226 112 240 86" fill="none" stroke="#f7cf6f" strokeWidth="2.6" strokeDasharray="1 7" strokeLinecap="round" opacity=".85" />
+          <path d="M252 178 C278 156 292 148 306 140" fill="none" stroke="#f7cf6f" strokeWidth="2.2" strokeDasharray="1 7" strokeLinecap="round" opacity=".7" />
+          <path d="M212 178 C196 158 178 146 166 136" fill="none" stroke="#f7cf6f" strokeWidth="2.2" strokeDasharray="1 7" strokeLinecap="round" opacity=".7" />
           {starLayout.map((star) =>
             star.wish.id === hiddenStarId ? null : (
               <WishStar key={star.wish.id} wishId={star.wish.id} x={star.slot.x} y={star.slot.y} s={star.scale} r={star.rotation} delay={star.delay} />
             ),
           )}
-          <g stroke="#f2c14e" strokeWidth="2.6" strokeLinecap="round" opacity=".92">
-            <path d="M368 118 v15 M360.5 125.5 h15" />
-            <path d="M96 148 v11 M90.5 153.5 h11" />
-            <path d="M286 78 v11 M280.5 83.5 h11" />
+          <g stroke="#f2c14e" strokeWidth="2.4" strokeLinecap="round" opacity=".9">
+            <path d="M368 108 v14 M361 115 h14" />
+            <path d="M104 150 v10 M99 155 h10" />
+            <path d="M282 34 v10 M277 39 h10" />
           </g>
           <g fill="#f7cf6f">
-            <circle cx="352" cy="170" r="2.8" /><circle cx="126" cy="112" r="2.3" /><circle cx="208" cy="72" r="2.6" /><circle cx="390" cy="146" r="2.2" /><circle cx="176" cy="152" r="1.9" />
+            <circle cx="352" cy="170" r="2.6" /><circle cx="128" cy="104" r="2.2" /><circle cx="206" cy="40" r="2.4" /><circle cx="388" cy="140" r="2" />
           </g>
         </g>
       )}
