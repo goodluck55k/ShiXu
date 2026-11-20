@@ -3,11 +3,11 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import type { WishCelebrationSignal } from "@/application/wishTypes";
 import type { WishView } from "./wishView";
+import { PaperBallArt } from "./PaperBallArt";
 import {
   assignBallSlots,
   assignStarSlots,
   type BallLayoutItem,
-  type BallPalette,
   type StarLayoutItem,
 } from "./wishLayout";
 
@@ -21,44 +21,49 @@ function starPoints(radius: number) {
   return pts.join(" ");
 }
 
-/** Tactile crumpled stationery paper ball (纸团) with faceted folds and warm sunlit edges. */
-function PaperBall({ palette }: { palette: BallPalette }) {
-  return (
-    <g>
-      <ellipse cx="0" cy="34" rx="33" ry="8" fill="#8f5d32" opacity=".18" />
-      {/* crumpled paper silhouette */}
-      <path
-        d="M-36 -6 L-31 -23 L-16 -35 L3 -38 L22 -32 L34 -19 L38 -2 L33 17 L21 30 L2 35 L-18 32 L-32 20 L-38 5 Z"
-        fill={palette.base}
-        stroke={palette.line}
-        strokeWidth="1.4"
-        strokeLinejoin="round"
-      />
-      {/* sunlit upper-left paper facets */}
-      <path d="M-31 -23 L-16 -35 L3 -38 L-4 -14 L-22 -9 Z" fill={palette.light} opacity=".88" />
-      <path d="M3 -38 L22 -32 L14 -12 L-4 -14 Z" fill={palette.light} opacity=".62" />
-      <path d="M-36 -6 L-31 -23 L-22 -9 L-14 6 L-32 20 L-38 5 Z" fill={palette.light} opacity=".45" />
-      {/* warm shaded lower-right facets */}
-      <path d="M14 -12 L34 -19 L38 -2 L19 10 L4 2 Z" fill={palette.dark} opacity=".22" />
-      <path d="M4 2 L19 10 L33 17 L21 30 L2 35 L-6 18 Z" fill={palette.dark} opacity=".34" />
-      <path d="M-32 20 L-14 6 L-6 18 L2 35 L-18 32 Z" fill={palette.dark} opacity=".24" />
-      {/* crisp paper fold creases */}
-      <g fill="none" stroke={palette.line} strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" opacity=".52">
-        <path d="M-22 -9 L-4 -14 L14 -12 L27 -24" />
-        <path d="M-4 -14 L4 2 L19 10 L34 14" />
-        <path d="M-22 -9 L-14 6 L-6 18 L2 35" />
-        <path d="M-14 6 L4 2" />
-        <path d="M-16 -35 L-12 -19 M22 -32 L14 -12 M19 10 L21 30" />
-      </g>
-      {/* crisp fold ridge highlights */}
-      <g fill="none" stroke="#fffef8" strokeWidth="1.6" strokeLinecap="round" opacity=".62">
-        <path d="M-24 -22 L-14 -28 L-4 -27" />
-        <path d="M-21 -8 L-5 -12" />
-        <path d="M6 -11 L15 -10" />
-        <path d="M-12 7 L2 3" />
-      </g>
-    </g>
-  );
+interface SettledBall extends BallLayoutItem {
+  x: number;
+  y: number;
+  radius: number;
+  onFloor: boolean;
+  isBackRow: boolean;
+}
+
+function jarFloorY(x: number): number {
+  const norm = Math.min(1, Math.abs(x - 230) / 118);
+  return 514 - norm * norm * 42;
+}
+
+/**
+ * Deterministic gravity-settling for presentation: ensures sparse wishes
+ * rest naturally on the curved jar floor instead of floating in mid-air,
+ * and sorts back-to-front for natural overlap depth.
+ */
+function settleBallsForDisplay(items: readonly BallLayoutItem[]): SettledBall[] {
+  const bottomUp = [...items].sort((a, b) => b.slot.y - a.slot.y || a.slot.x - b.slot.x);
+  const settled: SettledBall[] = [];
+
+  for (const item of bottomUp) {
+    const x = item.slot.x;
+    const radius = 35 * item.scale;
+    const floor = jarFloorY(x);
+    let y = floor;
+
+    for (const lower of settled) {
+      const dx = x - lower.x;
+      const contactDist = (radius + lower.radius) * 0.84;
+      if (Math.abs(dx) < contactDist) {
+        const supportY = lower.y - Math.sqrt(Math.max(0, contactDist * contactDist - dx * dx));
+        y = Math.min(y, supportY);
+      }
+    }
+
+    y = Math.max(368, Math.min(y, floor));
+    const onFloor = Math.abs(y - floor) < 3;
+    settled.push({ ...item, x, y, radius, onFloor, isBackRow: y < 462 });
+  }
+
+  return settled.sort((a, b) => a.y - b.y || a.x - b.x);
 }
 
 function WishStarShape({ delay }: { delay?: number }) {
@@ -121,7 +126,7 @@ const JAR_BODY =
 interface ActiveRise {
   nonce: number;
   wishId: string;
-  from: BallLayoutItem | null;
+  from: SettledBall | null;
   start: { x: number; y: number };
   to: { x: number; y: number; scale: number; rotation: number };
   toVisible: boolean;
@@ -144,14 +149,15 @@ function deriveActiveRise(
     ...pending,
     { ...completedWish, status: "pending", completedAt: null },
   ];
-  const from = assignBallSlots(previousPending).find((item) => item.wish.id === celebration.wishId) ?? null;
+  const settledBefore = settleBallsForDisplay(assignBallSlots(previousPending));
+  const from = settledBefore.find((item) => item.wish.id === celebration.wishId) ?? null;
   const target = starLayout.find((item) => item.wish.id === celebration.wishId) ?? null;
   return {
     nonce: celebration.nonce,
     wishId: celebration.wishId,
     from,
     // A capped-out wish has no visible ball; rise from the mouth instead of borrowing another ball.
-    start: from ? { x: from.slot.x, y: from.slot.y } : { x: 230, y: 208 },
+    start: from ? { x: from.x, y: from.y } : { x: 230, y: 208 },
     to: target
       ? { x: target.slot.x, y: target.slot.y, scale: target.scale, rotation: target.rotation }
       : { x: 238, y: 74, scale: 0.65, rotation: -8 },
@@ -187,7 +193,7 @@ export function WishJar({
   celebration: WishCelebrationSignal | null;
 }) {
   const reducedMotion = useReducedMotion();
-  const ballLayout = assignBallSlots(pending);
+  const ballLayout = settleBallsForDisplay(assignBallSlots(pending));
   const starLayout = assignStarSlots(completed);
   const [finishedNonce, setFinishedNonce] = useState(0);
   const activeRise = deriveActiveRise(celebration, pending, completed, starLayout, reducedMotion, finishedNonce);
@@ -309,15 +315,21 @@ export function WishJar({
 
       {/* interior floor & paper balls */}
       <g clipPath="url(#wish-jar-clip)">
-        <ellipse cx="230" cy="542" rx="146" ry="24" fill="#b4804a" opacity=".16" />
+        <ellipse cx="230" cy="544" rx="146" ry="23" fill="#a8703c" opacity=".18" />
+        <ellipse cx="230" cy="547" rx="116" ry="15" fill="#fff7e2" opacity=".18" />
         {ballLayout.map((ball) => (
           <g
             key={ball.wish.id}
             data-wish-id={ball.wish.id}
             data-wish-kind="ball"
-            transform={`translate(${ball.slot.x} ${ball.slot.y}) rotate(${ball.rotation}) scale(${ball.scale})`}
+            transform={`translate(${ball.x.toFixed(1)} ${ball.y.toFixed(1)}) rotate(${ball.rotation}) scale(${ball.scale.toFixed(3)})`}
           >
-            <PaperBall palette={ball.palette} />
+            <PaperBallArt
+              palette={ball.palette}
+              variant={ball.hash}
+              isBackRow={ball.isBackRow}
+              onFloor={ball.onFloor}
+            />
           </g>
         ))}
         {pending.length === 0 && completed.length === 0 && (
@@ -465,7 +477,12 @@ export function WishJar({
         >
           {activeRise.from && (
             <g className="wish-rise-ball" style={ballStyle}>
-              <PaperBall palette={activeRise.from.palette} />
+              <PaperBallArt
+                palette={activeRise.from.palette}
+                variant={activeRise.from.hash}
+                isBackRow={activeRise.from.isBackRow}
+                onFloor={activeRise.from.onFloor}
+              />
             </g>
           )}
           <g className={activeRise.toVisible ? "wish-rise-star" : "wish-rise-star ephemeral"} style={starStyle}>
