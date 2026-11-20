@@ -1,5 +1,6 @@
 "use client";
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { useApp } from "@/application/AppProvider";
 import { EntryEmotionCorrection } from "@/components/emotion/EntryEmotionCorrection";
 import { useReportReadingProgress } from "@/components/AppSidebar";
@@ -10,16 +11,6 @@ import { formatDateTime } from "@/lib/format";
 const SOURCE_NAMES: Record<EmotionSource, string> = { ai: "AI 建议", manual: "手动选择", corrected: "手动纠正" };
 const LEAVE_CONFIRM = "正文还有未保存的修改，确定要离开吗？离开后这次修改会丢失。";
 const LEAVE_UNLOAD = "正文还有未保存的修改，离开后这次修改会丢失。";
-type FlipDirection = "prev" | "next";
-type FlipState = { direction: FlipDirection; from: Entry; to: Entry; duration: number; settling: boolean };
-const FLIP_SETTLE = 150;
-
-function flipTiming(): { duration: number } | null {
-  if (typeof window === "undefined") return null;
-  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return null;
-  return { duration: window.matchMedia("(max-width: 700px)").matches ? 640 : 780 };
-}
-
 // 未保存草稿：App Router 的浏览器后退/前进是客户端历史导航，不触发 beforeunload，也没有可安全取消的路由守卫。
 // 不劫持 History API（会产生重复历史条目或导航循环），改为把同一标签页内的未保存草稿按条目暂存于内存，
 // 返回回忆页时恢复编辑，避免静默丢失。
@@ -52,16 +43,13 @@ function MemoryDetail({ entry, onDirtyChange }: { entry: Entry; onDirtyChange: (
 </article>;
 }
 
-function PageFace({ entry }: { entry: Entry }) {
-  return <div className="flip-page">
-    <div className="flip-page-head"><time dateTime={new Date(entry.createdAt).toISOString()}>{formatDateTime(entry.createdAt)}</time><span>来源：{SOURCE_NAMES[entry.effectiveEmotion.source]}</span></div>
-    <span className={`mood-pill emotion-${entry.effectiveEmotion.label}`}>{EMOTION_NAMES[entry.effectiveEmotion.label]}</span>
-    <p className="flip-page-text">{entry.text}</p>
-  </div>;
-}
-
 function Sprig({ className = "" }: { className?: string }) {
  return <svg className={className} viewBox="0 0 120 160" aria-hidden="true"><path d="M15 150 Q45 75 102 12 M37 108 Q18 95 20 70 M52 79 Q38 57 42 37 M69 58 Q88 56 99 38" fill="none" stroke="#8c8f48" strokeWidth="2.5"/><g fill="#a6ae65" stroke="#858d47" strokeWidth="1"><path d="M36 105 Q7 100 20 70 Q41 76 36 105Z"/><path d="M52 80 Q27 69 42 37 Q61 48 52 80Z"/><path d="M69 58 Q73 35 99 38 Q92 59 69 58Z"/><path d="M79 43 Q76 20 101 12 Q105 29 79 43Z"/><path d="M28 125 Q43 103 62 110 Q53 130 28 125Z"/></g><g fill="#fff8e6" stroke="#e9d7ad" strokeWidth=".7"><path d="M21 69 C8 64 13 55 21 64 C24 53 32 58 26 67 C36 68 31 77 23 73 C19 82 11 75 17 70Z"/><path d="M42 36 C29 31 34 22 42 31 C45 20 53 25 47 34 C57 35 52 44 44 40 C40 49 32 42 38 37Z"/><path d="M100 37 C87 32 92 23 100 32 C103 21 111 26 105 35 C115 36 110 45 102 41 C98 50 90 43 96 38Z"/></g><g fill="#e9b451"><circle cx="21" cy="69" r="3"/><circle cx="42" cy="36" r="3"/><circle cx="100" cy="37" r="3"/></g></svg>;
+}
+function FlowerCorner() {
+ return <div className="flower-corner" aria-hidden="true">
+   <Sprig/><Sprig/><Sprig/>
+ </div>;
 }
 function NoteClover() {
  return <svg viewBox="0 0 60 70" aria-hidden="true"><path d="M30 43 Q32 59 23 67" fill="none" stroke="#7d8c42" strokeWidth="3"/><g fill="#a9b75d" stroke="#7d8c42" strokeWidth="1.5"><path d="M30 34 C7 31 9 12 21 14 Q29 15 30 24 Q32 13 40 14 C53 13 54 30 30 34Z"/><path d="M30 34 C8 28 6 45 18 49 Q26 51 30 40 Q34 51 42 49 C54 46 52 30 30 34Z"/></g><circle cx="30" cy="34" r="3" fill="#d6d995"/></svg>;
@@ -100,7 +88,9 @@ export function DiaryHistory({ entries }: { entries: Entry[] }) {
  const ordered = useMemo(() => [...entries].sort((a,b) => b.createdAt-a.createdAt), [entries]);
  const [selectedId, setSelectedId] = useState<string | null>(() => lastDraftEntryId && unfinishedDrafts.has(lastDraftEntryId) ? lastDraftEntryId : null);
  const [draftDirty, setDraftDirty] = useState(false);
- const [flip, setFlip] = useState<FlipState | null>(null);
+ const [readingSession, setReadingSession] = useState(0);
+ const [indexOpen, setIndexOpen] = useState(false);
+ const [turning, setTurning] = useState(false);
  const [notice, setNotice] = useState("");
  const selected = ordered.find(entry => entry.id === selectedId) ?? ordered[0] ?? null;
  const selectedIndex = selected ? ordered.findIndex(entry => entry.id === selected.id) : -1;
@@ -108,34 +98,22 @@ export function DiaryHistory({ entries }: { entries: Entry[] }) {
  const total = ordered.length;
  const visibleEntries = selectedIndex >= 0 ? ordered.slice(Math.max(0, selectedIndex - 1), selectedIndex + 2) : [];
  useReportReadingProgress(page, total);
- const lockRef = useRef(false);
- const timersRef = useRef<Array<ReturnType<typeof setTimeout>>>([]);
  const bookRef = useRef<HTMLDivElement>(null);
- const previousIdRef = useRef<string | null>(null);
- const flipRef = useRef<FlipState | null>(null);
- const clearTimers = useCallback(() => { for (const timer of timersRef.current) clearTimeout(timer); timersRef.current = []; }, []);
+ const turnRef = useRef<ViewTransition | null>(null);
  const handleDirtyChange = useCallback((dirty: boolean) => { setDraftDirty(dirty); if (!dirty) setNotice(""); }, []);
- const finishFlipNow = useCallback(() => {
-   const current = flipRef.current;
-   if (!current) return;
-   clearTimers();
-   setSelectedId(current.to.id);
-   setFlip(null);
-   flipRef.current = null;
-   lockRef.current = false;
- }, [clearTimers]);
  useEffect(() => {
-   const onVisibility = () => { if (document.hidden) finishFlipNow(); };
+   const skipTurn = () => turnRef.current?.skipTransition();
+   const onVisibility = () => { if (document.hidden) skipTurn(); };
    document.addEventListener("visibilitychange", onVisibility);
-   window.addEventListener("pagehide", finishFlipNow);
+   window.addEventListener("resize", skipTurn);
    return () => {
      document.removeEventListener("visibilitychange", onVisibility);
-     window.removeEventListener("pagehide", finishFlipNow);
-     clearTimers();
-     flipRef.current = null;
-     lockRef.current = false;
+     window.removeEventListener("resize", skipTurn);
+     skipTurn();
+     turnRef.current = null;
+     document.documentElement.removeAttribute("data-memory-turn");
    };
- }, [clearTimers, finishFlipNow]);
+ }, []);
  // 未保存正文：刷新或关闭页面时走浏览器原生离开提醒（提示文案由浏览器控制）。
  const skipUnloadRef = useRef(false);
  useEffect(() => {
@@ -178,60 +156,57 @@ export function DiaryHistory({ entries }: { entries: Entry[] }) {
   document.addEventListener("click", onClick, true);
   return () => document.removeEventListener("click", onClick, true);
  }, [draftDirty, selected]);
- useEffect(() => {
-   if (!selected) return;
-   if (previousIdRef.current === null) { previousIdRef.current = selected.id; return; }
-   if (previousIdRef.current === selected.id) return;
-   previousIdRef.current = selected.id;
-   if (typeof window === "undefined" || !window.matchMedia("(max-width: 700px)").matches) return;
-   bookRef.current?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
- }, [selected]);
  function navigateTo(index: number) {
-   if (lockRef.current) return;
+   if (turnRef.current) return;
    const target = ordered[index];
    if (!target || !selected || target.id === selected.id) return;
    if (draftDirty) { setNotice("正文还有未保存的修改，请先保存或取消编辑，再翻页。"); return; }
    setNotice("");
-   const timing = flipTiming();
-   if (!timing) { setSelectedId(target.id); return; }
-   lockRef.current = true;
-   const direction: FlipDirection = index > selectedIndex ? "next" : "prev";
-   const nextState: FlipState = { direction, from: selected, to: target, duration: timing.duration, settling: false };
-   flipRef.current = nextState;
-   setFlip(nextState);
-   const swapAt = direction === "prev" ? timing.duration * 0.94 : timing.duration / 2;
-   timersRef.current.push(setTimeout(() => setSelectedId(target.id), swapAt));
-   timersRef.current.push(setTimeout(() => {
-     const settled: FlipState = { ...nextState, settling: true };
-     flipRef.current = settled;
-     setFlip(settled);
-     timersRef.current.push(setTimeout(() => {
-       setFlip(null);
-       flipRef.current = null;
-       lockRef.current = false;
-       timersRef.current = [];
-     }, FLIP_SETTLE));
-   }, timing.duration));
+   const book = bookRef.current;
+   // An open form expands the book. Close the clean form before lifting its page;
+   // an ordinary reading turn keeps the exact DOM and scroll position for capture.
+   const leavingForm = book?.querySelector(".memory-detail textarea, .correction[open]");
+   if (leavingForm) flushSync(() => setReadingSession(session => session + 1));
+   const mobile = window.matchMedia("(max-width: 700px)").matches;
+   if (book && (mobile || leavingForm) && book.getBoundingClientRect().top < 0) {
+     book.scrollIntoView({ block: "start", behavior: "instant" });
+   }
+   if (!document.startViewTransition || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+     setSelectedId(target.id);
+     return;
+   }
+
+   // Capture the real, scrolled paper. Commit the destination once between captures.
+   document.documentElement.setAttribute("data-memory-turn", index > selectedIndex ? "next" : "prev");
+   setTurning(true);
+   const turn = document.startViewTransition(() => {
+     if (turnRef.current === turn) flushSync(() => setSelectedId(target.id));
+   });
+   turnRef.current = turn;
+   void turn.finished.finally(() => {
+     if (turnRef.current !== turn) return;
+     turnRef.current = null;
+     document.documentElement.removeAttribute("data-memory-turn");
+     setTurning(false);
+   });
  }
  const goPrev = () => navigateTo(selectedIndex - 1);
  const goNext = () => navigateTo(selectedIndex + 1);
- return <section aria-label="日记历史" className="scrapbook-wrap" aria-busy={flip !== null}>
-  <div className={`scrapbook${flip ? " is-flipping" : ""}`} ref={bookRef}><div className="book-ribbon" aria-hidden="true"/><div className="scrapbook-pages">
-   <div className="scrap-left"><div className="scrap-title">我的回忆碎片 ♡</div><Sprig className="title-sprig"/>
-    <div className="memory-list-pane"><div className="list-heading"><span>回忆索引 · 当前与相邻</span><span>{total ? `第 ${page} / ${total} 页` : "暂无回忆"}</span></div><ul>{visibleEntries.map((entry, index) => <li key={entry.id}><button type="button" className="memory-list-item" aria-pressed={selected?.id === entry.id} aria-current={selected?.id === entry.id ? "page" : undefined} onClick={() => navigateTo(ordered.findIndex(item => item.id === entry.id))}><span className="memory-item-top"><time dateTime={new Date(entry.createdAt).toISOString()}>{formatDateTime(entry.createdAt)}</time><span className={`mood-pill emotion-${entry.effectiveEmotion.label}`}>{EMOTION_NAMES[entry.effectiveEmotion.label]}</span></span><span className="memory-preview">{entry.text}</span><small>{SOURCE_NAMES[entry.effectiveEmotion.source]}</small></button>{index === 0 && <span className="note-sticker note-penguin" aria-hidden="true"><PenguinFront size={56} expression="happy"/></span>}{index === 1 && <span className="note-sticker note-clover" aria-hidden="true"><NoteClover /></span>}</li>)}</ul></div>
-    <div className="left-bottom"><MonthNotes entries={entries}/><div className="little-note">把每一个<br/>小小的瞬间<br/>轻轻收好 ♡</div><svg className="scrap-clover" viewBox="0 0 60 70" aria-hidden="true"><path d="M30 43 Q32 59 23 67" fill="none" stroke="#7d8c42" strokeWidth="3"/><g fill="#a9b75d" stroke="#7d8c42" strokeWidth="1.5"><path d="M30 34 C7 31 9 12 21 14 Q29 15 30 24 Q32 13 40 14 C53 13 54 30 30 34Z"/><path d="M30 34 C8 28 6 45 18 49 Q26 51 30 40 Q34 51 42 49 C54 46 52 30 30 34Z"/></g><circle cx="30" cy="34" r="3" fill="#d6d995"/></svg></div><Sprig className="bottom-sprig"/>
+ return <section aria-label="日记历史" className="scrapbook-wrap" aria-busy={turning}>
+  <div className="scrapbook" ref={bookRef}><div className="book-ribbon" aria-hidden="true"/><div className="scrapbook-pages">
+   <div className="scrap-left" data-index-open={indexOpen}><div className="scrap-title">我的回忆碎片 ♡</div><Sprig className="title-sprig"/>
+    <div id="memory-index" className="memory-list-pane"><div className="list-heading"><span>回忆索引 · 当前与相邻</span><span>{total ? `第 ${page} / ${total} 页` : "暂无回忆"}</span></div><ul>{visibleEntries.map((entry, index) => <li key={entry.id}><button type="button" className="memory-list-item" aria-pressed={selected?.id === entry.id} aria-current={selected?.id === entry.id ? "page" : undefined} onClick={() => navigateTo(ordered.findIndex(item => item.id === entry.id))}><span className="memory-item-top"><time dateTime={new Date(entry.createdAt).toISOString()}>{formatDateTime(entry.createdAt)}</time><span className={`mood-pill emotion-${entry.effectiveEmotion.label}`}>{EMOTION_NAMES[entry.effectiveEmotion.label]}</span></span><span className="memory-preview">{entry.text}</span><small>{SOURCE_NAMES[entry.effectiveEmotion.source]}</small></button>{index === 0 && <span className="note-sticker note-penguin" aria-hidden="true"><PenguinFront size={56} expression="happy"/></span>}{index === 1 && <span className="note-sticker note-clover" aria-hidden="true"><NoteClover /></span>}</li>)}</ul></div>
+    <div className="left-bottom"><MonthNotes entries={entries}/><div className="little-note">把每一个<br/>小小的瞬间<br/>轻轻收好 ♡</div><svg className="scrap-clover" viewBox="0 0 60 70" aria-hidden="true"><path d="M30 43 Q32 59 23 67" fill="none" stroke="#7d8c42" strokeWidth="3"/><g fill="#a9b75d" stroke="#7d8c42" strokeWidth="1.5"><path d="M30 34 C7 31 9 12 21 14 Q29 15 30 24 Q32 13 40 14 C53 13 54 30 30 34Z"/><path d="M30 34 C8 28 6 45 18 49 Q26 51 30 40 Q34 51 42 49 C54 46 52 30 30 34Z"/></g><circle cx="30" cy="34" r="3" fill="#d6d995"/></svg></div><FlowerCorner/>
    </div>
-   <div className="scrap-right"><div className="mobile-scrap-title">我的回忆碎片 ♡</div><Sprig className="right-sprig"/>{total > 0 && <Pager page={page} total={total} onPrev={goPrev} onNext={goNext} notice={notice} variant="top"/>}
-    <div className="page-leaf" key={selected?.id ?? "empty"} aria-busy={flip !== null} inert={flip ? true : undefined}>{selected ? <MemoryDetail entry={selected} onDirtyChange={handleDirtyChange}/> : <section className="empty-memory"><span aria-hidden="true">✿</span><h2>这里还留着一片空白</h2><p>等你愿意写下的时候，回忆会在这里慢慢生长。</p></section>}</div>
+   <div className="scrap-right"><div className="mobile-book-heading"><div className="mobile-scrap-title">我的回忆碎片 ♡</div>{total > 0 && <Pager page={page} total={total} onPrev={goPrev} onNext={goNext} notice={notice} variant="top"/>}</div>
+    <div className="page-leaf" key={selected?.id ?? "empty"} aria-busy={turning} inert={turning}><Sprig className="right-sprig"/>{selected ? <MemoryDetail key={readingSession} entry={selected} onDirtyChange={handleDirtyChange}/> : <section className="memory-detail empty-memory"><span aria-hidden="true">✿</span><h2>这里还留着一片空白</h2><p>等你愿意写下的时候，回忆会在这里慢慢生长。</p></section>}</div>
     <div className="mobile-stats"><MonthNotes entries={entries}/><div className="little-note">把每一个<br/>小小的瞬间<br/>轻轻收好 ♡</div></div>
-    <ReadingScene/>
-    {total > 0 && <div className="mobile-book-progress" aria-hidden="true"><span>第 {page} / {total} 页</span><span>还有 {total - page} 页待翻阅 ♡</span></div>}
-    {flip && <div className={`flip-stage flip-${flip.direction}${flip.settling ? " is-settling" : ""}`} aria-hidden="true" style={{ "--flip-duration": `${flip.duration}ms` } as CSSProperties}>
-      <div className="flip-leaf" style={{ animationDuration: `${flip.duration}ms` }}>
-        <div className="flip-face flip-front"><PageFace entry={flip.direction === "next" ? flip.from : flip.to}/><span className="flip-edge"/><span className="flip-curl"/></div>
-        <div className="flip-face flip-back"><span className="flip-back-mark">♧</span><span className="flip-edge"/><span className="flip-curl"/></div>
-      </div>
-    </div>}
+    <FlowerCorner/><ReadingScene/>
+    {total > 0 && <button type="button" className="mobile-book-progress" aria-label={`回忆目录，第 ${page} / ${total} 页`} aria-expanded={indexOpen} aria-controls="memory-index" onClick={() => setIndexOpen(!indexOpen)}>
+      <span>第 {page} / {total} 页 {indexOpen ? "⌃" : "⌄"}</span>
+      <span>还有 {total - page} 页待翻阅 ♡</span>
+    </button>}
+
    </div>
   </div></div>{total > 0 && <Pager page={page} total={total} onPrev={goPrev} onNext={goNext} notice={notice} variant="bottom"/>}
  </section>;
