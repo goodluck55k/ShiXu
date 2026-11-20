@@ -3,28 +3,38 @@
 export function NoteCard() {
   return (
     <svg viewBox="0 0 220 230" aria-hidden="true" className="wish-note-svg">
+      <defs>
+        <linearGradient id="wish-note-shade" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#fffaf0" />
+          <stop offset=".6" stopColor="#f9ebd0" />
+          <stop offset="1" stopColor="#efd8b2" />
+        </linearGradient>
+        <linearGradient id="wish-note-tape" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="#ead6a8" />
+          <stop offset=".5" stopColor="#f3e2bb" />
+          <stop offset="1" stopColor="#e5cf9e" />
+        </linearGradient>
+      </defs>
       <g transform="rotate(-3 110 115)">
-        <path d="M14 26 L206 20 L212 208 L18 216 Z" fill="#fbeed2" stroke="#e8d3ac" strokeWidth="1.6" />
-        <path d="M14 26 L206 20 L212 208 L18 216 Z" fill="url(#wish-note-shade)" opacity=".5" />
-        <defs>
-          <linearGradient id="wish-note-shade" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#fff8e6" /><stop offset="1" stopColor="#f0dcb4" />
-          </linearGradient>
-        </defs>
-        <path d="M20 202 Q112 208 205 197 L212 208 L18 216 Z" fill="#d5b88b" opacity=".16" />
-        <path d="M185 207 Q200 202 208 191 L212 208 Z" fill="#fff9e8" opacity=".7" />
-        <g stroke="#c4a77c" strokeWidth=".7" opacity=".16"><path d="M27 43 Q91 40 154 38 M30 183 Q102 180 179 176 M34 192 Q110 188 182 185" /></g>
-        <rect x="86" y="8" width="52" height="18" rx="2" fill="#e9d9a8" opacity=".9" transform="rotate(2 112 17)" />
-        <g fill="#8a6a48" fontFamily="'KaiTi','Songti SC',serif" fontSize="17">
-          <text x="34" y="66">一个一个小愿望，</text>
-          <text x="40" y="98">像一颗颗种子，</text>
-          <text x="36" y="130">在日常的时光里</text>
-          <text x="40" y="162">慢慢发芽。♡</text>
+        {/* soft drop shadow */}
+        <path d="M16 30 L208 24 L214 212 L20 220 Z" fill="#8b5a34" opacity=".16" />
+        {/* paper body */}
+        <path d="M14 26 L206 20 L212 208 L18 216 Z" fill="url(#wish-note-shade)" stroke="#e4cca3" strokeWidth="1.5" strokeLinejoin="round" />
+        {/* subtle paper fold & lifted corner */}
+        <path d="M20 202 Q112 208 205 197 L212 208 L18 216 Z" fill="#d3b282" opacity=".16" />
+        <path d="M184 208 Q200 202 209 190 L212 208 Z" fill="#fffaf0" opacity=".8" />
+        {/* masking tape */}
+        <path d="M84 10 L138 7 L140 25 L86 27 Z" fill="url(#wish-note-tape)" opacity=".92" stroke="#d5bc8a" strokeWidth=".8" />
+        <g fill="#7d5c3c" fontFamily="'KaiTi','STKaiti','Songti SC',serif" fontSize="17.5" letterSpacing="0.03em">
+          <text x="34" y="66">一个个小愿望，</text>
+          <text x="40" y="99">像一颗颗种子，</text>
+          <text x="36" y="132">在日常的时光里</text>
+          <text x="40" y="165">慢慢发芽。♡</text>
         </g>
-        <g transform="translate(168 178) scale(.8)" fill="#a8c47a" stroke="#7d9c50" strokeWidth="1.6">
+        <g transform="translate(170 176) scale(.86)" fill="#a5c26b" stroke="#749445" strokeWidth="1.5">
           <path d="M0 20 C-2 6 -14 -2 -22 2 C-18 14 -8 20 0 20 Z" />
           <path d="M0 20 C2 6 14 -2 22 2 C18 14 8 20 0 20 Z" />
-          <path d="M0 20 V30" fill="none" />
+          <path d="M0 20 V30" fill="none" strokeLinecap="round" />
         </g>
       </g>
     </svg>
@@ -33,78 +43,146 @@ export function NoteCard() {
 
 export function StandingBooks() {
   return (
-    <svg viewBox="0 0 130 170" aria-hidden="true">
-      <g stroke="#8f5c30" strokeWidth="2" strokeLinejoin="round">
-        <rect x="8" y="30" width="26" height="132" rx="3" fill="#9dbb6a" />
-        <rect x="38" y="14" width="30" height="148" rx="3" fill="#f3e3bd" />
-        <rect x="72" y="40" width="24" height="122" rx="3" fill="#e0a35c" transform="rotate(6 84 101)" />
+    <svg viewBox="0 0 160 185" aria-hidden="true">
+      {/* table shadow */}
+      <ellipse cx="78" cy="175" rx="70" ry="8" fill="#7a4c28" opacity=".22" />
+      {/* standing books on far left */}
+      <g stroke="#8a5a30" strokeWidth="2" strokeLinejoin="round">
+        <rect x="8" y="34" width="26" height="136" rx="3.5" fill="#9fb96a" />
+        <rect x="38" y="16" width="30" height="154" rx="3.5" fill="#f3e2bc" />
+        <rect x="70" y="50" width="22" height="120" rx="3.5" fill="#d9a562" transform="rotate(4 81 110)" />
       </g>
-      <g stroke="#fff8e6" strokeWidth="2" opacity=".8">
-        <path d="M14 48 H28 M14 130 H28" /><path d="M44 34 H62 M44 140 H62" />
+      <g stroke="#fff9eb" strokeWidth="2" opacity=".75">
+        <path d="M14 52 H28 M14 138 H28" />
+        <path d="M44 36 H62 M44 146 H62" />
       </g>
-      <path d="M48 60 h12 v34 h-12 Z" fill="#c9a25e" opacity=".6" />
-      <ellipse cx="65" cy="164" rx="60" ry="6" fill="#8f5c30" opacity=".2" />
+      <rect x="47" y="64" width="12" height="34" rx="1.5" fill="#c79d58" opacity=".55" />
+      {/* small stacked cream wooden blocks beside the books */}
+      <g stroke="#a37243" strokeWidth="1.6" strokeLinejoin="round">
+        <rect x="100" y="132" width="44" height="38" rx="4" fill="#f0d8a8" />
+        <rect x="104" y="100" width="36" height="32" rx="4" fill="#f7e6c0" />
+      </g>
+      <line x1="106" y1="106" x2="134" y2="106" stroke="#fffaf0" strokeWidth="2" opacity=".7" strokeLinecap="round" />
+      <line x1="106" y1="138" x2="138" y2="138" stroke="#fffaf0" strokeWidth="2" opacity=".6" strokeLinecap="round" />
+      {/* tiny daisy peeking on far left */}
+      <g transform="translate(22 146) scale(.75)">
+        <path d="M0 24 Q2 10 0 0" stroke="#759445" strokeWidth="2.4" fill="none" />
+        <g fill="#fffef8" stroke="#e4d0a6" strokeWidth="1">
+          {[0, 60, 120, 180, 240, 300].map((a) => (
+            <ellipse key={a} cx="0" cy="-7" rx="3.6" ry="6.5" transform={`rotate(${a})`} />
+          ))}
+        </g>
+        <circle r="3.8" fill="#ebb44d" />
+      </g>
     </svg>
   );
 }
 
 export function LyingBooks() {
   return (
-    <svg viewBox="0 0 190 100" aria-hidden="true">
-      <ellipse cx="95" cy="92" rx="88" ry="7" fill="#8f5c30" opacity=".22" />
-      <g stroke="#8f5c30" strokeWidth="2" strokeLinejoin="round">
-        <rect x="14" y="58" width="164" height="30" rx="5" fill="#e2b25c" />
-        <rect x="24" y="30" width="150" height="28" rx="5" fill="#9dbb6a" transform="rotate(-2 99 44)" />
+    <svg viewBox="0 0 210 112" aria-hidden="true">
+      <defs>
+        <linearGradient id="wish-book-sage" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#b9ce82" />
+          <stop offset="1" stopColor="#8fa75a" />
+        </linearGradient>
+        <linearGradient id="wish-book-terra" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#e19c6b" />
+          <stop offset="1" stopColor="#c5794d" />
+        </linearGradient>
+      </defs>
+      {/* warm contact shadow */}
+      <ellipse cx="105" cy="100" rx="94" ry="9" fill="#734724" opacity=".24" />
+      {/* bottom terracotta book */}
+      <g stroke="#8a552e" strokeWidth="2" strokeLinejoin="round">
+        <path d="M16 64 Q16 58 24 58 H186 Q194 58 194 64 V88 Q194 94 186 94 H24 Q16 94 16 88 Z" fill="url(#wish-book-terra)" />
+        <path d="M26 65 H188 V86 H26 Q22 76 26 65 Z" fill="#fdf3dc" stroke="#c89e6b" strokeWidth="1.4" />
       </g>
-      <rect x="20" y="64" width="152" height="6" fill="#fff3d6" opacity=".85" />
-      <rect x="32" y="36" width="134" height="5" fill="#fff3d6" opacity=".85" transform="rotate(-2 99 44)" />
-      <path d="M150 58 v30" stroke="#b0763f" strokeWidth="3" />
-      <path d="M40 30 l10 -12 l10 12" fill="#d98a5f" stroke="#8f5c30" strokeWidth="1.6" transform="rotate(-2 99 44)" />
+      <path d="M32 72 H182 M32 79 H182" stroke="#e2cca8" strokeWidth="1.1" />
+      {/* top sage green book */}
+      <g transform="rotate(-1.8 106 44)">
+        <g stroke="#7b5530" strokeWidth="2" strokeLinejoin="round">
+          <path d="M24 34 Q24 28 32 28 H184 Q192 28 192 34 V54 Q192 60 184 60 H32 Q24 60 24 54 Z" fill="url(#wish-book-sage)" />
+          <path d="M34 35 H186 V53 H34 Q30 44 34 35 Z" fill="#fff7e3" stroke="#b9ad7d" strokeWidth="1.4" />
+        </g>
+        <path d="M40 42 H180 M40 48 H180" stroke="#e4d6b5" strokeWidth="1" />
+        {/* ribbon bookmark */}
+        <path d="M52 54 V70 L58 65 L64 70 V54 Z" fill="#e08f6c" stroke="#99563a" strokeWidth="1.2" strokeLinejoin="round" />
+      </g>
     </svg>
   );
 }
 
 export function TeaCup() {
   return (
-    <svg viewBox="0 0 150 170" aria-hidden="true">
-      <g className="wish-steam" fill="none" stroke="#d8c6ae" strokeWidth="3" strokeLinecap="round" opacity=".7">
-        <path d="M62 44 C56 34 68 28 62 16" />
-        <path d="M82 48 C76 36 88 30 82 18" />
+    <svg viewBox="0 0 160 175" aria-hidden="true">
+      <defs>
+        <linearGradient id="wish-mug-body" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="#fffaf0" />
+          <stop offset=".6" stopColor="#faecd6" />
+          <stop offset="1" stopColor="#edd6b5" />
+        </linearGradient>
+        <linearGradient id="wish-coaster" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#dfa86b" />
+          <stop offset="1" stopColor="#bd7f47" />
+        </linearGradient>
+      </defs>
+      {/* gentle steam */}
+      <g className="wish-steam" fill="none" stroke="#fff3de" strokeWidth="2.8" strokeLinecap="round" opacity=".75">
+        <path d="M64 46 C58 34 72 26 64 14" />
+        <path d="M84 50 C78 36 92 28 84 16" />
       </g>
-      <ellipse cx="75" cy="150" rx="56" ry="12" fill="#c98d5a" stroke="#a96f3f" strokeWidth="2" />
-      <ellipse cx="75" cy="146" rx="56" ry="12" fill="#d9a468" stroke="#a96f3f" strokeWidth="2" />
-      <path d="M40 70 C38 108 46 132 75 134 C104 132 112 108 110 70 Z" fill="#fdf6ea" stroke="#d9c3a4" strokeWidth="2.4" />
-      <path d="M110 78 C128 76 134 92 124 104 C118 111 110 110 106 104" fill="none" stroke="#d9c3a4" strokeWidth="6" />
-      <ellipse cx="75" cy="70" rx="35" ry="9" fill="#f3e6d0" stroke="#d9c3a4" strokeWidth="2.4" />
-      <ellipse cx="75" cy="70" rx="27" ry="6" fill="#e0b26a" opacity=".8" />
-      <g transform="translate(75 104) scale(.5)" fill="#9dbb6a" stroke="#7d9c50" strokeWidth="2.4">
-        <path d="M0 -2 C-3 -16 -18 -17 -18 -6 C-18 2 -7 4 0 -2 Z" />
-        <path d="M0 -2 C3 -16 18 -17 18 -6 C18 2 7 4 0 -2 Z" />
-        <path d="M0 -2 C-9 7 -7 19 0 19 C7 19 9 7 0 -2 Z" />
-        <path d="M0 16 v10" fill="none" />
+      {/* table shadow & wooden coaster */}
+      <ellipse cx="78" cy="156" rx="60" ry="13" fill="#744825" opacity=".24" />
+      <ellipse cx="78" cy="150" rx="56" ry="12" fill="#a86e3b" stroke="#8a552a" strokeWidth="1.8" />
+      <ellipse cx="78" cy="145" rx="56" ry="12" fill="url(#wish-coaster)" stroke="#9a6234" strokeWidth="1.8" />
+      <ellipse cx="78" cy="144" rx="44" ry="8.5" fill="none" stroke="#f0c892" strokeWidth="1.2" opacity=".55" />
+      {/* mug handle */}
+      <path d="M112 78 C132 76 138 94 126 108 C120 115 111 114 106 108" fill="none" stroke="#e4cba8" strokeWidth="7" strokeLinecap="round" />
+      <path d="M113 80 C130 79 134 94 124 105" fill="none" stroke="#fff9ee" strokeWidth="2.4" strokeLinecap="round" opacity=".8" />
+      {/* mug body */}
+      <path d="M40 70 C38 112 46 138 76 140 C106 138 114 112 112 70 Z" fill="url(#wish-mug-body)" stroke="#d5bc99" strokeWidth="2.2" />
+      {/* tea surface & rim */}
+      <ellipse cx="76" cy="70" rx="36" ry="9.5" fill="#f7ebda" stroke="#d5bc99" strokeWidth="2.2" />
+      <ellipse cx="76" cy="70.5" rx="28" ry="6.2" fill="#d49c54" opacity=".88" />
+      <path d="M56 70 A24 5 0 0 1 94 69" fill="none" stroke="#f2cf94" strokeWidth="1.6" opacity=".8" />
+      {/* four-leaf clover emblem */}
+      <g transform="translate(76 106) scale(.46)" fill="#96b863" stroke="#6f8f42" strokeWidth="2">
+        <path d="M0 -2 C-12 -4 -17 -18 -6 -18 C2 -18 4 -7 -2 0 Z" transform="rotate(-12)" />
+        <path d="M0 -2 C12 -4 17 -18 6 -18 C-2 -18 -4 -7 2 0 Z" transform="rotate(12)" />
+        <path d="M0 2 C-12 4 -17 18 -6 18 C2 18 4 7 -2 0 Z" transform="rotate(12)" />
+        <path d="M0 2 C12 4 17 18 6 18 C-2 18 -4 7 2 0 Z" transform="rotate(-12)" />
+        <path d="M0 14 Q2 24 6 29" fill="none" strokeLinecap="round" />
       </g>
-      <path d="M48 84 C46 104 50 120 60 126" fill="none" stroke="#ffffff" strokeWidth="4" strokeLinecap="round" opacity=".8" />
+      {/* ceramic highlight */}
+      <path d="M48 84 C46 106 50 122 60 128" fill="none" stroke="#ffffff" strokeWidth="4.2" strokeLinecap="round" opacity=".85" />
     </svg>
   );
 }
 
 export function Daisies() {
   return (
-    <svg viewBox="0 0 130 100" aria-hidden="true">
-      <g fill="none" stroke="#7d9c50" strokeWidth="2.4">
-        <path d="M30 96 C36 70 44 56 52 40" /><path d="M70 96 C70 72 76 58 84 44" /><path d="M96 96 C98 78 104 66 112 56" />
+    <svg viewBox="0 0 135 104" aria-hidden="true">
+      <ellipse cx="68" cy="96" rx="48" ry="6" fill="#7c4e2a" opacity=".16" />
+      <g fill="none" stroke="#759445" strokeWidth="2.4" strokeLinecap="round">
+        <path d="M28 95 C34 70 42 56 50 40" />
+        <path d="M68 95 C68 72 74 58 84 42" />
+        <path d="M96 95 C98 78 104 66 114 54" />
       </g>
-      <g fill="#a8c47a" stroke="#7d9c50" strokeWidth="1.4">
-        <path d="M40 74 Q24 68 26 52 Q42 58 40 74 Z" />
-        <path d="M74 78 Q90 72 88 56 Q72 62 74 78 Z" />
+      <g fill="#a5c36d" stroke="#759445" strokeWidth="1.4">
+        <path d="M38 74 Q22 68 24 52 Q40 58 38 74 Z" />
+        <path d="M72 78 Q88 72 86 56 Q70 62 72 78 Z" />
         <path d="M100 82 Q86 78 88 64 Q102 68 100 82 Z" />
       </g>
-      {[[52, 34], [86, 38], [114, 50]].map(([x, y], i) => (
+      {[[50, 34], [86, 36], [116, 48]].map(([x, y], i) => (
         <g key={i} transform={`translate(${x} ${y})`}>
-          <g fill="#fffdf4" stroke="#e5d3ae" strokeWidth="1">
-            {[0, 60, 120, 180, 240, 300].map((a) => <ellipse key={a} cx="0" cy="-8" rx="4" ry="7.5" transform={`rotate(${a})`} />)}
+          <g fill="#fffef7" stroke="#e4d0a6" strokeWidth="1">
+            {[0, 60, 120, 180, 240, 300].map((a) => (
+              <ellipse key={a} cx="0" cy="-8" rx="4.2" ry="7.6" transform={`rotate(${a})`} />
+            ))}
           </g>
-          <circle r="4.4" fill="#e9b451" />
+          <circle r="4.6" fill="#ebb44d" />
+          <circle cx="-1.2" cy="-1.2" r="1.4" fill="#fde39c" />
         </g>
       ))}
     </svg>
@@ -113,24 +191,35 @@ export function Daisies() {
 
 export function CornerLeaves() {
   return (
-    <svg viewBox="0 0 200 150" aria-hidden="true" className="wish-corner-leaves">
-      <g fill="none" stroke="#7d9c50" strokeWidth="3.4">
-        <path d="M200 6 C150 26 110 40 60 78" />
-        <path d="M200 40 C168 56 140 74 112 110" />
-        <path d="M160 22 C150 44 146 60 148 84" />
+    <svg viewBox="0 0 260 185" aria-hidden="true" className="wish-corner-leaves">
+      {/* stems sweeping from top-right */}
+      <g fill="none" stroke="#7a9947" strokeWidth="3" strokeLinecap="round">
+        <path d="M262 6 C210 24 156 44 96 86" />
+        <path d="M262 34 C216 56 176 80 138 122" />
+        <path d="M196 30 C180 54 168 78 164 108" />
+        <path d="M238 16 C230 48 228 82 232 118" />
       </g>
-      <g fill="#a8c47a" stroke="#7d9c50" strokeWidth="1.6">
-        <path d="M132 30 Q112 18 100 34 Q116 48 132 30 Z" />
-        <path d="M96 52 Q74 42 64 60 Q82 72 96 52 Z" />
-        <path d="M66 74 Q46 68 38 86 Q58 96 66 74 Z" />
-        <path d="M150 60 Q130 54 124 72 Q144 82 150 60 Z" />
-        <path d="M126 92 Q106 90 102 108 Q122 116 126 92 Z" />
-        <path d="M148 84 Q140 104 156 114 Q168 98 148 84 Z" />
+      {/* back sunlit yellow-green leaves */}
+      <g fill="#d5e58f" stroke="#97b55f" strokeWidth="1.2">
+        <path d="M188 18 Q170 2 152 12 Q166 30 188 18 Z" />
+        <path d="M142 42 Q126 24 108 34 Q122 52 142 42 Z" />
+        <path d="M214 50 Q198 34 180 44 Q194 64 214 50 Z" />
+        <path d="M234 94 Q212 90 206 110 Q228 118 234 94 Z" />
+        <path d="M106 80 Q82 72 72 92 Q96 102 106 80 Z" />
       </g>
-      <g fill="#c3d996" stroke="#8ba763" strokeWidth="1.4">
-        <path d="M170 14 Q158 0 142 8 Q154 24 170 14 Z" />
-        <path d="M112 40 Q104 24 88 28 Q96 46 112 40 Z" />
-        <path d="M176 48 Q168 34 152 40 Q162 56 176 48 Z" />
+      {/* front rich olive-sage leaves */}
+      <g fill="#a4c268" stroke="#709040" strokeWidth="1.5">
+        <path d="M162 34 Q138 22 126 40 Q144 54 162 34 Z" />
+        <path d="M124 58 Q98 48 88 68 Q108 82 124 58 Z" />
+        <path d="M174 68 Q152 62 144 82 Q166 94 174 68 Z" />
+        <path d="M148 102 Q126 98 122 120 Q144 128 148 102 Z" />
+        <path d="M166 98 Q158 122 178 134 Q190 112 166 98 Z" />
+        <path d="M220 34 Q208 58 224 72 Q242 54 220 34 Z" />
+        <path d="M244 64 Q236 90 252 104 Q266 84 244 64 Z" />
+      </g>
+      {/* soft leaf veins */}
+      <g fill="none" stroke="#5b7832" strokeWidth="1" opacity=".42">
+        <path d="M160 35 Q144 36 130 40 M122 59 Q106 62 92 67 M172 69 Q158 74 147 81 M147 104 Q134 111 124 118" />
       </g>
     </svg>
   );
@@ -139,8 +228,8 @@ export function CornerLeaves() {
 export function BoardSprig() {
   return (
     <svg viewBox="0 0 90 70" aria-hidden="true">
-      <path d="M10 64 C34 48 56 34 80 12" fill="none" stroke="#7d9c50" strokeWidth="2.4" />
-      <g fill="#a8c47a" stroke="#7d9c50" strokeWidth="1.4">
+      <path d="M10 64 C34 48 56 34 80 12" fill="none" stroke="#769646" strokeWidth="2.3" strokeLinecap="round" />
+      <g fill="#a6c36c" stroke="#769646" strokeWidth="1.4">
         <path d="M34 48 Q18 44 20 28 Q36 34 34 48 Z" />
         <path d="M52 36 Q40 24 50 10 Q64 20 52 36 Z" />
         <path d="M68 24 Q70 6 86 8 Q82 24 68 24 Z" />
@@ -154,10 +243,10 @@ export function PencilMark() {
   return (
     <svg viewBox="0 0 34 34" aria-hidden="true" className="wish-pencil">
       <g transform="rotate(45 17 17)">
-        <rect x="13" y="4" width="8" height="20" rx="1.5" fill="#e9b451" stroke="#b0763f" strokeWidth="1.4" />
-        <rect x="13" y="4" width="8" height="4" fill="#e2938d" stroke="#b0763f" strokeWidth="1.4" />
-        <path d="M13 24 L17 31 L21 24 Z" fill="#f7e3bd" stroke="#b0763f" strokeWidth="1.4" />
-        <path d="M15.6 28.6 L17 31 L18.4 28.6 Z" fill="#6b4a2f" />
+        <rect x="13" y="4" width="8" height="20" rx="1.5" fill="#ebb44d" stroke="#a66c35" strokeWidth="1.4" />
+        <rect x="13" y="4" width="8" height="4.2" fill="#e2938d" stroke="#a66c35" strokeWidth="1.4" />
+        <path d="M13 24 L17 31 L21 24 Z" fill="#f7e3bd" stroke="#a66c35" strokeWidth="1.4" />
+        <path d="M15.6 28.6 L17 31 L18.4 28.6 Z" fill="#5e3e24" />
       </g>
     </svg>
   );

@@ -9,11 +9,11 @@ export interface BallPalette {
 }
 
 export const BALL_PALETTES = {
-  pink: { base: "#f2bdb6", light: "#fae0db", dark: "#dd8f86", line: "#c97c74" },
-  green: { base: "#c8dc9e", light: "#e7f1cd", dark: "#99b871", line: "#82a058" },
-  cream: { base: "#f7ebcf", light: "#fdf8e9", dark: "#e0c99f", line: "#c9ad7f" },
-  peach: { base: "#f6d9b4", light: "#fdeed8", dark: "#e5b988", line: "#cba06c" },
-  yellow: { base: "#f6df9f", light: "#fcf0cd", dark: "#e6c47e", line: "#cfa961" },
+  pink: { base: "#f4bbb2", light: "#fde4df", dark: "#db8b80", line: "#c8776c" },
+  green: { base: "#cadf9e", light: "#ebf5d3", dark: "#9bb96f", line: "#82a156" },
+  cream: { base: "#f9edd0", light: "#fffaf0", dark: "#e2ca9e", line: "#c7ab7c" },
+  peach: { base: "#f8d8b2", light: "#fff0da", dark: "#e5b682", line: "#c89a64" },
+  yellow: { base: "#f8e2a0", light: "#fef4d3", dark: "#e5c176", line: "#caa45a" },
 } satisfies Record<string, BallPalette>;
 
 const PALETTE_NAMES = Object.keys(BALL_PALETTES) as Array<keyof typeof BALL_PALETTES>;
@@ -25,25 +25,25 @@ interface SlotBase {
   r: number;
 }
 
-// Fixed composition slots from the approved visual round. Which wish occupies
+// Fixed composition slots aligned to the jar belly and mouth. Which wish occupies
 // which slot is derived from the wish id, so refreshes do not reshuffle the jar.
 export const BALL_SLOTS: readonly SlotBase[] = [
-  { x: 150, y: 488, s: 1.22, r: -8 },
-  { x: 238, y: 512, s: 1.28, r: 6 },
-  { x: 316, y: 484, s: 1.16, r: -14 },
-  { x: 180, y: 420, s: 1.1, r: 12 },
-  { x: 272, y: 428, s: 1.12, r: -5 },
-  { x: 340, y: 428, s: 0.95, r: 18 },
-  { x: 128, y: 430, s: 0.88, r: 20 },
-  { x: 226, y: 368, s: 0.95, r: -10 },
+  { x: 158, y: 498, s: 1.18, r: -10 },
+  { x: 232, y: 512, s: 1.24, r: 8 },
+  { x: 304, y: 494, s: 1.16, r: -14 },
+  { x: 190, y: 444, s: 1.12, r: 12 },
+  { x: 268, y: 448, s: 1.14, r: -6 },
+  { x: 322, y: 442, s: 0.98, r: 18 },
+  { x: 140, y: 446, s: 0.94, r: 22 },
+  { x: 230, y: 394, s: 1.0, r: -8 },
 ];
 
 export const STAR_SLOTS: readonly SlotBase[] = [
-  { x: 240, y: 58, s: 1.0, r: -12 },
-  { x: 156, y: 116, s: 0.72, r: 14 },
-  { x: 314, y: 122, s: 0.8, r: -20 },
-  { x: 116, y: 50, s: 0.5, r: 8 },
-  { x: 338, y: 42, s: 0.55, r: -6 },
+  { x: 236, y: 74, s: 1.16, r: -10 },
+  { x: 174, y: 126, s: 0.88, r: 14 },
+  { x: 300, y: 122, s: 0.94, r: -18 },
+  { x: 158, y: 68, s: 0.78, r: 8 },
+  { x: 314, y: 66, s: 0.82, r: -8 },
 ];
 
 export interface BallLayoutItem {

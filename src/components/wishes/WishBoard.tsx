@@ -83,7 +83,19 @@ export function WishBoard({
   return (
     <section className="wish-board" aria-label="愿望面板">
       <span className="wish-board-clip" aria-hidden="true">
-        <svg viewBox="0 0 44 52"><path d="M14 10c0-5 4-8 8-8s8 3 8 8v6h6c2 0 4 2 4 4v26c0 2-2 4-4 4H8c-2 0-4-2-4-4V20c0-2 2-4 4-4h6Z" fill="#c98d5a" stroke="#8f5c30" strokeWidth="2" /><circle cx="22" cy="10" r="4" fill="#f6e3c2" stroke="#8f5c30" strokeWidth="2" /><rect x="10" y="24" width="24" height="5" rx="2.5" fill="#e8b87b" /></svg>
+        <svg viewBox="0 0 56 54">
+          <defs>
+            <linearGradient id="wish-clip-metal" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stopColor="#e2aa73" />
+              <stop offset=".55" stopColor="#c7874f" />
+              <stop offset="1" stopColor="#a36434" />
+            </linearGradient>
+          </defs>
+          <path d="M18 11c0-6 4.5-9.5 10-9.5s10 3.5 10 9.5v5.5h8.5c2.8 0 5 2.2 5 5V44c0 2.8-2.2 5-5 5H9.5c-2.8 0-5-2.2-5-5V21.5c0-2.8 2.2-5 5-5H18Z" fill="url(#wish-clip-metal)" stroke="#844e26" strokeWidth="2" strokeLinejoin="round" />
+          <circle cx="28" cy="10.5" r="4.2" fill="#fbf0dc" stroke="#844e26" strokeWidth="1.8" />
+          <rect x="11" y="25" width="34" height="5.5" rx="2.75" fill="#f3c894" opacity=".88" />
+          <path d="M11 21h34" stroke="#f8dcb2" strokeWidth="1.6" strokeLinecap="round" opacity=".65" />
+        </svg>
       </span>
       <div className="wish-board-paper">
         <div className="wish-tabs" role="tablist" aria-label="愿望状态">
