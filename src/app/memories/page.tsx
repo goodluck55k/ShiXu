@@ -9,6 +9,16 @@ function CornerBranch() {
     <path d="M120 50C120 34 130 21 147 15" fill="none" stroke="#8b984e" strokeWidth="1.7" strokeLinecap="round"/>
     <path d="M96 72C86 58 86 42 96 28" fill="none" stroke="#8b984e" strokeWidth="1.7" strokeLinecap="round"/>
     <path d="M74 90C60 84 50 72 48 57" fill="none" stroke="#8b984e" strokeWidth="1.5" strokeLinecap="round"/>
+    <path d="M208 10Q184 34 176 55T151 93 M182 42Q200 41 215 32" fill="none" stroke="#9b8853" strokeWidth="2" strokeLinecap="round"/>
+    <g fill="#b9b96c" stroke="#929853" strokeWidth=".9">
+      <path d="M190 29Q185 10 199 4Q207 17 190 29Z"/>
+      <path d="M184 39Q196 25 211 29Q206 43 184 39Z"/>
+      <path d="M176 55Q162 47 164 32Q178 35 176 55Z"/>
+      <path d="M171 66Q185 50 200 55Q192 71 171 66Z"/>
+      <path d="M161 82Q145 74 150 60Q163 66 161 82Z"/>
+      <path d="M156 88Q169 79 180 85Q170 97 156 88Z"/>
+      <path d="M152 92Q152 107 139 116Q135 101 152 92Z"/>
+    </g>
     <g fill="#9fae5e" stroke="#7f8d45" strokeWidth="1" strokeLinejoin="round">
       <path d="M176 24C189 13 207 13 219 22 208 34 189 35 176 24Z"/>
       <path d="M150 32C143 18 150 5 164 0 170 14 164 27 150 32Z"/>
